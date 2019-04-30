@@ -52,17 +52,17 @@ class TaskletBuilder:
         raise ValueError('Builtin type not supported')
 
     def visit_unary_operator(self, expr):
-        return expr.op + " " + self.visit_expr(expr.operand)
+        return expr.op + " (" + self.visit_expr(expr.operand) + ")"
 
     def visit_binary_operator(self, expr):
-        return self.visit_expr(expr.left) + " " + expr.op + " " + self.visit_expr(expr.right)
+        return "(" + self.visit_expr(expr.left) + ") " + expr.op + " (" + self.visit_expr(expr.right) + ")"
 
     def visit_assignment_expr(self, expr):
-        return self.visit_expr(expr.left) + " " + expr.op + " " + self.visit_expr(expr.right)
+        return self.visit_expr(expr.left) + " " + expr.op + " (" + self.visit_expr(expr.right) + ")"
 
     def visit_ternary_operator(self, expr):
-        return "(" + self.visit_expr(expr.cond) + " ? " + self.visit_expr(expr.left) + " : " + self.visit_expr(
-            expr.right) + ")"
+        return "( (" + self.visit_expr(expr.cond) + ") ? " + "(" + self.visit_expr(
+            expr.left) + ") : (" + self.visit_expr(expr.right) + ") )"
 
     @staticmethod
     def visit_var_access_expr(expr):
