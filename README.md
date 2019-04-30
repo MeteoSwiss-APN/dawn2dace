@@ -17,7 +17,7 @@ pip install --upgrade ./prefix/protobuf/python
 ### Using the parser:
 
 ```
-export PYTHONPATH=./gen/iir_specification
+export PYTHONPATH=`pwd`/gen/iir_specification
 cd ../parser
 ../build/my_venv/bin/python dawn2dace.py test.iir
 ```
