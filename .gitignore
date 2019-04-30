@@ -1,3 +1,8 @@
 build/*
 integration_tests/bin/*
+**/.dacecache/**
+**/_dotgraphs/**
+
+.gitignore
+
 .idea*
