@@ -1,4 +1,4 @@
-include tw_config.mk
+include config.mk
 
 all: copy_stencil inout offsets vertical_spec local_variable local_internal vertical_offsets
 
@@ -23,6 +23,8 @@ local_internal: local_internal_benchmark.cpp generated/local_internal_dace_gen.c
 vertical_offsets: vertical-offsets_benchmark.cpp generated/vertical-offsets_dace_gen.cpp generated/vertical-offsets_gtclang_gen.cpp
 	$(COMPILER) $(GRIDTOOLS) $(GTCLANG) $(BOOST) $(DAPP) vertical-offsets_benchmark.cpp -o bin/vertical_offsets_stencil
 
+brackets: brackets_benchmark.cpp generated/brackets_dace_gen.cpp generated/brackets_gtclang_gen.cpp
+	$(COMPILER) $(GRIDTOOLS) $(GTCLANG) $(BOOST) $(DAPP) brackets_benchmark.cpp -o bin/brackets_stencil
 run:
 	./bin/copy_stencil 20 20 10
 	./bin/inout_stencil 20 20 10
