@@ -256,7 +256,7 @@ class TaskletBuilder:
                 j_extent = stmt_access.accesses.readAccess[key].extents[1]
                 k_extent = stmt_access.accesses.readAccess[key].extents[2]
 
-                access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.minus) + "+1" + ",k+" + str(
+                access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.plus) + "+1" + ",k+" + str(
                     k_extent.minus) + ":k+" + str(k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(
                     i_extent.plus) + "+1"
 
@@ -277,7 +277,7 @@ class TaskletBuilder:
                 j_extent = stmt_access.accesses.writeAccess[key].extents[1]
                 k_extent = stmt_access.accesses.writeAccess[key].extents[2]
 
-                access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.minus) + "+1" + ",k+" + str(
+                access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.plus) + "+1" + ",k+" + str(
                     k_extent.minus) + ":k+" + str(k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(
                     i_extent.plus) + "+1"
 
