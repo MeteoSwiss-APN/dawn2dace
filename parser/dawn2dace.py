@@ -358,25 +358,22 @@ if __name__ == "__main__":
                     DSL code with the user equations''',
     )
     parser.add_argument('hirfile', type=argparse.FileType('rb'), help='google protobuf HIR file')
-    parser.add_argument("I", type=int, nargs="?", default=128)
-    parser.add_argument("J", type=int, nargs="?", default=128)
-    parser.add_argument("K", type=int, nargs="?", default=80)
-
-    parser.add_argument(
-        "--regression", type=str2bool, nargs='?', const=True, default=True)
     args = vars(parser.parse_args())
-    I.set(args["I"])
-    J.set(args["J"])
-    K.set(args["K"])
-
-    print('Deserialized Example %dx%d' % (I.get(), J.get()))
 
     stencilInstantiation = IIR_pb2.StencilInstantiation()
+
+    print("Parsing file `%s`" % args["hirfile"].name)
 
     stencilInstantiation.ParseFromString(args["hirfile"].read())
     args["hirfile"].close()
 
+    print("Parsing successful")
+
     metadata = stencilInstantiation.metadata
+    print("original file was `%s`" % stencilInstantiation.filename)
+
+    print("Generate SDFG for `%s`" % metadata.stencilName)
+
     fields = {}
     for a in metadata.APIFieldIDs:
         fields[metadata.accessIDToName[a]] = dace.ndarray([J, K, I], dtype=data_type)
@@ -404,9 +401,18 @@ if __name__ == "__main__":
         sdfg.add_edge(nodes[i], nodes[i + 1],
                       dace.InterstateEdge())
 
+    print("SDFG generation successful")
+
     sdfg.draw_to_file('before_transformation.dot')
     sdfg.apply_strict_transformations()
     sdfg.draw_to_file('final.dot')
 
+    print("Strict transformations applied, state graphs before and after are drawn")
+
     pickle.dump(sdfg, open("example.sdfg", "wb"))
+
+    print("sdfg stored in example.sdfg")
+
     sdfg.compile()
+
+    print("compilation successful")
