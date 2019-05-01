@@ -396,7 +396,7 @@ if __name__ == "__main__":
 
     nodes = list(sdfg.nodes())
     if __debug__:
-        print(len(nodes))
+        print("number of states generated: %d" % len(nodes))
     for i in range(len(nodes) - 1):
         sdfg.add_edge(nodes[i], nodes[i + 1],
                       dace.InterstateEdge())
