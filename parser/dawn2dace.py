@@ -184,7 +184,7 @@ class TaskletBuilder:
             if interval.special_lower_level == 0:
                 str_ += "0"
             else:
-                str_ += "K"
+                str_ += "K-1"
         elif interval.WhichOneof("LowerLevel") == 'lower_level':
             str_ += str(interval.lower_level)
         str_ += " + " + str(interval.lower_offset)
@@ -262,7 +262,7 @@ class TaskletBuilder:
 
                 # we promote every local variable to a temporary:
                 if f_name not in self.dataTokens_:
-                    self.dataTokens_[f_name] = state.add_transient(f_name + "_t", shape=[J, K, I], dtype=data_type)
+                    self.dataTokens_[f_name] = sdfg.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
                 if key in in_outs:
                     input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
@@ -283,7 +283,7 @@ class TaskletBuilder:
 
                 # we promote every local variable to a temporary:
                 if f_name not in self.dataTokens_:
-                    self.dataTokens_[f_name] = state.add_transient(f_name + "_t", shape=[J, K, I], dtype=data_type)
+                    self.dataTokens_[f_name] = sdfg.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
                 output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
@@ -342,12 +342,12 @@ class TaskletBuilder:
     def build_data_tokens(self, sdfg_):
         for fID in self.metadata_.APIFieldIDs:
             f_name = self.metadata_.accessIDToName[fID]
-            array = sdfg_.add_array(f_name + "_t", shape=[J, K, I], dtype=data_type)
+            array = sdfg_.add_array(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
             self.dataTokens_[f_name] = array
 
         for fID in self.metadata_.temporaryFieldIDs:
             f_name = self.metadata_.accessIDToName[fID]
-            self.dataTokens_[f_name] = sdfg_.add_transient(f_name + "_t", shape=[J, K, I], dtype=data_type)
+            self.dataTokens_[f_name] = sdfg_.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
 
 if __name__ == "__main__":
@@ -376,14 +376,14 @@ if __name__ == "__main__":
 
     fields = {}
     for a in metadata.APIFieldIDs:
-        fields[metadata.accessIDToName[a]] = dace.ndarray([J, K, I], dtype=data_type)
+        fields[metadata.accessIDToName[a]] = dace.ndarray([J, K + 1, I], dtype=data_type)
 
     sdfg = dace.SDFG('IIRToSDFG')
 
     loopFields = {}
     for a in metadata.APIFieldIDs:
         field_name = metadata.accessIDToName[a]
-        sdfg.add_array('c' + field_name + "_t", shape=[J, K, I], dtype=data_type)
+        sdfg.add_array('c' + field_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
     des = TaskletBuilder(stencilInstantiation.metadata)
 
@@ -404,12 +404,15 @@ if __name__ == "__main__":
     print("SDFG generation successful")
 
     sdfg.draw_to_file('before_transformation.dot')
+
+    pickle.dump(sdfg, open("before.sdfg", "wb"))
+
     sdfg.apply_strict_transformations()
     sdfg.draw_to_file('final.dot')
 
     print("Strict transformations applied, state graphs before and after are drawn")
 
-    pickle.dump(sdfg, open("example.sdfg", "wb"))
+    pickle.dump(sdfg, open("after.sdfg", "wb"))
 
     print("sdfg stored in example.sdfg")
 
