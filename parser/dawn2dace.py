@@ -4,6 +4,7 @@ import argparse
 import os
 import pickle
 import sys
+import enum
 
 sys.path.append(
     os.path.abspath("/home/tobias/Desktop/dawn_dace/build/gen/iir_specification"))
@@ -21,6 +22,12 @@ block_size = (32, 4)
 fused = False
 
 
+class DoStmtType(enum.Enum):
+    FWD = 0
+    BWD = 1
+    PARALLEL = 2
+    
+
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
@@ -36,6 +43,7 @@ class TaskletBuilder:
         self.dataTokens_ = {}
         self.current_stmt_access_ = None
         self.state_counter_ = 0
+        self.laststate = None
 
     @staticmethod
     def visit_builtin_type(builtin_type):
@@ -179,28 +187,28 @@ class TaskletBuilder:
 
     @staticmethod
     def visit_interval(interval):
-        str_ = ""
         if interval.WhichOneof("LowerLevel") == 'special_lower_level':
             if interval.special_lower_level == 0:
-                str_ += "0"
+                start = "0"
             else:
-                str_ += "K"
+                start = "K"
         elif interval.WhichOneof("LowerLevel") == 'lower_level':
-            str_ += str(interval.lower_level)
-        str_ += " + " + str(interval.lower_offset)
-        str_ += ":"
+            start = str(interval.lower_level)
+        start += " + " + str(interval.lower_offset)
+
         if interval.WhichOneof("UpperLevel") == 'special_upper_level':
             if interval.special_upper_level == 0:
-                str_ += "0"
+                end = "0"
             else:
                 # intervals are adapted to be inclusive so K-1 is what we want (starting from 0)
-                str_ += "K-1"
+                end = "K-1"
         elif interval.WhichOneof("UpperLevel") == 'upper_level':
-            str_ += str(interval.upper_level)
-        str_ += " + " + str(interval.upper_offset)
+            end = str(interval.upper_level)
+        end += " + " + str(interval.upper_offset)
         # since python interval are open we need to add 1
-        str_ += "+1"
-        return str_
+        # FIXME: Verify that this is always necessary
+        end += "+1"
+        return (start, end)
 
     def visit_statement(self, stmt):
 
@@ -224,15 +232,24 @@ class TaskletBuilder:
         for access_id, extents in accesses.readAccess.iteritems():
             self.create_extent_str(extents)
 
-    def visit_do_method(self, domethod):
+    def visit_do_method(self, domethod, loop_order):
         do_method_name = "DoMethod_" + str(domethod.doMethodID)
 
-        do_method_name += "(" + self.visit_interval(domethod.interval) + ")"
-        do_method_extent = self.visit_interval(domethod.interval)
+        extent_start, extent_end = self.visit_interval(domethod.interval)
+        do_method_name += "(%s:%s)" % (extent_start, extent_end)
+
+        prev_state = self.laststate
+
+        first_state = sdfg.add_state('state_' + str(self.state_counter_))
+        self.state_counter_ += 1
+        self.laststate = first_state
 
         for stmt_access in domethod.stmtaccesspairs:
             state = sdfg.add_state('state_' + str(self.state_counter_))
             self.state_counter_ += 1
+            sdfg.add_edge(self.laststate, state, dace.InterstateEdge())
+            self.laststate = state
+            
 
             self.current_stmt_access_ = stmt_access
             input_memlets = {}
@@ -302,24 +319,40 @@ class TaskletBuilder:
                 print("out-mem")
                 print(output_memlets)
 
+            map_range = dict(
+                    j='halo_size:J-halo_size',
+                    i='halo_size:I-halo_size',
+            )
+            if loop_order == DoStmtType.PARALLEL:
+                map_range['k'] = '%s:%s' % (extent_start, extent_end)
+
+
             state.add_mapped_tasklet(
                 "statement",
-                dict(
-                    j='halo_size:J-halo_size',
-                    k=do_method_extent,
-                    i='halo_size:I-halo_size',
-                ),
+                map_range,
                 input_memlets,
                 stmt_str,
                 output_memlets, external_edges=True)
 
-    def visit_stage(self, stage):
+        if loop_order == DoStmtType.FWD:
+            _, _, laststate = sdfg.add_loop(prev_state, loop_state, None, 'k', 
+                                            extent_start, 'k < %s' % extent_end, 'k + 1', self.laststate)
+            self.laststate = laststate
+        elif loop_order == DoStmtType.BWD:
+            _, _, laststate = sdfg.add_loop(prev_state, loop_state, None, 'k', 
+                                            extent_start, 'k > %s' % extent_end, 'k - 1', self.laststate)
+            self.laststate = laststate
+        else:
+            pass # Do nothing
+        
+
+    def visit_stage(self, stage, loop_order):
         for do_method in stage.doMethods:
-            self.visit_do_method(do_method)
+            self.visit_do_method(do_method, loop_order)
 
     def visit_multi_stage(self, ms):
         for stage in ms.stages:
-            self.visit_stage(stage)
+            self.visit_stage(stage, ms.loopOrder)
 
     def visit_stencil(self, stencil_):
         for ms in stencil_.multiStages:
@@ -397,9 +430,6 @@ if __name__ == "__main__":
     nodes = list(sdfg.nodes())
     if __debug__:
         print("number of states generated: %d" % len(nodes))
-    for i in range(len(nodes) - 1):
-        sdfg.add_edge(nodes[i], nodes[i + 1],
-                      dace.InterstateEdge())
 
     print("SDFG generation successful")
 
