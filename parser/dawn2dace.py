@@ -1,9 +1,12 @@
 from __future__ import print_function
 
 import argparse
+import ast
 import os
 import pickle
 import sys
+
+import astunparse
 
 sys.path.append(
     os.path.abspath("/home/tobias/Desktop/dawn_dace/build/gen/iir_specification"))
@@ -28,6 +31,14 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+class RenameInput(ast.NodeTransformer):
+    def visit_Name(self, node):
+        if isinstance(node.ctx, ast.Load):
+            node.id += '_input'
+            return node
+        return node
 
 
 class TaskletBuilder:
@@ -267,7 +278,7 @@ class TaskletBuilder:
                 if key in in_outs:
                     input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
                 else:
-                    input_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
+                    input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
             for key in stmt_access.accesses.writeAccess:
 
@@ -288,11 +299,22 @@ class TaskletBuilder:
                 output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
             stmt_str = ""
-            for in_out_id in in_outs:
-                stmt_str += self.metadata_.accessIDToName[in_out_id] + " = " + self.metadata_.accessIDToName[
-                    in_out_id] + "_input\n"
+            # for in_out_id in in_outs:
+            #     stmt_str += self.metadata_.accessIDToName[in_out_id] + " = " + self.metadata_.accessIDToName[
+            #         in_out_id] + "_input\n"
 
             stmt_str += self.visit_statement(stmt_access)
+
+            # adding input to every input-field for separation:
+            if __debug__:
+                print("before inout transformation")
+                print(stmt_str)
+            tree = ast.parse(stmt_str)
+            output_stmt = astunparse.unparse(RenameInput().visit(tree))
+            if __debug__:
+                print("after inout transformation")
+                print(output_stmt)
+            stmt_str = output_stmt
 
             if __debug__:
                 print("this is the stmt-str:")
