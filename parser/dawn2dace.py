@@ -269,7 +269,7 @@ class TaskletBuilder:
                 if f_name not in self.dataTokens_:
                     self.dataTokens_[f_name] = sdfg.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
-                    input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
+                input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
             for key in stmt_access.accesses.writeAccess:
 
