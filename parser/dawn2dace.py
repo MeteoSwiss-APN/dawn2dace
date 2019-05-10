@@ -1,10 +1,10 @@
 from __future__ import print_function
 
 import argparse
+import enum
 import os
 import pickle
 import sys
-import enum
 
 sys.path.append(
     os.path.abspath("/home/tobias/Desktop/dawn_dace/build/gen/iir_specification"))
@@ -26,7 +26,7 @@ class DoStmtType(enum.Enum):
     FWD = 0
     BWD = 1
     PARALLEL = 2
-    
+
 
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -43,7 +43,7 @@ class TaskletBuilder:
         self.dataTokens_ = {}
         self.current_stmt_access_ = None
         self.state_counter_ = 0
-        self.laststate = None
+        self.last_state_ = None
 
     @staticmethod
     def visit_builtin_type(builtin_type):
@@ -238,19 +238,21 @@ class TaskletBuilder:
         extent_start, extent_end = self.visit_interval(domethod.interval)
         do_method_name += "(%s:%s)" % (extent_start, extent_end)
 
-        prev_state = self.laststate
+        # This is the state previous to this do-method
+        prev_state = self.last_state_
 
-        first_state = sdfg.add_state('state_' + str(self.state_counter_))
-        self.state_counter_ += 1
-        self.laststate = first_state
+        # We need to store the first state of the do-method if we want (sequential) loops
+        first_do_method_state = None
 
         for stmt_access in domethod.stmtaccesspairs:
             state = sdfg.add_state('state_' + str(self.state_counter_))
             self.state_counter_ += 1
-            sdfg.add_edge(self.laststate, state, dace.InterstateEdge())
-            self.laststate = state
-            
+            if first_do_method_state is None:
+                first_do_method_state = state
+            else:
+                sdfg.add_edge(self.last_state_, state, dace.InterstateEdge())
 
+            # Creation of the Memlet in the state
             self.current_stmt_access_ = stmt_access
             input_memlets = {}
             output_memlets = {}
@@ -319,13 +321,14 @@ class TaskletBuilder:
                 print("out-mem")
                 print(output_memlets)
 
+            # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
+            # the maps are ij-only
             map_range = dict(
-                    j='halo_size:J-halo_size',
-                    i='halo_size:I-halo_size',
+                j='halo_size:J-halo_size',
+                i='halo_size:I-halo_size',
             )
             if loop_order == DoStmtType.PARALLEL:
                 map_range['k'] = '%s:%s' % (extent_start, extent_end)
-
 
             state.add_mapped_tasklet(
                 "statement",
@@ -334,17 +337,20 @@ class TaskletBuilder:
                 stmt_str,
                 output_memlets, external_edges=True)
 
-        if loop_order == DoStmtType.FWD:
-            _, _, laststate = sdfg.add_loop(prev_state, loop_state, None, 'k', 
-                                            extent_start, 'k < %s' % extent_end, 'k + 1', self.laststate)
-            self.laststate = laststate
-        elif loop_order == DoStmtType.BWD:
-            _, _, laststate = sdfg.add_loop(prev_state, loop_state, None, 'k', 
-                                            extent_start, 'k > %s' % extent_end, 'k - 1', self.laststate)
-            self.laststate = laststate
+            # set the state to be the last one to connect them
+            self.last_state_ = state
+
+        if loop_order == 0:
+            _, _, last_state = sdfg.add_loop(prev_state, first_do_method_state, None, 'k', extent_start,
+                                             'k < %s' % extent_end, 'k + 1', self.last_state_)
+            self.last_state_ = last_state
+        elif loop_order == 1:
+            _, _, last_state = sdfg.add_loop(prev_state, first_do_method_state, None, 'k', extent_start,
+                                             'k > %s' % extent_end, 'k - 1', self.last_state_)
+            self.last_state_ = last_state
         else:
-            pass # Do nothing
-        
+            if prev_state is not None:
+                sdfg.add_edge(prev_state, first_do_method_state, dace.InterstateEdge())
 
     def visit_stage(self, stage, loop_order):
         for do_method in stage.doMethods:
