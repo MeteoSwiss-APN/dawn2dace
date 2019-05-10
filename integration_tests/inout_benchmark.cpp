@@ -16,7 +16,7 @@ int main(int argc, char const* argv[]) {
   // Setup of the gridtools strorages and the verfier
   domain dom(x, y, z);
   dom.set_halos(halo::value, halo::value, halo::value, halo::value, 0, 0);
-  meta_data_t meta_data(dom.isize(), dom.jsize(), dom.ksize());
+  meta_data_t meta_data(dom.isize(), dom.jsize(), dom.ksize() + 1);
   verifier verif(dom);
 
   // Input fields

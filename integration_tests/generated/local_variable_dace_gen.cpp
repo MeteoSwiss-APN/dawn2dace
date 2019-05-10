@@ -7,52 +7,52 @@ void __program_IIRToSDFG_internal(double * __restrict__ in_field_t, double * __r
 
     __state_IIRToSDFG_state_0:
     {
-        double *__local_ee_17_t = new double DACE_ALIGN(64)[J * K * I];
+        double *__local_ee_17_t = new double DACE_ALIGN(64)[J * (K + 1) * I];
         // SuperSection start not emitted. Reasons: MISC
         #pragma omp parallel for
-        for (auto k = 0; k < K; k += 1) {
-            for (auto i = halo_size; i < (I - halo_size); i += 1) {
-                for (auto j = halo_size; j < (J - halo_size); j += 1) {
+        for (auto i = halo_size; i < (I - halo_size); i += 1) {
+            for (auto j = halo_size; j < (J - halo_size); j += 1) {
+                for (auto k = 0; k < K; k += 1) {
                     {
-                        auto __in_field = dace::ArrayViewIn<double, 0, 1, 1> (in_field_t + ((((I * K) * j) + (I * k)) + i));
-                        dace::vec<double, 1> in_field = __in_field.val<1>();
+                        auto __in_field_input = dace::ArrayViewIn<double, 0, 1, 1> (in_field_t + ((((I * j) * (K + 1)) + (I * k)) + i));
+                        dace::vec<double, 1> in_field_input = __in_field_input.val<1>();
 
-                        auto ____local_ee_17 = dace::ArrayViewOut<double, 0, 1, 1> (__local_ee_17_t + ((((I * K) * j) + (I * k)) + i));
+                        auto ____local_ee_17 = dace::ArrayViewOut<double, 0, 1, 1> (__local_ee_17_t + ((((I * j) * (K + 1)) + (I * k)) + i));
                         dace::vec<double, 1> __local_ee_17;
 
                         ///////////////////
                         // Tasklet code (statement)
-                        __local_ee_17 = (in_field + 5);
+                        __local_ee_17 = (in_field_input + 5);
                         ///////////////////
 
                         ____local_ee_17.write(__local_ee_17);
                     }
                 }
             }
-            // statement_map[k=0:K, i=halo_size:I - halo_size, j=halo_size:J - halo_size]
+            // statement_map[i=halo_size:I - halo_size, j=halo_size:J - halo_size, k=0:K]
         }
         // SuperSection start not emitted. Reasons: MISC
         #pragma omp parallel for
-        for (auto k = 0; k < K; k += 1) {
-            for (auto i = halo_size; i < (I - halo_size); i += 1) {
-                for (auto j = halo_size; j < (J - halo_size); j += 1) {
+        for (auto i = halo_size; i < (I - halo_size); i += 1) {
+            for (auto j = halo_size; j < (J - halo_size); j += 1) {
+                for (auto k = 0; k < K; k += 1) {
                     {
-                        auto ____local_ee_17 = dace::ArrayViewIn<double, 0, 1, 1> (__local_ee_17_t + ((((I * K) * j) + (I * k)) + i));
-                        dace::vec<double, 1> __local_ee_17 = ____local_ee_17.val<1>();
+                        auto ____local_ee_17_input = dace::ArrayViewIn<double, 0, 1, 1> (__local_ee_17_t + ((((I * j) * (K + 1)) + (I * k)) + i));
+                        dace::vec<double, 1> __local_ee_17_input = ____local_ee_17_input.val<1>();
 
-                        auto __out_field = dace::ArrayViewOut<double, 0, 1, 1> (out_field_t + ((((I * K) * j) + (I * k)) + i));
+                        auto __out_field = dace::ArrayViewOut<double, 0, 1, 1> (out_field_t + ((((I * j) * (K + 1)) + (I * k)) + i));
                         dace::vec<double, 1> out_field;
 
                         ///////////////////
                         // Tasklet code (statement)
-                        out_field = __local_ee_17;
+                        out_field = __local_ee_17_input;
                         ///////////////////
 
                         __out_field.write(out_field);
                     }
                 }
             }
-            // statement_map[k=0:K, i=halo_size:I - halo_size, j=halo_size:J - halo_size]
+            // statement_map[i=halo_size:I - halo_size, j=halo_size:J - halo_size, k=0:K]
         }
         delete[] __local_ee_17_t;
     }

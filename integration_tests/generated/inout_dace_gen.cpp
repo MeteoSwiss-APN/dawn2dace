@@ -5,7 +5,7 @@
 void __program_IIRToSDFG_internal(double * __restrict__ a_t, int I, int J, int K, int halo_size)
 {
 
-    __state_IIRToSDFG_s1:
+    __state_IIRToSDFG_state_0:
     {
         // SuperSection start not emitted. Reasons: MISC
         #pragma omp parallel for
@@ -13,16 +13,15 @@ void __program_IIRToSDFG_internal(double * __restrict__ a_t, int I, int J, int K
             for (auto k = 0; k < K; k += 1) {
                 for (auto i = halo_size; i < (I - halo_size); i += 1) {
                     {
-                        auto __a_input = dace::ArrayViewIn<double, 0, 1, 1> (a_t + ((((I * K) * j) + (I * k)) + i));
+                        auto __a_input = dace::ArrayViewIn<double, 0, 1, 1> (a_t + ((((I * j) * (K + 1)) + (I * k)) + i));
                         dace::vec<double, 1> a_input = __a_input.val<1>();
 
-                        auto __a = dace::ArrayViewOut<double, 0, 1, 1> (a_t + ((((I * K) * j) + (I * k)) + i));
+                        auto __a = dace::ArrayViewOut<double, 0, 1, 1> (a_t + ((((I * j) * (K + 1)) + (I * k)) + i));
                         dace::vec<double, 1> a;
 
                         ///////////////////
                         // Tasklet code (statement)
-                        a = a_input;
-                        a = (a + 7);
+                        a = (a_input + 7);
                         ///////////////////
 
                         __a.write(a);
