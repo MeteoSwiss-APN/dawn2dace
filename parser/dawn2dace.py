@@ -1,10 +1,13 @@
 from __future__ import print_function
 
 import argparse
+import ast
 import enum
 import os
 import pickle
 import sys
+
+import astunparse
 
 sys.path.append(
     os.path.abspath("/home/tobias/Desktop/dawn_dace/build/gen/iir_specification"))
@@ -35,6 +38,14 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+class RenameInput(ast.NodeTransformer):
+    def visit_Name(self, node):
+        if isinstance(node.ctx, ast.Load):
+            node.id += '_input'
+            return node
+        return node
 
 
 class TaskletBuilder:
@@ -257,12 +268,6 @@ class TaskletBuilder:
             input_memlets = {}
             output_memlets = {}
 
-            in_outs = set()
-
-            for key in stmt_access.accesses.readAccess:
-                if key in stmt_access.accesses.writeAccess:
-                    in_outs.add(key)
-
             for key in stmt_access.accesses.readAccess:
 
                 # since keys with negative ID's are *only* literals, we can skip those
@@ -281,12 +286,9 @@ class TaskletBuilder:
 
                 # we promote every local variable to a temporary:
                 if f_name not in self.dataTokens_:
-                    self.dataTokens_[f_name] = state.add_transient(f_name + "_t", shape=[J, K, I], dtype=data_type)
+                    self.dataTokens_[f_name] = sdfg.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
-                if key in in_outs:
-                    input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
-                else:
-                    input_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
+                input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
             for key in stmt_access.accesses.writeAccess:
 
@@ -302,16 +304,27 @@ class TaskletBuilder:
 
                 # we promote every local variable to a temporary:
                 if f_name not in self.dataTokens_:
-                    self.dataTokens_[f_name] = state.add_transient(f_name + "_t", shape=[J, K, I], dtype=data_type)
+                    self.dataTokens_[f_name] = sdfg.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
                 output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
             stmt_str = ""
-            for in_out_id in in_outs:
-                stmt_str += self.metadata_.accessIDToName[in_out_id] + " = " + self.metadata_.accessIDToName[
-                    in_out_id] + "_input\n"
 
             stmt_str += self.visit_statement(stmt_access)
+
+            # adding input to every input-field for separation:
+            if __debug__:
+                print("before inout transformation")
+                print(stmt_str)
+
+            tree = ast.parse(stmt_str)
+            output_stmt = astunparse.unparse(RenameInput().visit(tree))
+
+            if __debug__:
+                print("after inout transformation")
+                print(output_stmt)
+
+            stmt_str = output_stmt
 
             if __debug__:
                 print("this is the stmt-str:")
@@ -381,12 +394,12 @@ class TaskletBuilder:
     def build_data_tokens(self, sdfg_):
         for fID in self.metadata_.APIFieldIDs:
             f_name = self.metadata_.accessIDToName[fID]
-            array = sdfg_.add_array(f_name + "_t", shape=[J, K, I], dtype=data_type)
+            array = sdfg_.add_array(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
             self.dataTokens_[f_name] = array
 
         for fID in self.metadata_.temporaryFieldIDs:
             f_name = self.metadata_.accessIDToName[fID]
-            self.dataTokens_[f_name] = sdfg_.add_transient(f_name + "_t", shape=[J, K, I], dtype=data_type)
+            self.dataTokens_[f_name] = sdfg_.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
 
 if __name__ == "__main__":
@@ -415,14 +428,14 @@ if __name__ == "__main__":
 
     fields = {}
     for a in metadata.APIFieldIDs:
-        fields[metadata.accessIDToName[a]] = dace.ndarray([J, K, I], dtype=data_type)
+        fields[metadata.accessIDToName[a]] = dace.ndarray([J, K + 1, I], dtype=data_type)
 
     sdfg = dace.SDFG('IIRToSDFG')
 
     loopFields = {}
     for a in metadata.APIFieldIDs:
         field_name = metadata.accessIDToName[a]
-        sdfg.add_array('c' + field_name + "_t", shape=[J, K, I], dtype=data_type)
+        sdfg.add_array('c' + field_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
     des = TaskletBuilder(stencilInstantiation.metadata)
 
@@ -440,12 +453,15 @@ if __name__ == "__main__":
     print("SDFG generation successful")
 
     sdfg.draw_to_file('before_transformation.dot')
+
+    pickle.dump(sdfg, open("before.sdfg", "wb"))
+
     sdfg.apply_strict_transformations()
     sdfg.draw_to_file('final.dot')
 
     print("Strict transformations applied, state graphs before and after are drawn")
 
-    pickle.dump(sdfg, open("example.sdfg", "wb"))
+    pickle.dump(sdfg, open("after.sdfg", "wb"))
 
     print("sdfg stored in example.sdfg")
 

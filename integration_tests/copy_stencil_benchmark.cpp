@@ -16,14 +16,14 @@ int main(int argc, char const* argv[]) {
   // Setup of the gridtools strorages and the verfier
   domain dom(x, y, z);
   dom.set_halos(halo::value, halo::value, halo::value, halo::value, 0, 0);
-  meta_data_t meta_data(dom.isize(), dom.jsize(), dom.ksize());
+  meta_data_t meta_data(dom.isize(), dom.jsize(), dom.ksize() + 1);
   verifier verif(dom);
 
   // Output fields
   storage_t out_gtclang(meta_data, "out_gtclang");
-  storage_t out_dapp(meta_data, "out_dapp");
+  storage_t out_dace(meta_data, "out_dace");
 
-  verif.fill(-1.0, out_gtclang, out_dapp);
+  verif.fill(-1.0, out_gtclang, out_dace);
 
   // Input fields
   storage_t input(meta_data, "input");
@@ -34,13 +34,13 @@ int main(int argc, char const* argv[]) {
   gridtools::copy_stencil copy_gtclang(dom, input, out_gtclang);
   copy_gtclang.run();
 
-  // call the dapp-stencil
-  auto raw_out_dapp = gridtools::make_host_view(out_dapp).data();
+  // call the dace-stencil
+  auto raw_out_dace = gridtools::make_host_view(out_dace).data();
   auto raw_input = gridtools::make_host_view(input).data();
 
-  __program_IIRToSDFG(raw_input, raw_out_dapp, x, y, z);
+  __program_IIRToSDFG(raw_input, raw_out_dace, x, y, z, halo::value);
 
-  assert(verif.verify(out_gtclang, out_dapp));
+  assert(verif.verify(out_gtclang, out_dace));
 
   std::cout << "verification successful" << std::endl;
   return 0;

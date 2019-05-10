@@ -33,6 +33,7 @@ run:
 	./bin/local_variable_stencil 20 20 10
 	./bin/local_internal_stencil 20 20 10
 	./bin/vertical_offsets_stencil 20 20 10
+	./bin/brackets_stencil 20 20 10
 
 clean:
 	rm -rf bin/*
