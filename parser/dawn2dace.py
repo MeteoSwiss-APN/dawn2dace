@@ -249,12 +249,6 @@ class TaskletBuilder:
             input_memlets = {}
             output_memlets = {}
 
-            in_outs = set()
-
-            for key in stmt_access.accesses.readAccess:
-                if key in stmt_access.accesses.writeAccess:
-                    in_outs.add(key)
-
             for key in stmt_access.accesses.readAccess:
 
                 # since keys with negative ID's are *only* literals, we can skip those
@@ -275,9 +269,6 @@ class TaskletBuilder:
                 if f_name not in self.dataTokens_:
                     self.dataTokens_[f_name] = sdfg.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
-                if key in in_outs:
-                    input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
-                else:
                     input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
             for key in stmt_access.accesses.writeAccess:
@@ -299,9 +290,6 @@ class TaskletBuilder:
                 output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
             stmt_str = ""
-            # for in_out_id in in_outs:
-            #     stmt_str += self.metadata_.accessIDToName[in_out_id] + " = " + self.metadata_.accessIDToName[
-            #         in_out_id] + "_input\n"
 
             stmt_str += self.visit_statement(stmt_access)
 
@@ -309,11 +297,14 @@ class TaskletBuilder:
             if __debug__:
                 print("before inout transformation")
                 print(stmt_str)
+
             tree = ast.parse(stmt_str)
             output_stmt = astunparse.unparse(RenameInput().visit(tree))
+
             if __debug__:
                 print("after inout transformation")
                 print(output_stmt)
+
             stmt_str = output_stmt
 
             if __debug__:
