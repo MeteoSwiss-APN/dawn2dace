@@ -29,6 +29,9 @@ brackets: brackets_benchmark.cpp generated/brackets_dace_gen.cpp generated/brack
 fwd: forward_stencil_benchmark.cpp generated/9-forward_stencil_dace_gen.cpp generated/9-forward_stencil_gtclang_gen.cpp
 	$(COMPILER) $(GRIDTOOLS) $(GTCLANG) $(BOOST) $(DAPP) forward_stencil_benchmark.cpp -o bin/forward_stencil
 
+globals: global_benchmark.cpp generated/10-global-stencil_dace_gen.cpp generated/10-global-stencil_gtclang_gen.cpp
+	$(COMPILER) $(GRIDTOOLS) $(GTCLANG) $(BOOST) $(DAPP) global_benchmark.cpp -o bin/global_stencil
+
 run:
 	./bin/copy_stencil 20 20 10
 	./bin/inout_stencil 20 20 10
@@ -39,6 +42,7 @@ run:
 	./bin/vertical_offsets_stencil 20 20 10
 	./bin/brackets_stencil 20 20 10
 	./bin/forward_stencil 20 20 10
+	./bin/global_stencil 20 20 10
 
 clean:
 	rm -rf bin/*

@@ -50,15 +50,9 @@ class TaskletBuilder:
         self.last_state_ = None
 
     def fill_globals(self):
-        if len(self.metadata_.APIFieldIDs):
-            state0 = sdfg.add_state('globalfill')
-            self.last_state_ = state0
-            for fID in self.metadata_.globalVariableIDs:
-                f_name = self.metadata_.accessIDToName[fID]
-                self.dataTokens_[f_name] = sdfg.add_scalar(f_name + "_t", dace.float32, transient=True)
-                tsklt = state0.add_tasklet('fill', {}, {'global_variable'}, 'global_variable = 10')
-                snode = state0.add_write(f_name + "_t")
-                state0.add_edge(tsklt, 'global_variable', snode, None, dace.Memlet.simple(f_name + "_t", '0'))
+        for fID in self.metadata_.globalVariableIDs:
+            f_name = self.metadata_.accessIDToName[fID]
+            self.dataTokens_[f_name] = sdfg.add_scalar(f_name + "_t", dace.float32)
 
     @staticmethod
     def visit_builtin_type(builtin_type):
