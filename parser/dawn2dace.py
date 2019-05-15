@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import argparse
 import ast
-import enum
 import os
 import pickle
 import sys
@@ -23,12 +22,6 @@ halo_size = dace.symbol('haloSize')
 data_type = dace.float64
 block_size = (32, 4)
 fused = False
-
-
-class DoStmtType(enum.Enum):
-    FWD = 0
-    BWD = 1
-    PARALLEL = 2
 
 
 def str2bool(v):
@@ -55,6 +48,17 @@ class TaskletBuilder:
         self.current_stmt_access_ = None
         self.state_counter_ = 0
         self.last_state_ = None
+
+    def fill_globals(self):
+        if len(self.metadata_.APIFieldIDs):
+            state0 = sdfg.add_state('globalfill')
+            self.last_state_ = state0
+            for fID in self.metadata_.globalVariableIDs:
+                f_name = self.metadata_.accessIDToName[fID]
+                self.dataTokens_[f_name] = sdfg.add_scalar(f_name + "_t", dace.float32, transient=True)
+                tsklt = state0.add_tasklet('fill', {}, {'global_variable'}, 'global_variable = 10')
+                snode = state0.add_write(f_name + "_t")
+                state0.add_edge(tsklt, 'global_variable', snode, None, dace.Memlet.simple(f_name + "_t", '0'))
 
     @staticmethod
     def visit_builtin_type(builtin_type):
@@ -219,7 +223,7 @@ class TaskletBuilder:
         # since python interval are open we need to add 1
         # FIXME: Verify that this is always necessary
         end += "+1"
-        return (start, end)
+        return start, end
 
     def visit_statement(self, stmt):
 
@@ -280,9 +284,12 @@ class TaskletBuilder:
                 j_extent = stmt_access.accesses.readAccess[key].extents[1]
                 k_extent = stmt_access.accesses.readAccess[key].extents[2]
 
-                access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.plus) + "+1" + ",k+" + str(
-                    k_extent.minus) + ":k+" + str(k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(
-                    i_extent.plus) + "+1"
+                if key not in self.metadata_.globalVariableIDs:
+                    access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.plus) + "+1" + ",k+" + str(
+                        k_extent.minus) + ":k+" + str(k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(
+                        i_extent.plus) + "+1"
+                else:
+                    access_pattern = '0'
 
                 # we promote every local variable to a temporary:
                 if f_name not in self.dataTokens_:
@@ -340,7 +347,7 @@ class TaskletBuilder:
                 j='halo_size:J-halo_size',
                 i='halo_size:I-halo_size',
             )
-            if loop_order == DoStmtType.PARALLEL:
+            if loop_order > 1:
                 map_range['k'] = '%s:%s' % (extent_start, extent_end)
 
             state.add_mapped_tasklet(
@@ -352,6 +359,9 @@ class TaskletBuilder:
 
             # set the state to be the last one to connect them
             self.last_state_ = state
+
+        if __debug__:
+            print("loop order is: %i" % loop_order)
 
         if loop_order == 0:
             _, _, last_state = sdfg.add_loop(prev_state, first_do_method_state, None, 'k', extent_start,
@@ -440,6 +450,8 @@ if __name__ == "__main__":
     des = TaskletBuilder(stencilInstantiation.metadata)
 
     des.build_data_tokens(sdfg)
+
+    des.fill_globals()
 
     for stencil in stencilInstantiation.internalIR.stencils:
         des.visit_stencil(stencil)

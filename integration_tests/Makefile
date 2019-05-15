@@ -1,6 +1,6 @@
 include config.mk
 
-all: copy_stencil inout offsets vertical_spec local_variable local_internal vertical_offsets
+all: copy_stencil inout offsets vertical_spec local_variable local_internal vertical_offsets brackets fwd
 
 copy_stencil: copy_stencil_benchmark.cpp generated/copy_stencil_dace_gen.cpp generated/copy_stencil_gtclang_gen.cpp
 	$(COMPILER) $(GRIDTOOLS) $(GTCLANG) $(BOOST) $(DAPP) copy_stencil_benchmark.cpp -o bin/copy_stencil 
@@ -25,6 +25,10 @@ vertical_offsets: vertical-offsets_benchmark.cpp generated/vertical-offsets_dace
 
 brackets: brackets_benchmark.cpp generated/brackets_dace_gen.cpp generated/brackets_gtclang_gen.cpp
 	$(COMPILER) $(GRIDTOOLS) $(GTCLANG) $(BOOST) $(DAPP) brackets_benchmark.cpp -o bin/brackets_stencil
+
+fwd: forward_stencil_benchmark.cpp generated/9-forward_stencil_dace_gen.cpp generated/9-forward_stencil_gtclang_gen.cpp
+	$(COMPILER) $(GRIDTOOLS) $(GTCLANG) $(BOOST) $(DAPP) forward_stencil_benchmark.cpp -o bin/forward_stencil
+
 run:
 	./bin/copy_stencil 20 20 10
 	./bin/inout_stencil 20 20 10
@@ -34,6 +38,7 @@ run:
 	./bin/local_internal_stencil 20 20 10
 	./bin/vertical_offsets_stencil 20 20 10
 	./bin/brackets_stencil 20 20 10
+	./bin/forward_stencil 20 20 10
 
 clean:
 	rm -rf bin/*
