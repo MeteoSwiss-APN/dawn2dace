@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import argparse
 import ast
+import enum
 import os
 import pickle
 import sys
@@ -22,6 +23,12 @@ halo_size = dace.symbol('haloSize')
 data_type = dace.float64
 block_size = (32, 4)
 fused = False
+
+
+class DoStmtType(enum.Enum):
+    FWD = 0
+    BWD = 1
+    PARALLEL = 2
 
 
 def str2bool(v):
@@ -47,6 +54,7 @@ class TaskletBuilder:
         self.dataTokens_ = {}
         self.current_stmt_access_ = None
         self.state_counter_ = 0
+        self.last_state_ = None
 
     @staticmethod
     def visit_builtin_type(builtin_type):
@@ -190,28 +198,28 @@ class TaskletBuilder:
 
     @staticmethod
     def visit_interval(interval):
-        str_ = ""
         if interval.WhichOneof("LowerLevel") == 'special_lower_level':
             if interval.special_lower_level == 0:
-                str_ += "0"
+                start = "0"
             else:
-                str_ += "K-1"
+                start = "K"
         elif interval.WhichOneof("LowerLevel") == 'lower_level':
-            str_ += str(interval.lower_level)
-        str_ += " + " + str(interval.lower_offset)
-        str_ += ":"
+            start = str(interval.lower_level)
+        start += " + " + str(interval.lower_offset)
+
         if interval.WhichOneof("UpperLevel") == 'special_upper_level':
             if interval.special_upper_level == 0:
-                str_ += "0"
+                end = "0"
             else:
                 # intervals are adapted to be inclusive so K-1 is what we want (starting from 0)
-                str_ += "K-1"
+                end = "K-1"
         elif interval.WhichOneof("UpperLevel") == 'upper_level':
-            str_ += str(interval.upper_level)
-        str_ += " + " + str(interval.upper_offset)
+            end = str(interval.upper_level)
+        end += " + " + str(interval.upper_offset)
         # since python interval are open we need to add 1
-        str_ += "+1"
-        return str_
+        # FIXME: Verify that this is always necessary
+        end += "+1"
+        return (start, end)
 
     def visit_statement(self, stmt):
 
@@ -235,16 +243,27 @@ class TaskletBuilder:
         for access_id, extents in accesses.readAccess.iteritems():
             self.create_extent_str(extents)
 
-    def visit_do_method(self, domethod):
+    def visit_do_method(self, domethod, loop_order):
         do_method_name = "DoMethod_" + str(domethod.doMethodID)
 
-        do_method_name += "(" + self.visit_interval(domethod.interval) + ")"
-        do_method_extent = self.visit_interval(domethod.interval)
+        extent_start, extent_end = self.visit_interval(domethod.interval)
+        do_method_name += "(%s:%s)" % (extent_start, extent_end)
+
+        # This is the state previous to this do-method
+        prev_state = self.last_state_
+
+        # We need to store the first state of the do-method if we want (sequential) loops
+        first_do_method_state = None
 
         for stmt_access in domethod.stmtaccesspairs:
             state = sdfg.add_state('state_' + str(self.state_counter_))
             self.state_counter_ += 1
+            if first_do_method_state is None:
+                first_do_method_state = state
+            else:
+                sdfg.add_edge(self.last_state_, state, dace.InterstateEdge())
 
+            # Creation of the Memlet in the state
             self.current_stmt_access_ = stmt_access
             input_memlets = {}
             output_memlets = {}
@@ -315,24 +334,44 @@ class TaskletBuilder:
                 print("out-mem")
                 print(output_memlets)
 
+            # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
+            # the maps are ij-only
+            map_range = dict(
+                j='halo_size:J-halo_size',
+                i='halo_size:I-halo_size',
+            )
+            if loop_order == DoStmtType.PARALLEL:
+                map_range['k'] = '%s:%s' % (extent_start, extent_end)
+
             state.add_mapped_tasklet(
                 "statement",
-                dict(
-                    j='halo_size:J-halo_size',
-                    k=do_method_extent,
-                    i='halo_size:I-halo_size',
-                ),
+                map_range,
                 input_memlets,
                 stmt_str,
                 output_memlets, external_edges=True)
 
-    def visit_stage(self, stage):
+            # set the state to be the last one to connect them
+            self.last_state_ = state
+
+        if loop_order == 0:
+            _, _, last_state = sdfg.add_loop(prev_state, first_do_method_state, None, 'k', extent_start,
+                                             'k < %s' % extent_end, 'k + 1', self.last_state_)
+            self.last_state_ = last_state
+        elif loop_order == 1:
+            _, _, last_state = sdfg.add_loop(prev_state, first_do_method_state, None, 'k', extent_start,
+                                             'k > %s' % extent_end, 'k - 1', self.last_state_)
+            self.last_state_ = last_state
+        else:
+            if prev_state is not None:
+                sdfg.add_edge(prev_state, first_do_method_state, dace.InterstateEdge())
+
+    def visit_stage(self, stage, loop_order):
         for do_method in stage.doMethods:
-            self.visit_do_method(do_method)
+            self.visit_do_method(do_method, loop_order)
 
     def visit_multi_stage(self, ms):
         for stage in ms.stages:
-            self.visit_stage(stage)
+            self.visit_stage(stage, ms.loopOrder)
 
     def visit_stencil(self, stencil_):
         for ms in stencil_.multiStages:
@@ -410,9 +449,6 @@ if __name__ == "__main__":
     nodes = list(sdfg.nodes())
     if __debug__:
         print("number of states generated: %d" % len(nodes))
-    for i in range(len(nodes) - 1):
-        sdfg.add_edge(nodes[i], nodes[i + 1],
-                      dace.InterstateEdge())
 
     print("SDFG generation successful")
 
