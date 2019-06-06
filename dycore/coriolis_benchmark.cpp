@@ -20,6 +20,7 @@
 #include "gen/coriolis_dace_gen.cpp"
 #include "gen/coriolis_gtclang_gen.cpp"
 #include "gridtools/clang/verify.hpp"
+#include "utils/benchmark_writer.hpp"
 #include <cassert>
 
 int main(int argc, char const* argv[]) {
@@ -28,6 +29,14 @@ int main(int argc, char const* argv[]) {
   int x = atoi(argv[1]);
   int y = atoi(argv[2]);
   int z = atoi(argv[3]);
+  std::string benchFile = "";
+  int niter = 0;
+  if(argc > 4) {
+    niter = atoi(argv[4]);
+  }
+  if(argc > 5) {
+    benchFile = argv[5];
+  }
 
   // Setup of the gridtools strorages and the verfier
   domain dom(x, y, z);
@@ -72,5 +81,12 @@ int main(int argc, char const* argv[]) {
   assert(verif.verify(v_tens_gtclang, v_tens_dace));
 
   std::cout << "verification successful" << std::endl;
+
+  benchmarker bench(niter);
+  bench.runBenchmarks(coriolis_gtclang);
+  bench.writeToStdOut();
+  if(benchFile != "") {
+    bench.writeToJson(benchFile);
+  }
   return 0;
 }
