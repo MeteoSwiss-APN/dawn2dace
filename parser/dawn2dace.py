@@ -167,8 +167,11 @@ class TaskletBuilder:
         if cond.WhichOneof("stmt") != "expr_stmt":
             raise ValueError("Not expected stmt")
 
-        stmt_str = ""
+        stmt_str = "if "
+        stmt_str += "True"  # self.visit_expr_stmt(stmt.cond_part)
+        stmt_str += ":\n\t"
         stmt_str += self.visit_body_stmt(stmt.then_part)
+        stmt_str += "\nelse:\n\t"
         stmt_str += self.visit_body_stmt(stmt.else_part)
 
         return stmt_str
@@ -200,7 +203,7 @@ class TaskletBuilder:
             if interval.special_lower_level == 0:
                 start = "0"
             else:
-                start = "K"
+                start = "K-1"
         elif interval.WhichOneof("LowerLevel") == 'lower_level':
             start = str(interval.lower_level)
         start += " + " + str(interval.lower_offset)
@@ -215,7 +218,6 @@ class TaskletBuilder:
             end = str(interval.upper_level)
         end += " + " + str(interval.upper_offset)
         # since python interval are open we need to add 1
-        # FIXME: Verify that this is always necessary
         end += "+1"
         return start, end
 
