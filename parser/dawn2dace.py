@@ -149,14 +149,17 @@ class TaskletBuilder:
 
     def visit_var_decl_stmt(self, var_decl):
         # No declaration is performed
-        str_ = metadata.accessIDToName[metadata.stmtIDToAccessID[var_decl.ID]]
+        if var_decl.init_list:
+            str_ = metadata.accessIDToName[metadata.stmtIDToAccessID[var_decl.ID]]
 
-        str_ += var_decl.op
+            str_ += var_decl.op
 
-        for expr in var_decl.init_list:
-            str_ += self.visit_expr(expr)
+            for expr in var_decl.init_list:
+                str_ += self.visit_expr(expr)
 
-        return str_
+            return str_
+        else:
+            return ""
 
     def visit_expr_stmt(self, stmt):
 
@@ -315,45 +318,47 @@ class TaskletBuilder:
 
             stmt_str += self.visit_statement(stmt_access)
 
-            # adding input to every input-field for separation:
-            if __debug__:
-                print("before inout transformation")
-                print(stmt_str)
+            if stmt_str:
 
-            tree = ast.parse(stmt_str)
-            output_stmt = astunparse.unparse(RenameInput().visit(tree))
+                # adding input to every input-field for separation:
+                if __debug__:
+                    print("before inout transformation")
+                    print(stmt_str)
 
-            if __debug__:
-                print("after inout transformation")
-                print(output_stmt)
+                tree = ast.parse(stmt_str)
+                output_stmt = astunparse.unparse(RenameInput().visit(tree))
 
-            stmt_str = output_stmt
+                if __debug__:
+                    print("after inout transformation")
+                    print(output_stmt)
 
-            if __debug__:
-                print("this is the stmt-str:")
-                print(stmt_str)
-                print("in-mem")
-                print(input_memlets)
-                print("out-mem")
-                print(output_memlets)
+                stmt_str = output_stmt
 
-            # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
-            # the maps are ij-only
-            map_range = dict(
-                j='halo_size:J-halo_size',
-                i='halo_size:I-halo_size',
-            )
-            if loop_order > 1:
-                map_range['k'] = '%s:%s' % (extent_start, extent_end)
+                if __debug__:
+                    print("this is the stmt-str:")
+                    print(stmt_str)
+                    print("in-mem")
+                    print(input_memlets)
+                    print("out-mem")
+                    print(output_memlets)
 
-            state.add_mapped_tasklet(
-                "statement",
-                map_range,
-                input_memlets,
-                stmt_str,
-                output_memlets, external_edges=True)
+                # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
+                # the maps are ij-only
+                map_range = dict(
+                    j='halo_size:J-halo_size',
+                    i='halo_size:I-halo_size',
+                )
+                if loop_order > 1:
+                    map_range['k'] = '%s:%s' % (extent_start, extent_end)
 
-            # set the state to be the last one to connect them
+                state.add_mapped_tasklet(
+                    "statement",
+                    map_range,
+                    input_memlets,
+                    stmt_str,
+                    output_memlets, external_edges=True)
+
+            # set the state  to be the last one to connect them
             self.last_state_ = state
 
         if __debug__:
