@@ -9,7 +9,7 @@ import sys
 import astunparse
 
 sys.path.append(
-    os.path.abspath("/home/tobias/Desktop/dawn_dace/build/gen/iir_specification"))
+    os.path.abspath("/home/tobias/Documents/work/dawn2dace/build/gen/iir_specification"))
 import IIR_pb2
 
 import dace
