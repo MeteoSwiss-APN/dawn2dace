@@ -1,8 +1,8 @@
 #define GRIDTOOLS_CLANG_HALO_EXTEND 3
 #define GRIDTOOLS_CLANG_GENERATED 1
 
-#include "generated/copy_stencil_dace_gen.cpp"
-#include "generated/copy_stencil_gtclang_gen.cpp"
+#include "generated/1-copy_stencil_dace.cpp"
+#include "generated/1-copy_stencil_gtclang.cpp"
 #include "gridtools/clang/verify.hpp"
 #include <cassert>
 
