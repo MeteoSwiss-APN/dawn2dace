@@ -1,8 +1,8 @@
 #define GRIDTOOLS_CLANG_HALO_EXTEND 3
 #define GRIDTOOLS_CLANG_GENERATED 1
 
-#include "generated/vertical_spec_dace_gen.cpp"
-#include "generated/vertical_spec_gtclang_gen.cpp"
+#include "generated/4-vertical_spec_dace.cpp"
+#include "generated/4-vertical_spec_gtclang.cpp"
 #include "gridtools/clang/verify.hpp"
 #include <cassert>
 

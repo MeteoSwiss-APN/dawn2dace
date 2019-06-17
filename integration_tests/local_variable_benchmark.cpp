@@ -1,8 +1,8 @@
 #define GRIDTOOLS_CLANG_HALO_EXTEND 3
 #define GRIDTOOLS_CLANG_GENERATED 1
 
-#include "generated/local_variable_dace_gen.cpp"
-#include "generated/local_variable_gtclang_gen.cpp"
+#include "generated/6-local-variables_dace.cpp"
+#include "generated/6-local-variables_gtclang.cpp"
 #include "gridtools/clang/verify.hpp"
 #include <cassert>
 

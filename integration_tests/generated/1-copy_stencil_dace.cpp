@@ -9,9 +9,9 @@ void __program_IIRToSDFG_internal(double * __restrict__ data_in_t, double * __re
     {
         // SuperSection start not emitted. Reasons: MISC
         #pragma omp parallel for
-        for (auto k = 0; k < K; k += 1) {
-            for (auto i = halo_size; i < (I - halo_size); i += 1) {
-                for (auto j = halo_size; j < (J - halo_size); j += 1) {
+        for (auto j = halo_size; j < (J - halo_size); j += 1) {
+            for (auto k = 0; k < K; k += 1) {
+                for (auto i = halo_size; i < (I - halo_size); i += 1) {
                     {
                         auto __data_in_input = dace::ArrayViewIn<double, 0, 1, 1> (data_in_t + ((((I * j) * (K + 1)) + (I * k)) + i));
                         dace::vec<double, 1> data_in_input = __data_in_input.val<1>();
@@ -28,7 +28,7 @@ void __program_IIRToSDFG_internal(double * __restrict__ data_in_t, double * __re
                     }
                 }
             }
-            // statement_map[k=0:K, i=halo_size:I - halo_size, j=halo_size:J - halo_size]
+            // statement_map[j=halo_size:J - halo_size, k=0:K, i=halo_size:I - halo_size]
         }
     }
     __state_exit_IIRToSDFG_sdfg:;

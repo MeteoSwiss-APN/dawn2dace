@@ -1,6 +1,6 @@
-// gtclang (0.0.1-42ba1b2-x86_64-linux-gnu-5.4.0)
+// gtclang (0.0.1-9b6d23a-x86_64-linux-gnu-5.4.0)
 // based on LLVM/Clang (6.0.1), Dawn (0.0.1)
-// Generated on 2019-04-30  17:20:28
+// Generated on 2019-06-17  12:13:10
 
 #define GRIDTOOLS_CLANG_GENERATED 1
 #define GRIDTOOLS_CLANG_BACKEND_T GT
@@ -45,11 +45,11 @@ namespace gridtools {
 
 class test {
  public:
-  struct stencil_15 {
+  struct stencil_18 {
     // Intervals
     using interval_start__end_ = gridtools::interval<gridtools::level<0, 1, 4>, gridtools::level<1, -1, 4>>;
-    using axis_stencil_15 = gridtools::interval<gridtools::level<0, -1, 4>, gridtools::level<1, 1, 4>>;
-    using grid_stencil_15 = gridtools::grid<axis_stencil_15>;
+    using axis_stencil_18 = gridtools::interval<gridtools::level<0, -1, 4>, gridtools::level<1, 1, 4>>;
+    using grid_stencil_18 = gridtools::grid<axis_stencil_18>;
 
     struct stage_0_0 {
       using in_field = gridtools::accessor<0, gridtools::enumtype::in, gridtools::extent<0, 0, 0, 0, 0, 0>>;
@@ -58,36 +58,13 @@ class test {
 
       template <typename Evaluation>
       GT_FUNCTION static void Do(Evaluation& eval, interval_start__end_) {
-        eval(out_field(0, 0, 0)) = ((gridtools::clang::float_type)0.25 * (eval(in_field(0, 0, 0)) + (int)7));
+        gridtools::clang::float_type __local_ee_17 = (eval(in_field(0, 0, 0)) + (int)5);
+        eval(out_field(0, 0, 0)) = __local_ee_17;
       }
     };
 
-    stencil_15(const gridtools::clang::domain& dom, storage_ijk_t in_field, storage_ijk_t out_field) {
+    stencil_18(const gridtools::clang::domain& dom, storage_ijk_t in_field, storage_ijk_t out_field) {
       // Check if extents do not exceed the halos
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
       using p_in_field = gridtools::arg<0, storage_ijk_t>;
       using p_out_field = gridtools::arg<1, storage_ijk_t>;
       using domain_arg_list = boost::mpl::vector<p_in_field, p_out_field>;
@@ -97,7 +74,7 @@ class test {
                                        dom.isize()};
       gridtools::halo_descriptor dj = {dom.jminus(), dom.jminus(), dom.jplus(), dom.jsize() - 1 - dom.jplus(),
                                        dom.jsize()};
-      auto grid_ = grid_stencil_15(di, dj);
+      auto grid_ = grid_stencil_18(di, dj);
       grid_.value_list[0] = dom.kminus();
       grid_.value_list[1] = dom.ksize() == 0 ? 0 : dom.ksize() - dom.kplus();
       in_field.sync();
@@ -122,22 +99,22 @@ class test {
   static constexpr const char* s_name = "test";
 
   // Members representing all the stencils that are called
-  stencil_15 m_stencil_15;
+  stencil_18 m_stencil_18;
 
  public:
   test(const test&) = delete;
 
   test(const gridtools::clang::domain& dom, storage_ijk_t in_field, storage_ijk_t out_field)
-      : m_dom(dom), m_stencil_15(dom, in_field, out_field) {}
+      : m_dom(dom), m_stencil_18(dom, in_field, out_field) {}
 
-  void run() { m_stencil_15.get_stencil()->run(); }
+  void run() { m_stencil_18.get_stencil()->run(); }
 
   std::string get_name() const { return std::string(s_name); }
 
   std::vector<computation<void>*> getStencils() {
-    return std::vector<gridtools::computation<void>*>({m_stencil_15.get_stencil()});
+    return std::vector<gridtools::computation<void>*>({m_stencil_18.get_stencil()});
   }
 
-  void reset_meters() { m_stencil_15.get_stencil()->reset_meter(); }
+  void reset_meters() { m_stencil_18.get_stencil()->reset_meter(); }
 };
 }  // namespace gridtools

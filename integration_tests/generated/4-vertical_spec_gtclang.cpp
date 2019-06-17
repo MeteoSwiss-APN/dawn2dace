@@ -1,6 +1,6 @@
-// gtclang (0.0.1-42ba1b2-x86_64-linux-gnu-5.4.0)
+// gtclang (0.0.1-9b6d23a-x86_64-linux-gnu-5.4.0)
 // based on LLVM/Clang (6.0.1), Dawn (0.0.1)
-// Generated on 2019-04-15  14:34:05
+// Generated on 2019-06-17  12:12:56
 
 #define GRIDTOOLS_CLANG_GENERATED 1
 #define GRIDTOOLS_CLANG_BACKEND_T GT
@@ -37,21 +37,6 @@
 #ifndef BOOST_MPL_LIMIT_VECTOR_SIZE
  #define BOOST_MPL_LIMIT_VECTOR_SIZE GT_VECTOR_LIMIT_SIZE
 #endif
-//===--------------------------------------------------------------------------------*- C++ -*-===//
-//                         _       _
-//                        | |     | |
-//                    __ _| |_ ___| | __ _ _ __   __ _
-//                   / _` | __/ __| |/ _` | '_ \ / _` |
-//                  | (_| | || (__| | (_| | | | | (_| |
-//                   \__, |\__\___|_|\__,_|_| |_|\__, | - GridTools Clang DSL
-//                    __/ |                       __/ |
-//                   |___/                       |___/
-//
-//
-//  This file is distributed under the MIT License (MIT).
-//  See LICENSE.txt for details.
-//
-//===------------------------------------------------------------------------------------------===//
 #include "gridtools/clang_dsl.hpp"
 
 using namespace gridtools::clang;
@@ -96,42 +81,6 @@ class vertical_spec_stencil {
     stencil_18(const gridtools::clang::domain& dom, storage_ijk_t data_in_1, storage_ijk_t data_in_2,
                storage_ijk_t data_out) {
       // Check if extents do not exceed the halos
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) >= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
-      static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) <= 0) ||
-                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
-                    "Used extents exceed halo limits.");
       using p_data_in_1 = gridtools::arg<0, storage_ijk_t>;
       using p_data_in_2 = gridtools::arg<1, storage_ijk_t>;
       using p_data_out = gridtools::arg<2, storage_ijk_t>;
