@@ -478,6 +478,24 @@ if __name__ == "__main__":
 
     print("sdfg stored in example.sdfg")
 
-    sdfg.compile()
+    #sdfg = sdfg.optimize()
+    # Only apply GPU transformation
+    from dace.transformation.interstate.gpu_transform_sdfg import GPUTransformSDFG
+    from dace.transformation import optimizer
 
-    print("compilation successful")
+    opt = optimizer.SDFGOptimizer(sdfg, inplace=True)
+    for match in opt.get_pattern_matches(patterns=[GPUTransformSDFG]):
+        match.strict_transform = False
+        match.apply(sdfg)
+        break
+
+    print("optimization successful")
+
+    # Add instrumentation
+    for state in sdfg.nodes():
+        state.instrument = dace.InstrumentationType.Timer
+
+    
+    sdfg.compile(optimizer='')
+
+    print("Instrumentation and compilation successful")

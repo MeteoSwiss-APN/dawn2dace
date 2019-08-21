@@ -1,17 +1,23 @@
 #define GRIDTOOLS_CLANG_HALO_EXTEND 3
 #define GRIDTOOLS_CLANG_GENERATED 1
 
-#include "generated/1-copy_stencil_dace.cpp"
+#define BOOST_OPTIONAL_USE_OLD_DEFINITION_OF_NONE
+#define BOOST_OPTIONAL_CONFIG_USE_OLD_IMPLEMENTATION_OF_OPTIONAL
+
 #include "generated/1-copy_stencil_gtclang.cpp"
 #include "gridtools/clang/verify.hpp"
 #include <cassert>
 
+#include <dace/dace.h>
+DACE_EXPORTED void __program_IIRToSDFG(double * __restrict__ data_in_t, double * __restrict__ data_out_t, int I, int J, int K, int halo_size);
+  
 int main(int argc, char const* argv[]) {
 
   // Read the domain Size
   int x = atoi(argv[1]);
   int y = atoi(argv[2]);
   int z = atoi(argv[3]);
+  int reps = atoi(argv[4]);
 
   // Setup of the gridtools strorages and the verfier
   domain dom(x, y, z);
@@ -38,7 +44,8 @@ int main(int argc, char const* argv[]) {
   auto raw_out_dace = gridtools::make_host_view(out_dace).data();
   auto raw_input = gridtools::make_host_view(input).data();
 
-  __program_IIRToSDFG(raw_input, raw_out_dace, x, y, z, halo::value);
+  for (int rep = 0; rep < reps; ++rep)
+    __program_IIRToSDFG(raw_input, raw_out_dace, x, y, z, halo::value);
 
   assert(verif.verify(out_gtclang, out_dace));
 
