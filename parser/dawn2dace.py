@@ -457,7 +457,6 @@ class TaskletBuilder:
 
         return multi_stage_state
 
-    @staticmethod
     def generate_loop(self, multi_stage, interval, loop_order):
         first_interval_state = None
         # This is the state previous to this ms
