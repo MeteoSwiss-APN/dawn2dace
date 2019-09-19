@@ -1,18 +1,17 @@
 from __future__ import print_function
 
+
+import IIR_pb2
+import dace
 import argparse
 import ast
 import os
 import pickle
 import sys
-
 import astunparse
 
-sys.path.append(
-    os.path.abspath("/home/tobias/Documents/work/dawn2dace/build/gen/iir_specification"))
-import IIR_pb2
-
-import dace
+# sys.path.append(
+#     os.path.abspath("/home/tobias/Documents/work/dawn2dace/build/gen/iir_specification"))
 
 I = dace.symbol('I')
 J = dace.symbol('J')
@@ -205,24 +204,33 @@ class TaskletBuilder:
         if interval.WhichOneof("LowerLevel") == 'special_lower_level':
             if interval.special_lower_level == 0:
                 start = "0"
+                startint = 0
             else:
                 start = "K-1"
+                startint = 10000 - 1
         elif interval.WhichOneof("LowerLevel") == 'lower_level':
             start = str(interval.lower_level)
+            startint = interval.lower_level
         start += " + " + str(interval.lower_offset)
+        startint += interval.lower_offset
 
         if interval.WhichOneof("UpperLevel") == 'special_upper_level':
             if interval.special_upper_level == 0:
                 end = "0"
+                endint = 0
             else:
                 # intervals are adapted to be inclusive so K-1 is what we want (starting from 0)
                 end = "K-1"
+                endint = 10000 - 1
         elif interval.WhichOneof("UpperLevel") == 'upper_level':
             end = str(interval.upper_level)
+            endint = interval.upper_level
         end += " + " + str(interval.upper_offset)
+        endint += interval.upper_offset
         # since python interval are open we need to add 1
         end += "+1"
-        return start, end
+        endint += 1
+        return start, end, startint
 
     def visit_statement(self, stmt):
 
@@ -246,143 +254,36 @@ class TaskletBuilder:
         for access_id, extents in accesses.readAccess.iteritems():
             self.create_extent_str(extents)
 
-    def visit_do_method(self, domethod, loop_order):
+    def visit_do_method(self, domethod):
         do_method_name = "DoMethod_" + str(domethod.doMethodID)
-
-        extent_start, extent_end = self.visit_interval(domethod.interval)
+        extent_start, extent_end, _ = self.visit_interval(domethod.interval)
         do_method_name += "(%s:%s)" % (extent_start, extent_end)
 
-        # This is the state previous to this do-method
-        prev_state = self.last_state_
-
-        # We need to store the first state of the do-method if we want (sequential) loops
-        first_do_method_state = None
-
-        for stmt_access in domethod.stmtaccesspairs:
-            state = sdfg.add_state('state_' + str(self.state_counter_))
-            self.state_counter_ += 1
-            if first_do_method_state is None:
-                first_do_method_state = state
-            else:
-                sdfg.add_edge(self.last_state_, state, dace.InterstateEdge())
-
-            # Creation of the Memlet in the state
-            self.current_stmt_access_ = stmt_access
-            input_memlets = {}
-            output_memlets = {}
-
-            for key in stmt_access.accesses.readAccess:
-
-                # since keys with negative ID's are *only* literals, we can skip those
-                if key < 0:
-                    continue
-
-                f_name = self.metadata_.accessIDToName[key]
-
-                i_extent = stmt_access.accesses.readAccess[key].extents[0]
-                j_extent = stmt_access.accesses.readAccess[key].extents[1]
-                k_extent = stmt_access.accesses.readAccess[key].extents[2]
-
-                if key not in self.metadata_.globalVariableIDs:
-                    access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.plus) + "+1" + ",k+" + str(
-                        k_extent.minus) + ":k+" + str(k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(
-                        i_extent.plus) + "+1"
-                else:
-                    access_pattern = '0'
-
-                # we promote every local variable to a temporary:
-                if f_name not in self.dataTokens_:
-                    self.dataTokens_[f_name] = sdfg.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
-
-                input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
-
-            for key in stmt_access.accesses.writeAccess:
-
-                f_name = self.metadata_.accessIDToName[key]
-
-                i_extent = stmt_access.accesses.writeAccess[key].extents[0]
-                j_extent = stmt_access.accesses.writeAccess[key].extents[1]
-                k_extent = stmt_access.accesses.writeAccess[key].extents[2]
-
-                access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.plus) + "+1" + ",k+" + str(
-                    k_extent.minus) + ":k+" + str(k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(
-                    i_extent.plus) + "+1"
-
-                # we promote every local variable to a temporary:
-                if f_name not in self.dataTokens_:
-                    self.dataTokens_[f_name] = sdfg.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
-
-                output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
-
-            stmt_str = ""
-
-            stmt_str += self.visit_statement(stmt_access)
-
-            if stmt_str:
-
-                # adding input to every input-field for separation:
-                if __debug__:
-                    print("before inout transformation")
-                    print(stmt_str)
-
-                tree = ast.parse(stmt_str)
-                output_stmt = astunparse.unparse(RenameInput().visit(tree))
-
-                if __debug__:
-                    print("after inout transformation")
-                    print(output_stmt)
-
-                stmt_str = output_stmt
-
-                if __debug__:
-                    print("this is the stmt-str:")
-                    print(stmt_str)
-                    print("in-mem")
-                    print(input_memlets)
-                    print("out-mem")
-                    print(output_memlets)
-
-                # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
-                # the maps are ij-only
-                map_range = dict(
-                    j='halo_size:J-halo_size',
-                    i='halo_size:I-halo_size',
-                )
-                if loop_order > 1:
-                    map_range['k'] = '%s:%s' % (extent_start, extent_end)
-
-                state.add_mapped_tasklet(
-                    "statement",
-                    map_range,
-                    input_memlets,
-                    stmt_str,
-                    output_memlets, external_edges=True)
-
-            # set the state  to be the last one to connect them
-            self.last_state_ = state
-
-        if __debug__:
-            print("loop order is: %i" % loop_order)
-
-        if loop_order == 0:
-            _, _, last_state = sdfg.add_loop(prev_state, first_do_method_state, None, 'k', extent_start,
-                                             'k < %s' % extent_end, 'k + 1', self.last_state_)
-            self.last_state_ = last_state
-        elif loop_order == 1:
-            _, _, last_state = sdfg.add_loop(prev_state, first_do_method_state, None, 'k', extent_start,
-                                             'k > %s' % extent_end, 'k - 1', self.last_state_)
-            self.last_state_ = last_state
-        else:
-            if prev_state is not None:
-                sdfg.add_edge(prev_state, first_do_method_state, dace.InterstateEdge())
-
-    def visit_stage(self, stage, loop_order):
+    def visit_stage(self, stage):
         for do_method in stage.doMethods:
-            self.visit_do_method(do_method, loop_order)
+            self.visit_do_method(do_method)
 
     def visit_multi_stage(self, ms):
+        intervals = set()
         for stage in ms.stages:
-            self.visit_stage(stage, ms.loopOrder)
+            for do_method in stage.doMethods:
+                extent_start, extent_end, startint = self.visit_interval(
+                    do_method.interval)
+                intervals.add((extent_start, extent_end, startint))
+        intervals = list(intervals)
+        # sort the intervals
+        if ms.loopOrder == 1:
+            intervals.sort(key=lambda tup: tup[2], reverse=True)
+        else:
+            intervals.sort(key=lambda tup: tup[2])
+
+        if __debug__:
+            print("list of all the intervals:")
+            for (x, y, _) in intervals:
+                print("[ " + x + " , " + y + " ]")
+        # generate the multistage for every interval (in loop order)
+        for interval in intervals:
+            self.last_state_ = self.generate_multistage(ms.loopOrder, ms, interval)
 
     def visit_stencil(self, stencil_):
         for ms in stencil_.multiStages:
@@ -412,12 +313,290 @@ class TaskletBuilder:
             f_name = self.metadata_.accessIDToName[fID]
             self.dataTokens_[f_name] = sdfg_.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
+    def generate_multistage(self, loop_order, multi_stage, interval):
+        if loop_order == 2:
+            return self.generate_parallel(multi_stage, interval)
+        else:
+            return self.generate_loop(multi_stage, interval, loop_order)
+
+    def generate_parallel(self, multi_stage, interval):
+        multi_stage_state = sdfg.add_state("state_" + str(self.state_counter_))
+        self.state_counter_ += 1
+        sub_sdfg = dace.SDFG('ms_subsdfg'+str(self.state_counter_))
+        self.state_counter_ += 1
+        last_state_in_multi_stage = None
+        # to connect them we need all input and output names
+        collected_input_mapping = {}
+        collected_output_mapping = {}
+
+        for stage in multi_stage.stages:
+            for do_method in stage.doMethods:
+                do_method_name = "DoMethod_" + str(do_method.doMethodID)
+                extent_start, extent_end, _ = self.visit_interval(do_method.interval)
+                do_method_name += "(%s:%s)" % (extent_start, extent_end)
+
+                if interval[0] != extent_start or interval[1] != extent_end:
+                    continue
+
+                for stmt_access in do_method.stmtaccesspairs:
+                    state = sub_sdfg.add_state('state_' + str(self.state_counter_))
+                    self.state_counter_ += 1
+                    # check if this if is required
+                    if last_state_in_multi_stage is not None:
+                        sub_sdfg.add_edge(last_state_in_multi_stage, state, dace.InterstateEdge())
+
+                    # Creation of the Memlet in the state
+                    self.current_stmt_access_ = stmt_access
+                    input_memlets = {}
+                    output_memlets = {}
+
+                    for key in stmt_access.accesses.readAccess:
+                        # since keys with negative ID's are *only* literals, we can skip those
+                        if key < 0:
+                            continue
+                        f_name = self.metadata_.accessIDToName[key]
+                        i_extent = stmt_access.accesses.readAccess[key].extents[0]
+                        j_extent = stmt_access.accesses.readAccess[key].extents[1]
+                        k_extent = stmt_access.accesses.readAccess[key].extents[2]
+                        if key not in self.metadata_.globalVariableIDs:
+                            access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(
+                                j_extent.plus) + "+1" + ",k+" + str(k_extent.minus) + ":k+" + str(
+                                k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
+                        else:
+                            access_pattern = '0'
+                        # we promote every local variable to a temporary:
+                        if f_name not in self.dataTokens_:
+                            self.dataTokens_[f_name] = sub_sdfg.add_transient(
+                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+
+                        input_memlets[f_name + "_input"] = dace.Memlet.simple("S_" + f_name, access_pattern)
+                        sub_sdfg.add_array('S_' + f_name, shape=[J, K + 1, I], dtype=data_type)
+                        collected_input_mapping['S_' + f_name] = f_name + "_t"
+
+                    for key in stmt_access.accesses.writeAccess:
+                        f_name = self.metadata_.accessIDToName[key]
+
+                        i_extent = stmt_access.accesses.writeAccess[key].extents[0]
+                        j_extent = stmt_access.accesses.writeAccess[key].extents[1]
+                        k_extent = stmt_access.accesses.writeAccess[key].extents[2]
+
+                        access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(
+                            j_extent.plus) + "+1" + ",k+" + str(k_extent.minus) + ":k+" + str(
+                            k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
+                        # we promote every local variable to a temporary:
+                        if f_name not in self.dataTokens_:
+                            self.dataTokens_[f_name] = sub_sdfg.add_transient(
+                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+
+                        output_memlets[f_name] = dace.Memlet.simple("S_" + f_name, access_pattern)
+                        sub_sdfg.add_array('S_' + f_name, shape=[J, K + 1, I], dtype=data_type)
+                        collected_output_mapping['S_'+f_name] = f_name + "_t"
+                    stmt_str = ""
+
+                    stmt_str += self.visit_statement(stmt_access)
+
+                    if stmt_str:
+                        # adding input to every input-field for separation:
+                        if __debug__:
+                            print("before inout transformation")
+                            print(stmt_str)
+                        tree = ast.parse(stmt_str)
+                        output_stmt = astunparse.unparse(
+                            RenameInput().visit(tree))
+
+                        if __debug__:
+                            print("after inout transformation")
+                            print(output_stmt)
+
+                        stmt_str = output_stmt
+
+                        if __debug__:
+                            print("this is the stmt-str:")
+                            print(stmt_str)
+                            print("in-mem")
+                            print(input_memlets)
+                            print("out-mem")
+                            print(output_memlets)
+
+                        # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
+                        # the maps are ij-only
+                        map_range = dict(
+                            j='halo_size:J-halo_size',
+                            i='halo_size:I-halo_size',
+                        )
+                        state.add_mapped_tasklet("statement", map_range, input_memlets,
+                                                 stmt_str, output_memlets, external_edges=True)
+
+                    # set the state  to be the last one to connect them
+                    self.last_state_in_multi_stage = state
+
+        me_k, mx_k = multi_stage_state.add_map('kmap', dict(k='%s:%s' % (extent_start, extent_end)))
+        # fill the sub-sdfg's {in_set} {out_set}
+        input_set = set()
+        output_set = set()
+        # print(type(collected_input_mapping))
+        for k, v in collected_input_mapping.items():
+            input_set.add(k)
+        for k, v in collected_output_mapping.items():
+            output_set.add(k)
+        nested_sdfg = multi_stage_state.add_nested_sdfg(sub_sdfg, sdfg, input_set, output_set)
+
+        # add the reads and the input memlet path : read - me_k - nsdfg
+        for k, v in collected_input_mapping.items():
+            read = multi_stage_state.add_read(v)
+            multi_stage_state.add_memlet_path(
+                read, me_k, nested_sdfg, memlet=dace.Memlet.simple(v, 'j, k, i'), dst_conn=k)
+        # add the writes and the output memlet path : nsdfg - mx_k - write
+        for k, v in collected_output_mapping.items():
+            write = multi_stage_state.add_write(v)
+            multi_stage_state.add_memlet_path(nested_sdfg, mx_k, write,
+                                              memlet=dace.Memlet.simple(v, 'j, k, i'), src_conn=k)
+
+        if self.last_state_ is not None:
+            sdfg.add_edge(self.last_state_, multi_stage_state, dace.InterstateEdge())
+
+        return multi_stage_state
+
+    @staticmethod
+    def generate_loop(self, multi_stage, interval, loop_order):
+        first_interval_state = None
+        # This is the state previous to this ms
+        prev_state = self.last_state_
+        for stage in multi_stage.stages:
+            for do_method in stage.doMethods:
+                # Generate the name of the Do-Method
+                do_method_name = "DoMethod_" + str(do_method.doMethodID)
+                extent_start, extent_end, _ = self.visit_interval(do_method.interval)
+                do_method_name += "(%s:%s)" % (extent_start, extent_end)
+                # since we only want to generate stmts for the Do-Methods that are matching the interval, we're ignoring
+                # the other ones
+                if interval[0] != extent_start or interval[1] != extent_end:
+                    return
+
+                for stmt_access in do_method.stmtaccesspairs:
+                    # A State for every stmt makes sure they can be sequential
+                    state = sdfg.add_state('state_' + str(self.state_counter_))
+                    self.state_counter_ += 1
+                    if first_interval_state is None:
+                        first_interval_state = state
+                    else:
+                        sdfg.add_edge(self.last_state_, state, dace.InterstateEdge())
+
+                    # Creation of the Memlet in the state
+                    self.current_stmt_access_ = stmt_access
+                    input_memlets = {}
+                    output_memlets = {}
+
+                    for key in stmt_access.accesses.readAccess:
+
+                        # since keys with negative ID's are *only* literals, we can skip those
+                        if key < 0:
+                            continue
+
+                        f_name = self.metadata_.accessIDToName[key]
+
+                        i_extent = stmt_access.accesses.readAccess[key].extents[0]
+                        j_extent = stmt_access.accesses.readAccess[key].extents[1]
+                        k_extent = stmt_access.accesses.readAccess[key].extents[2]
+
+                        # create the access extent for the read-Access
+                        if key not in self.metadata_.globalVariableIDs:
+                            access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(
+                                j_extent.plus) + "+1" + ",k+" + str(k_extent.minus) + ":k+" + str(
+                                k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
+                        else:
+                            access_pattern = '0'
+
+                        # we promote every local variable to a temporary:
+                        if f_name not in self.dataTokens_:
+                            self.dataTokens_[f_name] = sdfg.add_transient(
+                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+
+                        input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
+
+                    for key in stmt_access.accesses.writeAccess:
+
+                        f_name = self.metadata_.accessIDToName[key]
+
+                        i_extent = stmt_access.accesses.writeAccess[key].extents[0]
+                        j_extent = stmt_access.accesses.writeAccess[key].extents[1]
+                        k_extent = stmt_access.accesses.writeAccess[key].extents[2]
+
+                        access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.plus) + "+1" + ",k+" + str(
+                            k_extent.minus) + ":k+" + str(k_extent.plus) + "+1," + "i+" + str(
+                            i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
+
+                        # we promote every local variable to a temporary:
+                        if f_name not in self.dataTokens_:
+                            self.dataTokens_[f_name] = sdfg.add_transient(
+                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+
+                        output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
+
+                    # Create the statement
+                    stmt_str = ""
+                    stmt_str += self.visit_statement(stmt_access)
+
+                    if stmt_str:
+                        # adding input to every input-field for separation:
+                        if __debug__:
+                            print("before inout transformation")
+                            print(stmt_str)
+
+                        tree = ast.parse(stmt_str)
+                        output_stmt = astunparse.unparse(
+                            RenameInput().visit(tree))
+
+                        if __debug__:
+                            print("after inout transformation")
+                            print(output_stmt)
+
+                        stmt_str = output_stmt
+
+                        if __debug__:
+                            print("this is the stmt-str:")
+                            print(stmt_str)
+                            print("in-mem")
+                            print(input_memlets)
+                            print("out-mem")
+                            print(output_memlets)
+
+                        # Since we're in a sequential loop, we only need a map in i and j
+                        map_range = dict(
+                            j='halo_size:J-halo_size',
+                            i='halo_size:I-halo_size',
+                        )
+
+                        state.add_mapped_tasklet(
+                            "statement",
+                            map_range,
+                            input_memlets,
+                            stmt_str,
+                            output_memlets, external_edges=True)
+
+                    # set the state to be the last one to connect to it
+                    self.last_state_ = state
+
+                if __debug__:
+                    print("loop order is: %i" % loop_order)
+                if loop_order == 0:
+                    _, _, last_state = sdfg.add_loop(prev_state, first_interval_state, None, 'k', extent_start,
+                                                     'k < %s' % extent_end, 'k + 1', self.last_state_)
+                    return last_state
+                elif loop_order == 1:
+                    _, _, last_state = sdfg.add_loop(prev_state, first_interval_state, None,
+                                                     'k', extent_start, 'k > %s' % extent_end, 'k - 1',
+                                                     self.last_state_)
+                    return last_state
+                else:
+                    assert("wrong usage")
+
 
 if __name__ == "__main__":
     print("==== Program start ====")
 
     parser = argparse.ArgumentParser(
-        description='''Deserializes a google protobuf file encoding an HIR example and traverses the AST printing a 
+        description='''Deserializes a google protobuf file encoding an HIR example and traverses the AST printing a
                     DSL code with the user equations''',
     )
     parser.add_argument('hirfile', type=argparse.FileType('rb'), help='google protobuf HIR file')
@@ -477,6 +656,9 @@ if __name__ == "__main__":
     pickle.dump(sdfg, open("after.sdfg", "wb"))
 
     print("sdfg stored in example.sdfg")
+
+    sdfg.validate()
+    print("sdfg validated")
 
     sdfg.compile()
 
