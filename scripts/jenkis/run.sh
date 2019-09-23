@@ -64,7 +64,7 @@ for ex in $FILES ; do
     FILE_NAME="$(basename -- $ex)"
     STRIPPED_NAME="${FILE_NAME%%.*}"
     # create the iir and the gtclang generated code
-    $GTCLANG_EXEC $ex -fwrite-iir -iir-format=byte -o $STRIPPED_NAME.cpp
+    $GTCLANG_EXEC $ex -fwrite-iir -iir-format=byte -fpartition-intervals -o $STRIPPED_NAME.cpp
     mv $STRIPPED_NAME.cpp ${STRIPPED_NAME}_gtclang.cpp
     mv $STRIPPED_NAME.0.iir ${STRIPPED_NAME}.iir
 
