@@ -64,13 +64,14 @@ for ex in $FILES ; do
     FILE_NAME="$(basename -- $ex)"
     STRIPPED_NAME="${FILE_NAME%%.*}"
     # create the iir and the gtclang generated code
-    $GTCLANG_EXEC $ex -fwrite-iir -iir-format=byte -fpartition-intervals -o $STRIPPED_NAME.cpp
+    echo "creating files for $STRIPPED_NAME.cpp"
+    $GTCLANG_EXEC $ex -fwrite-iir -iir-format=byte -fdebug -fpartition-intervals -o $STRIPPED_NAME.cpp
     mv $STRIPPED_NAME.cpp ${STRIPPED_NAME}_gtclang.cpp
     mv $STRIPPED_NAME.0.iir ${STRIPPED_NAME}.iir
 
     # create the SDFG and the dace-generated code
     rm -rf .dacecache/*
-    python dawn2dace.py $STRIPPED_NAME.iir
+    python -O dawn2dace.py $STRIPPED_NAME.iir
     mv .dacecache/IIRToSDFG/src/cpu/IIRToSDFG.cpp ${STRIPPED_NAME}_dace.cpp
     mv after.sdfg ${STRIPPED_NAME}.sdfg
     rm before.sdfg
@@ -90,6 +91,7 @@ pushd ${BASEPATH_SCRIPT}/../../integration_tests/
 make
 # run the executables
 for binary in bin/*_stencil ; do
-    $binary 256 256 30 || exit 1
+  echo "running ${binary}..."
+  $binary 256 256 30 || exit 1
 done
 popd
