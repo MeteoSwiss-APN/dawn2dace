@@ -315,7 +315,15 @@ class TaskletBuilder:
 
     def generate_multistage(self, loop_order, multi_stage, interval):
         if loop_order == 2:
-            return self.generate_parallel(multi_stage, interval)
+            # return self.generate_parallel(multi_stage, interval)
+            #
+            #
+            # change this back to parallel once tal figured out the problem with the generated sdfg
+            #
+            #
+            #
+            #
+            return self.generate_loop(multi_stage, interval, 0)
         else:
             return self.generate_loop(multi_stage, interval, loop_order)
 
@@ -470,7 +478,7 @@ class TaskletBuilder:
                 # since we only want to generate stmts for the Do-Methods that are matching the interval, we're ignoring
                 # the other ones
                 if interval[0] != extent_start or interval[1] != extent_end:
-                    return
+                    continue
 
                 for stmt_access in do_method.stmtaccesspairs:
                     # A State for every stmt makes sure they can be sequential

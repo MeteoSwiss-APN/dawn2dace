@@ -1,8 +1,20 @@
 build/*
 integration_tests/bin/*
+integration_tests/generated/*
 **/.dacecache/**
 **/_dotgraphs/**
 
 .gitignore
 
-.idea*
+# Ignore IDEs
+.idea
+.vscode/
+**/compile_commands.json
+.clangd/
+
+## manual tests
+parser/*.sdfg
+parser/*.iir
+
+## manual configuration
+**/config.mk
