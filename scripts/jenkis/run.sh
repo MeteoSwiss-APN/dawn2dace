@@ -90,6 +90,6 @@ pushd ${BASEPATH_SCRIPT}/../../integration_tests/
 make
 # run the executables
 for binary in bin/*_stencil ; do
-    $binary 256 256 30
+    $binary 256 256 30 || exit 1
 done
 popd
