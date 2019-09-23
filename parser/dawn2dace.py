@@ -584,19 +584,19 @@ class TaskletBuilder:
                     # set the state to be the last one to connect to it
                     self.last_state_ = state
 
-                if __debug__:
-                    print("loop order is: %i" % loop_order)
-                if loop_order == 0:
-                    _, _, last_state = sdfg.add_loop(prev_state, first_interval_state, None, 'k', extent_start,
-                                                     'k < %s' % extent_end, 'k + 1', self.last_state_)
-                    return last_state
-                elif loop_order == 1:
-                    _, _, last_state = sdfg.add_loop(prev_state, first_interval_state, None,
-                                                     'k', extent_start, 'k > %s' % extent_end, 'k - 1',
-                                                     self.last_state_)
-                    return last_state
-                else:
-                    assert("wrong usage")
+        if __debug__:
+            print("loop order is: %i" % loop_order)
+        if loop_order == 0:
+            _, _, last_state = sdfg.add_loop(prev_state, first_interval_state, None, 'k', interval[0],
+                                             'k < %s' % interval[1], 'k + 1', self.last_state_)
+            return last_state
+        elif loop_order == 1:
+            _, _, last_state = sdfg.add_loop(prev_state, first_interval_state, None,
+                                             'k', interval[0], 'k > %s' % interval[1], 'k - 1',
+                                             self.last_state_)
+            return last_state
+        else:
+            assert("wrong usage")
 
 
 if __name__ == "__main__":
