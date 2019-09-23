@@ -37,7 +37,7 @@ int main(int argc, char const *argv[]) {
   auto raw_out_dace = gridtools::make_host_view(output_dace).data();
   auto raw_input = gridtools::make_host_view(input).data();
 
-  __program_IIRToSDFG(raw_input, raw_out_dace, x, y, z, halo::value);
+  __program_IIRToSDFG(raw_out_dace, raw_input, x, y, z, halo::value);
 
   assert(verif.verify(output_dace, output_gtclang));
 
