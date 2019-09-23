@@ -6,7 +6,7 @@
 #include "gridtools/clang/verify.hpp"
 #include <cassert>
 
-int main(int argc, char const* argv[]) {
+int main(int argc, char const *argv[]) {
 
   // Read the domain Size
   int x = atoi(argv[1]);
@@ -32,7 +32,8 @@ int main(int argc, char const* argv[]) {
   verif.fillMath(4.0, 1.7, 1.5, 6.3, 2.0, 1.4, input_2);
 
   // Call the gtclang stencil
-  gridtools::vertical_spec_stencil test_gtclang(dom, input_1, input_2, output_gtclang);
+  dawn_generated::gt::vertical_spec_stencil test_gtclang(dom, input_1, input_2,
+                                                         output_gtclang);
   test_gtclang.run();
 
   // call the dace-stencil
@@ -40,7 +41,8 @@ int main(int argc, char const* argv[]) {
   auto raw_input_1 = gridtools::make_host_view(input_1).data();
   auto raw_input_2 = gridtools::make_host_view(input_2).data();
 
-  __program_IIRToSDFG(raw_input_2, raw_out_dace, raw_input_1, x, y, z, halo::value);
+  __program_IIRToSDFG(raw_input_1, raw_input_2, raw_out_dace, x, y, z,
+                      halo::value);
 
   assert(verif.verify(output_dace, output_gtclang));
 
