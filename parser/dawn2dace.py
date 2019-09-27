@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 
-import IIR_pb2
 import dace
 import argparse
 import ast
@@ -10,13 +9,17 @@ import pickle
 import sys
 import astunparse
 
-# sys.path.append(
-#     os.path.abspath("/home/tobias/Documents/work/dawn2dace/build/gen/iir_specification"))
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "build", "gen", "iir_specification"))
+)
 
-I = dace.symbol('I')
-J = dace.symbol('J')
-K = dace.symbol('K')
-halo_size = dace.symbol('haloSize')
+import IIR_pb2
+
+
+I = dace.symbol("I")
+J = dace.symbol("J")
+K = dace.symbol("K")
+halo_size = dace.symbol("haloSize")
 
 data_type = dace.float64
 block_size = (32, 4)
@@ -24,18 +27,18 @@ fused = False
 
 
 def str2bool(v):
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+    if v.lower() in ("yes", "true", "t", "y", "1"):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 class RenameInput(ast.NodeTransformer):
     def visit_Name(self, node):
         if isinstance(node.ctx, ast.Load):
-            node.id += '_input'
+            node.id += "_input"
             return node
         return node
 
@@ -56,7 +59,7 @@ class TaskletBuilder:
     @staticmethod
     def visit_builtin_type(builtin_type):
         if builtin_type.type_id == 0:
-            raise ValueError('Builtin type not supported')
+            raise ValueError("Builtin type not supported")
         elif builtin_type.type_id == 1:
             return "auto"
         elif builtin_type.type_id == 2:
@@ -65,7 +68,7 @@ class TaskletBuilder:
             return "int"
         elif builtin_type.type_id == 4:
             return "float"
-        raise ValueError('Builtin type not supported')
+        raise ValueError("Builtin type not supported")
 
     def visit_unary_operator(self, expr):
         return expr.op + " (" + self.visit_expr(expr.operand) + ")"
@@ -77,8 +80,16 @@ class TaskletBuilder:
         return self.visit_expr(expr.left) + " " + expr.op + " (" + self.visit_expr(expr.right) + ")"
 
     def visit_ternary_operator(self, expr):
-        return "( (" + self.visit_expr(expr.cond) + ") ? " + "(" + self.visit_expr(
-            expr.left) + ") : (" + self.visit_expr(expr.right) + ") )"
+        return (
+            "( ("
+            + self.visit_expr(expr.cond)
+            + ") ? "
+            + "("
+            + self.visit_expr(expr.left)
+            + ") : ("
+            + self.visit_expr(expr.right)
+            + ") )"
+        )
 
     @staticmethod
     def visit_var_access_expr(expr):
@@ -201,20 +212,20 @@ class TaskletBuilder:
 
     @staticmethod
     def visit_interval(interval):
-        if interval.WhichOneof("LowerLevel") == 'special_lower_level':
+        if interval.WhichOneof("LowerLevel") == "special_lower_level":
             if interval.special_lower_level == 0:
                 start = "0"
                 startint = 0
             else:
                 start = "K-1"
                 startint = 10000 - 1
-        elif interval.WhichOneof("LowerLevel") == 'lower_level':
+        elif interval.WhichOneof("LowerLevel") == "lower_level":
             start = str(interval.lower_level)
             startint = interval.lower_level
         start += " + " + str(interval.lower_offset)
         startint += interval.lower_offset
 
-        if interval.WhichOneof("UpperLevel") == 'special_upper_level':
+        if interval.WhichOneof("UpperLevel") == "special_upper_level":
             if interval.special_upper_level == 0:
                 end = "0"
                 endint = 0
@@ -222,7 +233,7 @@ class TaskletBuilder:
                 # intervals are adapted to be inclusive so K-1 is what we want (starting from 0)
                 end = "K-1"
                 endint = 10000 - 1
-        elif interval.WhichOneof("UpperLevel") == 'upper_level':
+        elif interval.WhichOneof("UpperLevel") == "upper_level":
             end = str(interval.upper_level)
             endint = interval.upper_level
         end += " + " + str(interval.upper_offset)
@@ -267,8 +278,7 @@ class TaskletBuilder:
         intervals = set()
         for stage in ms.stages:
             for do_method in stage.doMethods:
-                extent_start, extent_end, startint = self.visit_interval(
-                    do_method.interval)
+                extent_start, extent_end, startint = self.visit_interval(do_method.interval)
                 intervals.add((extent_start, extent_end, startint))
         intervals = list(intervals)
         # sort the intervals
@@ -331,7 +341,7 @@ class TaskletBuilder:
     def generate_parallel(self, multi_stage, interval):
         multi_stage_state = sdfg.add_state("state_" + str(self.state_counter_))
         self.state_counter_ += 1
-        sub_sdfg = dace.SDFG('ms_subsdfg'+str(self.state_counter_))
+        sub_sdfg = dace.SDFG("ms_subsdfg" + str(self.state_counter_))
         sub_sdfg_arrays = {}
         self.state_counter_ += 1
         last_state_in_multi_stage = None
@@ -350,7 +360,7 @@ class TaskletBuilder:
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
-                    state = sub_sdfg.add_state('state_' + str(self.state_counter_))
+                    state = sub_sdfg.add_state("state_" + str(self.state_counter_))
                     self.state_counter_ += 1
                     # check if this if is required
                     if last_state_in_multi_stage is not None:
@@ -370,33 +380,50 @@ class TaskletBuilder:
                         j_extent = stmt_access.accesses.readAccess[key].extents[1]
                         k_extent = stmt_access.accesses.readAccess[key].extents[2]
                         if key not in self.metadata_.globalVariableIDs:
-                            access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(
-                                j_extent.plus) + "+1" + ",k+" + str(k_extent.minus) + ":k+" + str(
-                                k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
+                            access_pattern = (
+                                "j+"
+                                + str(j_extent.minus)
+                                + ":j+"
+                                + str(j_extent.plus)
+                                + "+1"
+                                + ",k+"
+                                + str(k_extent.minus)
+                                + ":k+"
+                                + str(k_extent.plus)
+                                + "+1,"
+                                + "i+"
+                                + str(i_extent.minus)
+                                + ":i+"
+                                + str(i_extent.plus)
+                                + "+1"
+                            )
                         else:
-                            access_pattern = '0'
+                            access_pattern = "0"
 
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
                             # add the transient to the top level sdfg
                             self.dataTokens_[f_name] = sdfg.add_array(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
+                            )
 
                             # add the transient to the sub_sdfg:
-                            if 'S_' + f_name + '_input' not in sub_sdfg_arrays:
-                                sub_sdfg_arrays['S_' + f_name + '_input'] = sub_sdfg.add_array(
-                                    'S_' + f_name + '_input', shape=[J, K + 1, I], dtype=data_type)
+                            if "S_" + f_name not in sub_sdfg_arrays:
+                                sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
+                                    "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
+                                )
 
                         # create the memlet to create the mapped stmt
-                        input_memlets[f_name + "_input"] = dace.Memlet.simple("S_" + f_name + "_input", access_pattern)
+                        input_memlets[f_name + "_input"] = dace.Memlet.simple("S_" + f_name, access_pattern)
 
                         # add the field to the sub-sdfg as an array
-                        if 'S_' + f_name + '_input' not in sub_sdfg_arrays:
-                            sub_sdfg_arrays['S_' + f_name + '_input'] = sub_sdfg.add_array(
-                                'S_' + f_name + '_input', shape=[J, K + 1, I], dtype=data_type)
+                        if "S_" + f_name not in sub_sdfg_arrays:
+                            sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
+                                "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
+                            )
 
                         # collection of all the input fields for the memlet paths outside the sub-sdfg
-                        collected_input_mapping['S_' + f_name + "_input"] = f_name + "_t"
+                        collected_input_mapping["S_" + f_name] = f_name + "_t"
 
                     for key in stmt_access.accesses.writeAccess:
                         f_name = self.metadata_.accessIDToName[key]
@@ -405,31 +432,48 @@ class TaskletBuilder:
                         j_extent = stmt_access.accesses.writeAccess[key].extents[1]
                         k_extent = stmt_access.accesses.writeAccess[key].extents[2]
 
-                        access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(
-                            j_extent.plus) + "+1" + ",k+" + str(k_extent.minus) + ":k+" + str(
-                            k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
+                        access_pattern = (
+                            "j+"
+                            + str(j_extent.minus)
+                            + ":j+"
+                            + str(j_extent.plus)
+                            + "+1"
+                            + ",k+"
+                            + str(k_extent.minus)
+                            + ":k+"
+                            + str(k_extent.plus)
+                            + "+1,"
+                            + "i+"
+                            + str(i_extent.minus)
+                            + ":i+"
+                            + str(i_extent.plus)
+                            + "+1"
+                        )
 
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
                             # add the transient to the top level sdfg
                             self.dataTokens_[f_name] = sdfg.add_array(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
+                            )
 
                             # add the transient to the sub_sdfg:
-                            if 'S_' + f_name not in sub_sdfg_arrays:
-                                sub_sdfg_arrays['S_' + f_name] = sub_sdfg.add_array(
-                                    'S_' + f_name, shape=[J, K + 1, I], dtype=data_type)
+                            if "S_" + f_name not in sub_sdfg_arrays:
+                                sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
+                                    "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
+                                )
 
                         # create the memlet
                         output_memlets[f_name] = dace.Memlet.simple("S_" + f_name, access_pattern)
 
                         # add the field to the sub-sdfg as an array
-                        if 'S_' + f_name not in sub_sdfg_arrays:
-                            sub_sdfg_arrays['S_' + f_name] = sub_sdfg.add_array(
-                                'S_' + f_name, shape=[J, K + 1, I], dtype=data_type)
+                        if "S_" + f_name not in sub_sdfg_arrays:
+                            sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
+                                "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
+                            )
 
                         # collection of all the output fields for the memlet paths outside the sub-sdfg
-                        collected_output_mapping['S_'+f_name] = f_name + "_t"
+                        collected_output_mapping["S_" + f_name] = f_name + "_t"
 
                     stmt_str = ""
 
@@ -441,8 +485,7 @@ class TaskletBuilder:
                             print("before inout transformation")
                             print(stmt_str)
                         tree = ast.parse(stmt_str)
-                        output_stmt = astunparse.unparse(
-                            RenameInput().visit(tree))
+                        output_stmt = astunparse.unparse(RenameInput().visit(tree))
 
                         if __debug__:
                             print("after inout transformation")
@@ -460,12 +503,10 @@ class TaskletBuilder:
 
                         # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                         # the maps are ij-only
-                        map_range = dict(
-                            j='halo_size:J-halo_size',
-                            i='halo_size:I-halo_size',
+                        map_range = dict(j="halo_size:J-halo_size", i="halo_size:I-halo_size")
+                        state.add_mapped_tasklet(
+                            "statement", map_range, input_memlets, stmt_str, output_memlets, external_edges=True
                         )
-                        state.add_mapped_tasklet("statement", map_range, input_memlets,
-                                                 stmt_str, output_memlets, external_edges=True)
 
                     # set the state  to be the last one to connect them
                     self.last_state_in_multi_stage = state
@@ -473,7 +514,7 @@ class TaskletBuilder:
                         sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                     last_state = state
 
-        me_k, mx_k = multi_stage_state.add_map('kmap', dict(k='%s:%s' % (extent_start, extent_end)))
+        me_k, mx_k = multi_stage_state.add_map("kmap", dict(k="%s:%s" % (extent_start, extent_end)))
         # fill the sub-sdfg's {in_set} {out_set}
         input_set = set()
         output_set = set()
@@ -488,12 +529,14 @@ class TaskletBuilder:
         for k, v in collected_input_mapping.items():
             read = multi_stage_state.add_read(v)
             multi_stage_state.add_memlet_path(
-                read, me_k, nested_sdfg, memlet=dace.Memlet.simple(v, '0:J, k, 0:I'), dst_conn=k)
+                read, me_k, nested_sdfg, memlet=dace.Memlet.simple(v, "0:J, k, 0:I"), dst_conn=k
+            )
         # add the writes and the output memlet path : nsdfg - mx_k - write
         for k, v in collected_output_mapping.items():
             write = multi_stage_state.add_write(v)
-            multi_stage_state.add_memlet_path(nested_sdfg, mx_k, write,
-                                              memlet=dace.Memlet.simple(v, '0:J, k, 0:I'), src_conn=k)
+            multi_stage_state.add_memlet_path(
+                nested_sdfg, mx_k, write, memlet=dace.Memlet.simple(v, "0:J, k, 0:I"), src_conn=k
+            )
 
         if self.last_state_ is not None:
             sdfg.add_edge(self.last_state_, multi_stage_state, dace.InterstateEdge())
@@ -517,7 +560,7 @@ class TaskletBuilder:
 
                 for stmt_access in do_method.stmtaccesspairs:
                     # A State for every stmt makes sure they can be sequential
-                    state = sdfg.add_state('state_' + str(self.state_counter_))
+                    state = sdfg.add_state("state_" + str(self.state_counter_))
                     self.state_counter_ += 1
                     if first_interval_state is None:
                         first_interval_state = state
@@ -543,16 +586,31 @@ class TaskletBuilder:
 
                         # create the access extent for the read-Access
                         if key not in self.metadata_.globalVariableIDs:
-                            access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(
-                                j_extent.plus) + "+1" + ",k+" + str(k_extent.minus) + ":k+" + str(
-                                k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
+                            access_pattern = (
+                                "j+"
+                                + str(j_extent.minus)
+                                + ":j+"
+                                + str(j_extent.plus)
+                                + "+1"
+                                + ",k+"
+                                + str(k_extent.minus)
+                                + ":k+"
+                                + str(k_extent.plus)
+                                + "+1,"
+                                + "i+"
+                                + str(i_extent.minus)
+                                + ":i+"
+                                + str(i_extent.plus)
+                                + "+1"
+                            )
                         else:
-                            access_pattern = '0'
+                            access_pattern = "0"
 
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
                             self.dataTokens_[f_name] = sdfg.add_transient(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
+                            )
 
                         input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
@@ -564,14 +622,29 @@ class TaskletBuilder:
                         j_extent = stmt_access.accesses.writeAccess[key].extents[1]
                         k_extent = stmt_access.accesses.writeAccess[key].extents[2]
 
-                        access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(j_extent.plus) + "+1" + ",k+" + str(
-                            k_extent.minus) + ":k+" + str(k_extent.plus) + "+1," + "i+" + str(
-                            i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
+                        access_pattern = (
+                            "j+"
+                            + str(j_extent.minus)
+                            + ":j+"
+                            + str(j_extent.plus)
+                            + "+1"
+                            + ",k+"
+                            + str(k_extent.minus)
+                            + ":k+"
+                            + str(k_extent.plus)
+                            + "+1,"
+                            + "i+"
+                            + str(i_extent.minus)
+                            + ":i+"
+                            + str(i_extent.plus)
+                            + "+1"
+                        )
 
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
                             self.dataTokens_[f_name] = sdfg.add_transient(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
+                            )
 
                         output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
@@ -586,8 +659,7 @@ class TaskletBuilder:
                             print(stmt_str)
 
                         tree = ast.parse(stmt_str)
-                        output_stmt = astunparse.unparse(
-                            RenameInput().visit(tree))
+                        output_stmt = astunparse.unparse(RenameInput().visit(tree))
 
                         if __debug__:
                             print("after inout transformation")
@@ -604,17 +676,11 @@ class TaskletBuilder:
                             print(output_memlets)
 
                         # Since we're in a sequential loop, we only need a map in i and j
-                        map_range = dict(
-                            j='halo_size:J-halo_size',
-                            i='halo_size:I-halo_size',
-                        )
+                        map_range = dict(j="halo_size:J-halo_size", i="halo_size:I-halo_size")
 
                         state.add_mapped_tasklet(
-                            "statement",
-                            map_range,
-                            input_memlets,
-                            stmt_str,
-                            output_memlets, external_edges=True)
+                            "statement", map_range, input_memlets, stmt_str, output_memlets, external_edges=True
+                        )
 
                     # set the state to be the last one to connect to it
                     self.last_state_ = state
@@ -622,26 +688,41 @@ class TaskletBuilder:
         if __debug__:
             print("loop order is: %i" % loop_order)
         if loop_order == 0:
-            _, _, last_state = sdfg.add_loop(prev_state, first_interval_state, None, 'k', interval[0],
-                                             'k < %s' % interval[1], 'k + 1', self.last_state_)
+            _, _, last_state = sdfg.add_loop(
+                prev_state,
+                first_interval_state,
+                None,
+                "k",
+                interval[0],
+                "k < %s" % interval[1],
+                "k + 1",
+                self.last_state_,
+            )
             return last_state
         elif loop_order == 1:
-            _, _, last_state = sdfg.add_loop(prev_state, first_interval_state, None,
-                                             'k', interval[0], 'k > %s' % interval[1], 'k - 1',
-                                             self.last_state_)
+            _, _, last_state = sdfg.add_loop(
+                prev_state,
+                first_interval_state,
+                None,
+                "k",
+                interval[0],
+                "k > %s" % interval[1],
+                "k - 1",
+                self.last_state_,
+            )
             return last_state
         else:
-            assert("wrong usage")
+            assert "wrong usage"
 
 
 if __name__ == "__main__":
     print("==== Program start ====")
 
     parser = argparse.ArgumentParser(
-        description='''Deserializes a google protobuf file encoding an HIR example and traverses the AST printing a
-                    DSL code with the user equations''',
+        description="""Deserializes a google protobuf file encoding an HIR example and traverses the AST printing a
+                    DSL code with the user equations"""
     )
-    parser.add_argument('hirfile', type=argparse.FileType('rb'), help='google protobuf HIR file')
+    parser.add_argument("hirfile", type=argparse.FileType("rb"), help="google protobuf HIR file")
     args = vars(parser.parse_args())
 
     stencilInstantiation = IIR_pb2.StencilInstantiation()
@@ -662,12 +743,12 @@ if __name__ == "__main__":
     for a in metadata.APIFieldIDs:
         fields[metadata.accessIDToName[a]] = dace.ndarray([J, K + 1, I], dtype=data_type)
 
-    sdfg = dace.SDFG('IIRToSDFG')
+    sdfg = dace.SDFG("IIRToSDFG")
 
     loopFields = {}
     for a in metadata.APIFieldIDs:
         field_name = metadata.accessIDToName[a]
-        sdfg.add_array('c' + field_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+        sdfg.add_array("c" + field_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
     des = TaskletBuilder(stencilInstantiation.metadata)
 
@@ -686,12 +767,12 @@ if __name__ == "__main__":
 
     print("SDFG generation successful")
 
-    sdfg.draw_to_file('before_transformation.dot')
+    sdfg.draw_to_file("before_transformation.dot")
 
     pickle.dump(sdfg, open("before.sdfg", "wb"))
 
     sdfg.apply_strict_transformations()
-    sdfg.draw_to_file('final.dot')
+    sdfg.draw_to_file("final.dot")
 
     print("Strict transformations applied, state graphs before and after are drawn")
 
