@@ -312,10 +312,11 @@ class TaskletBuilder:
         for fID in self.metadata_.temporaryFieldIDs:
             f_name = self.metadata_.accessIDToName[fID]
             self.dataTokens_[f_name] = sdfg_.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+            print("we're here 2:%s" % f_name)
 
     def generate_multistage(self, loop_order, multi_stage, interval):
         if loop_order == 2:
-            # return self.generate_parallel(multi_stage, interval)
+            return self.generate_parallel(multi_stage, interval)
             #
             #
             # change this back to parallel once tal figured out the problem with the generated sdfg
@@ -323,7 +324,7 @@ class TaskletBuilder:
             #
             #
             #
-            return self.generate_loop(multi_stage, interval, 0)
+            # return self.generate_loop(multi_stage, interval, 0)
         else:
             return self.generate_loop(multi_stage, interval, loop_order)
 
@@ -331,8 +332,10 @@ class TaskletBuilder:
         multi_stage_state = sdfg.add_state("state_" + str(self.state_counter_))
         self.state_counter_ += 1
         sub_sdfg = dace.SDFG('ms_subsdfg'+str(self.state_counter_))
+        sub_sdfg_arrays = {}
         self.state_counter_ += 1
         last_state_in_multi_stage = None
+        last_state = None
         # to connect them we need all input and output names
         collected_input_mapping = {}
         collected_output_mapping = {}
@@ -372,14 +375,28 @@ class TaskletBuilder:
                                 k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
                         else:
                             access_pattern = '0'
+
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
-                            self.dataTokens_[f_name] = sub_sdfg.add_transient(
+                            # add the transient to the top level sdfg
+                            self.dataTokens_[f_name] = sdfg.add_array(
                                 f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
-                        input_memlets[f_name + "_input"] = dace.Memlet.simple("S_" + f_name, access_pattern)
-                        sub_sdfg.add_array('S_' + f_name, shape=[J, K + 1, I], dtype=data_type)
-                        collected_input_mapping['S_' + f_name] = f_name + "_t"
+                            # add the transient to the sub_sdfg:
+                            if 'S_' + f_name + '_input' not in sub_sdfg_arrays:
+                                sub_sdfg_arrays['S_' + f_name + '_input'] = sub_sdfg.add_array(
+                                    'S_' + f_name + '_input', shape=[J, K + 1, I], dtype=data_type)
+
+                        # create the memlet to create the mapped stmt
+                        input_memlets[f_name + "_input"] = dace.Memlet.simple("S_" + f_name + "_input", access_pattern)
+
+                        # add the field to the sub-sdfg as an array
+                        if 'S_' + f_name + '_input' not in sub_sdfg_arrays:
+                            sub_sdfg_arrays['S_' + f_name + '_input'] = sub_sdfg.add_array(
+                                'S_' + f_name + '_input', shape=[J, K + 1, I], dtype=data_type)
+
+                        # collection of all the input fields for the memlet paths outside the sub-sdfg
+                        collected_input_mapping['S_' + f_name + "_input"] = f_name + "_t"
 
                     for key in stmt_access.accesses.writeAccess:
                         f_name = self.metadata_.accessIDToName[key]
@@ -391,14 +408,29 @@ class TaskletBuilder:
                         access_pattern = "j+" + str(j_extent.minus) + ":j+" + str(
                             j_extent.plus) + "+1" + ",k+" + str(k_extent.minus) + ":k+" + str(
                             k_extent.plus) + "+1," + "i+" + str(i_extent.minus) + ":i+" + str(i_extent.plus) + "+1"
+
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
-                            self.dataTokens_[f_name] = sub_sdfg.add_transient(
+                            # add the transient to the top level sdfg
+                            self.dataTokens_[f_name] = sdfg.add_array(
                                 f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
+                            # add the transient to the sub_sdfg:
+                            if 'S_' + f_name not in sub_sdfg_arrays:
+                                sub_sdfg_arrays['S_' + f_name] = sub_sdfg.add_array(
+                                    'S_' + f_name, shape=[J, K + 1, I], dtype=data_type)
+
+                        # create the memlet
                         output_memlets[f_name] = dace.Memlet.simple("S_" + f_name, access_pattern)
-                        sub_sdfg.add_array('S_' + f_name, shape=[J, K + 1, I], dtype=data_type)
+
+                        # add the field to the sub-sdfg as an array
+                        if 'S_' + f_name not in sub_sdfg_arrays:
+                            sub_sdfg_arrays['S_' + f_name] = sub_sdfg.add_array(
+                                'S_' + f_name, shape=[J, K + 1, I], dtype=data_type)
+
+                        # collection of all the output fields for the memlet paths outside the sub-sdfg
                         collected_output_mapping['S_'+f_name] = f_name + "_t"
+
                     stmt_str = ""
 
                     stmt_str += self.visit_statement(stmt_access)
@@ -437,6 +469,9 @@ class TaskletBuilder:
 
                     # set the state  to be the last one to connect them
                     self.last_state_in_multi_stage = state
+                    if last_state is not None:
+                        sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
+                    last_state = state
 
         me_k, mx_k = multi_stage_state.add_map('kmap', dict(k='%s:%s' % (extent_start, extent_end)))
         # fill the sub-sdfg's {in_set} {out_set}
@@ -453,12 +488,12 @@ class TaskletBuilder:
         for k, v in collected_input_mapping.items():
             read = multi_stage_state.add_read(v)
             multi_stage_state.add_memlet_path(
-                read, me_k, nested_sdfg, memlet=dace.Memlet.simple(v, 'j, k, i'), dst_conn=k)
+                read, me_k, nested_sdfg, memlet=dace.Memlet.simple(v, '0:J, k, 0:I'), dst_conn=k)
         # add the writes and the output memlet path : nsdfg - mx_k - write
         for k, v in collected_output_mapping.items():
             write = multi_stage_state.add_write(v)
             multi_stage_state.add_memlet_path(nested_sdfg, mx_k, write,
-                                              memlet=dace.Memlet.simple(v, 'j, k, i'), src_conn=k)
+                                              memlet=dace.Memlet.simple(v, '0:J, k, 0:I'), src_conn=k)
 
         if self.last_state_ is not None:
             sdfg.add_edge(self.last_state_, multi_stage_state, dace.InterstateEdge())
