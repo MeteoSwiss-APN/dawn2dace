@@ -386,9 +386,9 @@ class TaskletBuilder:
                                 + ":j+"
                                 + str(j_extent.plus)
                                 + "+1"
-                                + ",k+"
+                                + ","
                                 + str(k_extent.minus)
-                                + ":k+"
+                                + ":"
                                 + str(k_extent.plus)
                                 + "+1,"
                                 + "i+"
@@ -438,9 +438,9 @@ class TaskletBuilder:
                             + ":j+"
                             + str(j_extent.plus)
                             + "+1"
-                            + ",k+"
+                            + ","
                             + str(k_extent.minus)
-                            + ":k+"
+                            + ":"
                             + str(k_extent.plus)
                             + "+1,"
                             + "i+"
@@ -529,13 +529,21 @@ class TaskletBuilder:
         for k, v in collected_input_mapping.items():
             read = multi_stage_state.add_read(v)
             multi_stage_state.add_memlet_path(
-                read, me_k, nested_sdfg, memlet=dace.Memlet.simple(v, "0:J, k, 0:I"), dst_conn=k
+                read,
+                me_k,
+                nested_sdfg,
+                memlet=dace.Memlet.simple(v, "0:J, k, 0:I"),
+                dst_conn=k,
             )
         # add the writes and the output memlet path : nsdfg - mx_k - write
         for k, v in collected_output_mapping.items():
             write = multi_stage_state.add_write(v)
             multi_stage_state.add_memlet_path(
-                nested_sdfg, mx_k, write, memlet=dace.Memlet.simple(v, "0:J, k, 0:I"), src_conn=k
+                nested_sdfg,
+                mx_k,
+                write,
+                memlet=dace.Memlet.simple(v, "0:J, k, 0:I"),
+                src_conn=k,
             )
 
         if self.last_state_ is not None:
