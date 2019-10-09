@@ -353,7 +353,7 @@ class TaskletBuilder:
             memlets[field_name + postfix] = dace.Memlet.simple("S_" + field_name, access_pattern)
         return memlets
 
-    def addToMapping(self, access, mapping, sub_sdfg, sub_sdfg_arrays):
+    def addToMapping(self, access, tasklet_path_map, dace_sub_sdfg, sub_sdfgs):
         for key in access:
             if key < 0:
                 continue # since keys with negative IDs are *only* literals, we can skip those
@@ -367,25 +367,25 @@ class TaskletBuilder:
                     )
 
             # add the field to the sub-sdfg as an array
-            if "S_" + field_name not in sub_sdfg_arrays:
-                sub_sdfg_arrays["S_" + field_name] = sub_sdfg.add_array(
+            if "S_" + field_name not in sub_sdfgs:
+                sub_sdfgs["S_" + field_name] = dace_sub_sdfg.add_array(
                     "S_" + field_name, shape=[J, K + 1, I], dtype=data_type
                     )
 
             # collection of all the input fields for the memlet paths outside the sub-sdfg
-            mapping["S_" + field_name] = field_name + "_t"
+            tasklet_path_map["S_" + field_name] = field_name + "_t"
 
     def generate_parallel(self, multi_stage, interval):
         multi_stage_state = sdfg.add_state("state_" + str(self.state_counter_))
         self.state_counter_ += 1
-        sub_sdfg = dace.SDFG("ms_subsdfg" + str(self.state_counter_))
-        sub_sdfg_arrays = {}
+        dace_sub_sdfg = dace.SDFG("ms_subsdfg" + str(self.state_counter_))
+        sub_sdfgs = {}
         self.state_counter_ += 1
         last_state_in_multi_stage = None
         last_state = None
         # to connect them we need all input and output names
-        collected_input_mapping = {}
-        collected_output_mapping = {}
+        tasklet_input = {} # maps tasklet input fields to path
+        tasklet_output = {} # maps tasklet output fields to path
 
         for stage in multi_stage.stages:
             for do_method in stage.doMethods:
@@ -396,19 +396,19 @@ class TaskletBuilder:
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
-                    state = sub_sdfg.add_state("state_" + str(self.state_counter_))
+                    state = dace_sub_sdfg.add_state("state_" + str(self.state_counter_))
                     self.state_counter_ += 1
                     # check if this if is required
                     if last_state_in_multi_stage is not None:
-                        sub_sdfg.add_edge(last_state_in_multi_stage, state, dace.InterstateEdge())
+                        dace_sub_sdfg.add_edge(last_state_in_multi_stage, state, dace.InterstateEdge())
 
                     # Creation of the Memlet in the state
                     self.current_stmt_access_ = stmt_access
                     input_memlets = self.getMemlets(stmt_access.accesses.readAccess, "_input")
                     output_memlets = self.getMemlets(stmt_access.accesses.writeAccess, "")
 
-                    self.addToMapping(stmt_access.accesses.readAccess, collected_input_mapping, sub_sdfg, sub_sdfg_arrays)
-                    self.addToMapping(stmt_access.accesses.writeAccess, collected_output_mapping, sub_sdfg, sub_sdfg_arrays)
+                    self.addToMapping(stmt_access.accesses.readAccess, tasklet_input, dace_sub_sdfg, sub_sdfgs)
+                    self.addToMapping(stmt_access.accesses.writeAccess, tasklet_output, dace_sub_sdfg, sub_sdfgs)
 
                     stmt_str = self.visit_statement(stmt_access)
 
@@ -438,37 +438,39 @@ class TaskletBuilder:
                             "statement", map_range, input_memlets, stmt_str, output_memlets, external_edges=True
                         )
 
-                    # set the state  to be the last one to connect them
+                    # set the state to be the last one to connect them
                     self.last_state_in_multi_stage = state
                     if last_state is not None:
-                        sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
+                        dace_sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                     last_state = state
 
         me_k, mx_k = multi_stage_state.add_map("kmap", dict(k="%s:%s" % (extent_start, extent_end)))
-        # fill the sub-sdfg's {in_set} {out_set}
-        input_set = collected_input_mapping.keys()
-        output_set = collected_output_mapping.keys()
-        nested_sdfg = multi_stage_state.add_nested_sdfg(sub_sdfg, sdfg, input_set, output_set)
 
-        # add the reads and the input memlet path : read - me_k - nsdfg
-        for k, v in collected_input_mapping.items():
-            read = multi_stage_state.add_read(v)
+        # fill the sub-sdfg's {in_set} {out_set}
+        input_set = tasklet_input.keys()
+        output_set = tasklet_output.keys()
+        nested_sdfg = multi_stage_state.add_nested_sdfg(dace_sub_sdfg, sdfg, input_set, output_set)
+
+        # add the reads and the input memlet path : read - me_k - nested_sdfg
+        for tasklet_field, path in tasklet_input.items():
+            read = multi_stage_state.add_read(path)
+            #self.dataTokens_[tasklet_field].shape.
             multi_stage_state.add_memlet_path(
                 read,
                 me_k,
                 nested_sdfg,
-                memlet=dace.Memlet.simple(v, "0:J, k, 0:I"),
-                dst_conn=k,
+                memlet=dace.Memlet.simple(path, "0:J, k, 0:I"),
+                dst_conn=tasklet_field,
             )
-        # add the writes and the output memlet path : nsdfg - mx_k - write
-        for k, v in collected_output_mapping.items():
-            write = multi_stage_state.add_write(v)
+        # add the writes and the output memlet path : nested_sdfg - mx_k - write
+        for tasklet_field, path in tasklet_output.items():
+            write = multi_stage_state.add_write(path)
             multi_stage_state.add_memlet_path(
                 nested_sdfg,
                 mx_k,
                 write,
-                memlet=dace.Memlet.simple(v, "0:J, k, 0:I"),
-                src_conn=k,
+                memlet=dace.Memlet.simple(path, "0:J, k, 0:I"),
+                src_conn=tasklet_field,
             )
 
         if self.last_state_ is not None:
