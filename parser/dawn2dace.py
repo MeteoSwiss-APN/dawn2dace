@@ -337,6 +337,55 @@ class TaskletBuilder:
             # return self.generate_loop(multi_stage, interval, 0)
         else:
             return self.generate_loop(multi_stage, interval, loop_order)
+    
+    def getMemlets(self, access, postfix:str):
+        memlets = {}
+        for key in access:
+            if key < 0:
+                continue # since keys with negative IDs are *only* literals, we can skip those
+
+            if key in self.metadata_.globalVariableIDs:
+                access_pattern = "0"
+            else:
+                i = access[key].extents[0]
+                j = access[key].extents[1]
+                k = access[key].extents[2]
+                access_pattern = "j+{}:j+{}+1,{}:{}+1,i+{}:i+{}+1".format(
+                    j.minus, j.plus,
+                    k.minus, k.plus,  # TODO: replace with (0, k.plus - k.minus)
+                    i.minus, i.plus)
+
+            field_name = self.metadata_.accessIDToName[key]
+            memlets[field_name + postfix] = dace.Memlet.simple("S_" + field_name, access_pattern)
+        return memlets
+
+    def addToMapping(self, access, mapping, sub_sdfg, sub_sdfg_arrays):
+        for key in access:
+            if key < 0:
+                continue # since keys with negative IDs are *only* literals, we can skip those
+
+            # we promote every local variable to a temporary:
+            field_name = self.metadata_.accessIDToName[key]
+            if field_name not in self.dataTokens_:
+                # add the transient to the top level sdfg
+                self.dataTokens_[field_name] = sdfg.add_array(
+                    field_name + "_t", shape=[J, K + 1, I], dtype=data_type
+                    )
+
+                # add the transient to the sub_sdfg:
+                if "S_" + field_name not in sub_sdfg_arrays:
+                    sub_sdfg_arrays["S_" + field_name] = sub_sdfg.add_array(
+                        "S_" + field_name, shape=[J, K + 1, I], dtype=data_type
+                        )
+
+            # add the field to the sub-sdfg as an array
+            if "S_" + field_name not in sub_sdfg_arrays:
+                sub_sdfg_arrays["S_" + field_name] = sub_sdfg.add_array(
+                    "S_" + field_name, shape=[J, K + 1, I], dtype=data_type
+                    )
+
+            # collection of all the input fields for the memlet paths outside the sub-sdfg
+            mapping["S_" + field_name] = field_name + "_t"
 
     def generate_parallel(self, multi_stage, interval):
         multi_stage_state = sdfg.add_state("state_" + str(self.state_counter_))
@@ -368,116 +417,13 @@ class TaskletBuilder:
 
                     # Creation of the Memlet in the state
                     self.current_stmt_access_ = stmt_access
-                    input_memlets = {}
-                    output_memlets = {}
+                    input_memlets = self.getMemlets(stmt_access.accesses.readAccess, "_input")
+                    output_memlets = self.getMemlets(stmt_access.accesses.writeAccess, "")
 
-                    for key in stmt_access.accesses.readAccess:
-                        # since keys with negative ID's are *only* literals, we can skip those
-                        if key < 0:
-                            continue
-                        f_name = self.metadata_.accessIDToName[key]
-                        i_extent = stmt_access.accesses.readAccess[key].extents[0]
-                        j_extent = stmt_access.accesses.readAccess[key].extents[1]
-                        k_extent = stmt_access.accesses.readAccess[key].extents[2]
-                        if key not in self.metadata_.globalVariableIDs:
-                            access_pattern = (
-                                "j+"
-                                + str(j_extent.minus)
-                                + ":j+"
-                                + str(j_extent.plus)
-                                + "+1"
-                                + ","
-                                + str(k_extent.minus)
-                                + ":"
-                                + str(k_extent.plus)
-                                + "+1,"
-                                + "i+"
-                                + str(i_extent.minus)
-                                + ":i+"
-                                + str(i_extent.plus)
-                                + "+1"
-                            )
-                        else:
-                            access_pattern = "0"
+                    self.addToMapping(stmt_access.accesses.readAccess, collected_input_mapping, sub_sdfg, sub_sdfg_arrays)
+                    self.addToMapping(stmt_access.accesses.writeAccess, collected_output_mapping, sub_sdfg, sub_sdfg_arrays)
 
-                        # we promote every local variable to a temporary:
-                        if f_name not in self.dataTokens_:
-                            # add the transient to the top level sdfg
-                            self.dataTokens_[f_name] = sdfg.add_array(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
-                            )
-
-                            # add the transient to the sub_sdfg:
-                            if "S_" + f_name not in sub_sdfg_arrays:
-                                sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
-                                    "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
-                                )
-
-                        # create the memlet to create the mapped stmt
-                        input_memlets[f_name + "_input"] = dace.Memlet.simple("S_" + f_name, access_pattern)
-
-                        # add the field to the sub-sdfg as an array
-                        if "S_" + f_name not in sub_sdfg_arrays:
-                            sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
-                                "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
-                            )
-
-                        # collection of all the input fields for the memlet paths outside the sub-sdfg
-                        collected_input_mapping["S_" + f_name] = f_name + "_t"
-
-                    for key in stmt_access.accesses.writeAccess:
-                        f_name = self.metadata_.accessIDToName[key]
-
-                        i_extent = stmt_access.accesses.writeAccess[key].extents[0]
-                        j_extent = stmt_access.accesses.writeAccess[key].extents[1]
-                        k_extent = stmt_access.accesses.writeAccess[key].extents[2]
-
-                        access_pattern = (
-                            "j+"
-                            + str(j_extent.minus)
-                            + ":j+"
-                            + str(j_extent.plus)
-                            + "+1"
-                            + ","
-                            + str(k_extent.minus)
-                            + ":"
-                            + str(k_extent.plus)
-                            + "+1,"
-                            + "i+"
-                            + str(i_extent.minus)
-                            + ":i+"
-                            + str(i_extent.plus)
-                            + "+1"
-                        )
-
-                        # we promote every local variable to a temporary:
-                        if f_name not in self.dataTokens_:
-                            # add the transient to the top level sdfg
-                            self.dataTokens_[f_name] = sdfg.add_array(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
-                            )
-
-                            # add the transient to the sub_sdfg:
-                            if "S_" + f_name not in sub_sdfg_arrays:
-                                sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
-                                    "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
-                                )
-
-                        # create the memlet
-                        output_memlets[f_name] = dace.Memlet.simple("S_" + f_name, access_pattern)
-
-                        # add the field to the sub-sdfg as an array
-                        if "S_" + f_name not in sub_sdfg_arrays:
-                            sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
-                                "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
-                            )
-
-                        # collection of all the output fields for the memlet paths outside the sub-sdfg
-                        collected_output_mapping["S_" + f_name] = f_name + "_t"
-
-                    stmt_str = ""
-
-                    stmt_str += self.visit_statement(stmt_access)
+                    stmt_str = self.visit_statement(stmt_access)
 
                     if stmt_str:
                         # adding input to every input-field for separation:
