@@ -516,13 +516,8 @@ class TaskletBuilder:
 
         me_k, mx_k = multi_stage_state.add_map("kmap", dict(k="%s:%s" % (extent_start, extent_end)))
         # fill the sub-sdfg's {in_set} {out_set}
-        input_set = set()
-        output_set = set()
-        # print(type(collected_input_mapping))
-        for k, v in collected_input_mapping.items():
-            input_set.add(k)
-        for k, v in collected_output_mapping.items():
-            output_set.add(k)
+        input_set = collected_input_mapping.keys()
+        output_set = collected_output_mapping.keys()
         nested_sdfg = multi_stage_state.add_nested_sdfg(sub_sdfg, sdfg, input_set, output_set)
 
         # add the reads and the input memlet path : read - me_k - nsdfg
