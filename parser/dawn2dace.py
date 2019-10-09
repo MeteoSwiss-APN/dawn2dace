@@ -372,12 +372,6 @@ class TaskletBuilder:
                     field_name + "_t", shape=[J, K + 1, I], dtype=data_type
                     )
 
-                # add the transient to the sub_sdfg:
-                if "S_" + field_name not in sub_sdfg_arrays:
-                    sub_sdfg_arrays["S_" + field_name] = sub_sdfg.add_array(
-                        "S_" + field_name, shape=[J, K + 1, I], dtype=data_type
-                        )
-
             # add the field to the sub-sdfg as an array
             if "S_" + field_name not in sub_sdfg_arrays:
                 sub_sdfg_arrays["S_" + field_name] = sub_sdfg.add_array(
