@@ -48,8 +48,13 @@ class TaskletBuilder:
         self.metadata_ = _metadata
         self.dataTokens_ = {}
         self.current_stmt_access_ = None
-        self.state_counter_ = 0
+        self.state_counter_ = -1  # Only used within 'CreateUID()'
         self.last_state_ = None
+
+    def CreateUID(self):
+        """Creates unique identification number"""
+        self.state_counter_ += 1
+        return self.state_counter_
 
     def fill_globals(self):
         for fID in self.metadata_.globalVariableIDs:
@@ -376,11 +381,11 @@ class TaskletBuilder:
             tasklet_path_map["S_" + field_name] = field_name + "_t"
 
     def generate_parallel(self, multi_stage, interval):
-        multi_stage_state = sdfg.add_state("state_" + str(self.state_counter_))
-        self.state_counter_ += 1
-        dace_sub_sdfg = dace.SDFG("ms_subsdfg" + str(self.state_counter_))
+        multi_stage_state = sdfg.add_state("state_{}".format(self.CreateUID()))
+
+        dace_sub_sdfg = dace.SDFG("ms_subsdfg{}".format(self.CreateUID()))
         sub_sdfgs = {}
-        self.state_counter_ += 1
+
         last_state_in_multi_stage = None
         last_state = None
         # to connect them we need all input and output names
@@ -396,8 +401,7 @@ class TaskletBuilder:
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
-                    state = dace_sub_sdfg.add_state("state_" + str(self.state_counter_))
-                    self.state_counter_ += 1
+                    state = dace_sub_sdfg.add_state("state_{}".format(self.CreateUID()))
                     # check if this if is required
                     if last_state_in_multi_stage is not None:
                         dace_sub_sdfg.add_edge(last_state_in_multi_stage, state, dace.InterstateEdge())
@@ -495,8 +499,7 @@ class TaskletBuilder:
 
                 for stmt_access in do_method.stmtaccesspairs:
                     # A State for every stmt makes sure they can be sequential
-                    state = sdfg.add_state("state_" + str(self.state_counter_))
-                    self.state_counter_ += 1
+                    state = sdfg.add_state("state_{}".format(self.CreateUID()))
                     if first_interval_state is None:
                         first_interval_state = state
                     else:
