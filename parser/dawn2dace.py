@@ -339,7 +339,7 @@ class TaskletBuilder:
         else:
             self.generate_loop(multi_stage, interval, loop_order)
     
-    def getMemlets(self, access, postfix:str):
+    def getMemlets(self, access, memlet_prefix:str='', memlet_suffix:str='', dace_prefix:str='', dace_suffix:str=''):
         memlets = {}
         for key in access:
             if key < 0:
@@ -357,7 +357,7 @@ class TaskletBuilder:
                     i.minus, i.plus)
 
             field_name = self.metadata_.accessIDToName[key]
-            memlets[field_name + postfix] = dace.Memlet.simple("S_" + field_name, access_pattern)
+            memlets[memlet_prefix + field_name + memlet_suffix] = dace.Memlet.simple(dace_prefix + field_name + dace_suffix, access_pattern)
         return memlets
 
     def addToMapping(self, access, tasklet_path_map, dace_sub_sdfg, sub_sdfgs):
@@ -410,8 +410,8 @@ class TaskletBuilder:
 
                     # Creation of the Memlet in the state
                     self.current_stmt_access_ = stmt_access
-                    input_memlets = self.getMemlets(stmt_access.accesses.readAccess, "_input")
-                    output_memlets = self.getMemlets(stmt_access.accesses.writeAccess, "")
+                    input_memlets = self.getMemlets(stmt_access.accesses.readAccess, dace_prefix="S_", memlet_suffix="_input")
+                    output_memlets = self.getMemlets(stmt_access.accesses.writeAccess, dace_prefix="S_")
 
                     self.addToMapping(stmt_access.accesses.readAccess, tasklet_input, dace_sub_sdfg, sub_sdfgs)
                     self.addToMapping(stmt_access.accesses.writeAccess, tasklet_output, dace_sub_sdfg, sub_sdfgs)
