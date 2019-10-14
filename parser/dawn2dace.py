@@ -227,7 +227,7 @@ class TaskletBuilder:
             raise ValueError("Not expected stmt")
 
         stmt_str = "if "
-        stmt_str += "True"  # self.visit_expr_stmt(stmt.cond_part)
+        stmt_str += "True"  # TODO: Replace with 'self.visit_expr_stmt(stmt.cond_part)'.
         stmt_str += ":\n\t"
         stmt_str += self.visit_body_stmt(stmt.then_part)
         stmt_str += "\nelse:\n\t"
@@ -328,14 +328,6 @@ class TaskletBuilder:
     def generate_multistage(self, loop_order, multi_stage, interval):
         if loop_order == 2:
             self.generate_parallel(multi_stage, interval)
-            #
-            #
-            # change this back to parallel once tal figured out the problem with the generated sdfg
-            #
-            #
-            #
-            #
-            # self.generate_loop(multi_stage, interval, 0)
         else:
             self.generate_loop(multi_stage, interval, loop_order)
     
@@ -391,8 +383,8 @@ class TaskletBuilder:
         last_state_in_multi_stage = None
         last_state = None
         # to connect them we need all input and output names
-        tasklet_input = {} # maps tasklet input fields to path
-        tasklet_output = {} # maps tasklet output fields to path
+        tasklet_input = {} # maps tasklet input fields to memlets
+        tasklet_output = {} # maps tasklet output fields to memlet
 
         for stage in multi_stage.stages:
             for do_method in stage.doMethods:
@@ -404,7 +396,7 @@ class TaskletBuilder:
 
                 for stmt_access in do_method.stmtaccesspairs:
                     state = dace_sub_sdfg.add_state("state_{}".format(self.CreateUID()))
-                    # TODO: check if this if is required
+                    
                     if last_state_in_multi_stage is not None:
                         dace_sub_sdfg.add_edge(last_state_in_multi_stage, state, dace.InterstateEdge())
 
@@ -429,8 +421,6 @@ class TaskletBuilder:
 
                         if __debug__:
                             print("after inout transformation")
-                            print(stmt_str)
-                            print("this is the stmt-str:")
                             print(stmt_str)
                             print("in-mem")
                             print(input_memlets)
@@ -457,24 +447,24 @@ class TaskletBuilder:
         nested_sdfg = multi_stage_state.add_nested_sdfg(dace_sub_sdfg, sdfg, input_set, output_set)
 
         # add the reads and the input memlet path : read -> map_entry_k -> nested_sdfg
-        for tasklet_field, path in tasklet_input.items():
-            read = multi_stage_state.add_read(path)
+        for tasklet_field, memlet in tasklet_input.items():
+            read = multi_stage_state.add_read(memlet)
             #self.dataTokens_[tasklet_field].shape.
             multi_stage_state.add_memlet_path(
                 read,
                 map_entry_k,
                 nested_sdfg,
-                memlet=dace.Memlet.simple(path, "0:J, k, 0:I"),
+                memlet=dace.Memlet.simple(memlet, "0:J, k, 0:I"),
                 dst_conn=tasklet_field,
             )
         # add the writes and the output memlet path : nested_sdfg -> map_exit_k -> write
-        for tasklet_field, path in tasklet_output.items():
-            write = multi_stage_state.add_write(path)
+        for tasklet_field, memlet in tasklet_output.items():
+            write = multi_stage_state.add_write(memlet)
             multi_stage_state.add_memlet_path(
                 nested_sdfg,
                 map_exit_k,
                 write,
-                memlet=dace.Memlet.simple(path, "0:J, k, 0:I"),
+                memlet=dace.Memlet.simple(memlet, "0:J, k, 0:I"),
                 src_conn=tasklet_field,
             )
 
@@ -525,8 +515,7 @@ class TaskletBuilder:
                     self.addToMapping2(stmt_access.accesses.writeAccess)
 
                     # Create the statement
-                    stmt_str = ""
-                    stmt_str += self.visit_statement(stmt_access)
+                    stmt_str = self.visit_statement(stmt_access)
 
                     if stmt_str:
                         # adding input to every input-field for separation:
@@ -535,16 +524,10 @@ class TaskletBuilder:
                             print(stmt_str)
 
                         tree = ast.parse(stmt_str)
-                        output_stmt = astunparse.unparse(RenameInput().visit(tree))
+                        stmt_str = astunparse.unparse(RenameInput().visit(tree))
 
                         if __debug__:
                             print("after inout transformation")
-                            print(output_stmt)
-
-                        stmt_str = output_stmt
-
-                        if __debug__:
-                            print("this is the stmt-str:")
                             print(stmt_str)
                             print("in-mem")
                             print(input_memlets)
