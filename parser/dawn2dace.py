@@ -649,6 +649,9 @@ if __name__ == "__main__":
 
     sdfg.apply_strict_transformations()
     sdfg.draw_to_file("final.dot")
+    sdfg.save("final.sdfg", use_pickle=False)
+
+    print(sdfg.signature(with_types=False))
 
     print("Strict transformations applied, state graphs before and after are drawn")
 
