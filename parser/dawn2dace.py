@@ -290,28 +290,6 @@ class TaskletBuilder:
     def visit_statement(self, stmt):
         return self.visit_body_stmt(stmt.ASTStmt)
 
-    @staticmethod
-    def create_extent_str(extents):
-        it = ("{},{}".format(ex.minus, ex.plus) for ex in extents.extents)
-        return "{" + ",".join(it) + "}"
-
-    # TODO: This function is not used ???
-    def visit_access(self, accesses):
-        for _, extents in accesses.writeAccess.iteritems():
-            self.create_extent_str(extents)
-        for _, extents in accesses.readAccess.iteritems():
-            self.create_extent_str(extents)
-
-    # TODO: This function does nothing ???
-    def visit_do_method(self, do_method):
-        extent = self.visit_interval(do_method.interval)
-        do_method_name = "DoMethod_{}({})".format(do_method.doMethodID, extent)
-
-    # TODO: This function does nothing ???
-    def visit_stage(self, stage):
-        for do_method in stage.doMethods:
-            self.visit_do_method(do_method)
-
     def visit_multi_stage(self, ms):
 
         # gather intervals in K dimension.
@@ -335,21 +313,6 @@ class TaskletBuilder:
     def visit_stencil(self, stencil_):
         for ms in stencil_.multiStages:
             self.visit_multi_stage(ms)
-
-    # TODO: This function is not used ???
-    @staticmethod
-    def visit_fields(fields_):
-        str_ = "field "
-        for field in fields_:
-            str_ += field.name
-            dims = ["i", "j", "k"]
-            dims_ = []
-            for dim in range(1, 3):
-                if field.field_dimensions[dim] != -1:
-                    dims_.append(dims[dim])
-            str_ += str(dims_)
-            str_ += ","
-        return str_
 
     def build_data_tokens(self, sdfg_):
         for fID in self.metadata_.APIFieldIDs:
@@ -482,7 +445,6 @@ class TaskletBuilder:
                         )
 
                     # set the state to be the last one to connect them
-                    self.last_state_in_multi_stage = state
                     if last_state is not None:
                         dace_sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                     last_state = state
