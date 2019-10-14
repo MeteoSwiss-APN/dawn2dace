@@ -20,7 +20,7 @@ include(External_Protobuf)
 install_protobuf(
     DOWNLOAD_DIR ${CMAKE_BINARY_DIR}/download
     URL "https://github.com/google/protobuf/archive/v${protobuf_version}.tar.gz"
-    URL_MD5 "1d077a7d4db3d75681f5c333f2de9b1a"
+    URL_MD5 "d41d8cd98f00b204e9800998ecf8427e"
 )
 
 add_custom_command(OUTPUT "HIR_pb2.py" COMMAND ${CMAKE_SOURCE_DIR}/cmake/scripts/compileProto.sh "${ProtocBinary}" "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}")
