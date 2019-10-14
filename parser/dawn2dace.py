@@ -330,7 +330,7 @@ class TaskletBuilder:
 
         # generate the multistage for every interval (in loop order)
         for interval in intervals:
-            self.last_state_ = self.generate_multistage(ms.loopOrder, ms, interval)
+            self.generate_multistage(ms.loopOrder, ms, interval)
 
     def visit_stencil(self, stencil_):
         for ms in stencil_.multiStages:
@@ -364,7 +364,7 @@ class TaskletBuilder:
 
     def generate_multistage(self, loop_order, multi_stage, interval):
         if loop_order == 2:
-            return self.generate_parallel(multi_stage, interval)
+            self.generate_parallel(multi_stage, interval)
             #
             #
             # change this back to parallel once tal figured out the problem with the generated sdfg
@@ -372,9 +372,9 @@ class TaskletBuilder:
             #
             #
             #
-            # return self.generate_loop(multi_stage, interval, 0)
+            # self.generate_loop(multi_stage, interval, 0)
         else:
-            return self.generate_loop(multi_stage, interval, loop_order)
+            self.generate_loop(multi_stage, interval, loop_order)
     
     def getMemlets(self, access, postfix:str):
         memlets = {}
@@ -519,7 +519,7 @@ class TaskletBuilder:
         if self.last_state_ is not None:
             sdfg.add_edge(self.last_state_, multi_stage_state, dace.InterstateEdge())
 
-        return multi_stage_state
+        self.last_state_ = multi_stage_state
 
     def generate_loop(self, multi_stage, interval, loop_order):
         first_interval_state = None
@@ -673,7 +673,7 @@ class TaskletBuilder:
                 "k + 1",
                 self.last_state_,
             )
-            return last_state
+            self.last_state_ = last_state
         elif loop_order == 1:
             _, _, last_state = sdfg.add_loop(
                 prev_state,
@@ -685,7 +685,7 @@ class TaskletBuilder:
                 "k - 1",
                 self.last_state_,
             )
-            return last_state
+            self.last_state_ = last_state
         else:
             assert "wrong usage"
 
