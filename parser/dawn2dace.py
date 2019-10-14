@@ -20,20 +20,7 @@ I = dace.symbol("I")
 J = dace.symbol("J")
 K = dace.symbol("K")
 halo_size = dace.symbol("haloSize")
-
 data_type = dace.float64
-block_size = (32, 4)
-fused = False
-
-
-def str2bool(v):
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
-
 
 class RenameInput(ast.NodeTransformer):
     @staticmethod
