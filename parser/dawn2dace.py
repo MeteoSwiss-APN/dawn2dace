@@ -483,6 +483,18 @@ class TaskletBuilder:
 
         self.last_state_ = multi_stage_state
 
+    
+    def addToMapping2(self, access):
+        for key in access:
+            if key < 0:
+                continue # since keys with negative IDs are *only* literals, we can skip those
+
+            # we promote every local variable to a temporary:
+            field_name = self.metadata_.accessIDToName[key]
+            if field_name not in self.dataTokens_:
+                # add the transient to the top level sdfg
+                self.dataTokens_[field_name] = sdfg.add_array(field_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+
     def generate_loop(self, multi_stage, interval, loop_order):
         first_interval_state = None
         # This is the state previous to this ms
@@ -506,84 +518,11 @@ class TaskletBuilder:
 
                     # Creation of the Memlet in the state
                     self.current_stmt_access_ = stmt_access
-                    input_memlets = {}
-                    output_memlets = {}
+                    input_memlets = self.getMemlets(stmt_access.accesses.readAccess, dace_suffix="_t", memlet_suffix="_input")
+                    output_memlets = self.getMemlets(stmt_access.accesses.writeAccess, dace_suffix="_t")
 
-                    for key in stmt_access.accesses.readAccess:
-
-                        # since keys with negative ID's are *only* literals, we can skip those
-                        if key < 0:
-                            continue
-
-                        f_name = self.metadata_.accessIDToName[key]
-
-                        i_extent = stmt_access.accesses.readAccess[key].extents[0]
-                        j_extent = stmt_access.accesses.readAccess[key].extents[1]
-                        k_extent = stmt_access.accesses.readAccess[key].extents[2]
-
-                        # create the access extent for the read-Access
-                        if key not in self.metadata_.globalVariableIDs:
-                            access_pattern = (
-                                "j+"
-                                + str(j_extent.minus)
-                                + ":j+"
-                                + str(j_extent.plus)
-                                + "+1"
-                                + ",k+"
-                                + str(k_extent.minus)
-                                + ":k+"
-                                + str(k_extent.plus)
-                                + "+1,"
-                                + "i+"
-                                + str(i_extent.minus)
-                                + ":i+"
-                                + str(i_extent.plus)
-                                + "+1"
-                            )
-                        else:
-                            access_pattern = "0"
-
-                        # we promote every local variable to a temporary:
-                        if f_name not in self.dataTokens_:
-                            self.dataTokens_[f_name] = sdfg.add_transient(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
-                            )
-
-                        input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
-
-                    for key in stmt_access.accesses.writeAccess:
-
-                        f_name = self.metadata_.accessIDToName[key]
-
-                        i_extent = stmt_access.accesses.writeAccess[key].extents[0]
-                        j_extent = stmt_access.accesses.writeAccess[key].extents[1]
-                        k_extent = stmt_access.accesses.writeAccess[key].extents[2]
-
-                        access_pattern = (
-                            "j+"
-                            + str(j_extent.minus)
-                            + ":j+"
-                            + str(j_extent.plus)
-                            + "+1"
-                            + ",k+"
-                            + str(k_extent.minus)
-                            + ":k+"
-                            + str(k_extent.plus)
-                            + "+1,"
-                            + "i+"
-                            + str(i_extent.minus)
-                            + ":i+"
-                            + str(i_extent.plus)
-                            + "+1"
-                        )
-
-                        # we promote every local variable to a temporary:
-                        if f_name not in self.dataTokens_:
-                            self.dataTokens_[f_name] = sdfg.add_transient(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
-                            )
-
-                        output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
+                    self.addToMapping2(stmt_access.accesses.readAccess)
+                    self.addToMapping2(stmt_access.accesses.writeAccess)
 
                     # Create the statement
                     stmt_str = ""
