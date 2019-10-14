@@ -36,10 +36,10 @@ def str2bool(v):
 
 
 class RenameInput(ast.NodeTransformer):
-    def visit_Name(self, node):
+    @staticmethod
+    def visit_Name(node):
         if isinstance(node.ctx, ast.Load):
             node.id += "_input"
-            return node
         return node
 
 
@@ -58,37 +58,42 @@ class TaskletBuilder:
 
     @staticmethod
     def visit_builtin_type(builtin_type):
-        if builtin_type.type_id == 0:
-            raise ValueError("Builtin type not supported")
-        elif builtin_type.type_id == 1:
+        id = builtin_type.type_id
+        if id == 1:
             return "auto"
-        elif builtin_type.type_id == 2:
+        if id == 2:
             return "bool"
-        elif builtin_type.type_id == 3:
+        if id == 3:
             return "int"
-        elif builtin_type.type_id == 4:
+        if id == 4:
             return "float"
         raise ValueError("Builtin type not supported")
 
     def visit_unary_operator(self, expr):
-        return expr.op + " (" + self.visit_expr(expr.operand) + ")"
+        return "{} ({})".format(
+            expr.op,
+            self.visit_expr(expr.operand)
+        )
 
     def visit_binary_operator(self, expr):
-        return "(" + self.visit_expr(expr.left) + ") " + expr.op + " (" + self.visit_expr(expr.right) + ")"
+        return "({}) {} ({})".format(
+            self.visit_expr(expr.left),
+            expr.op,
+            self.visit_expr(expr.right)
+        )
 
     def visit_assignment_expr(self, expr):
-        return self.visit_expr(expr.left) + " " + expr.op + " (" + self.visit_expr(expr.right) + ")"
+        return "{} {} ({})".format(
+            self.visit_expr(expr.left),
+            expr.op,
+            self.visit_expr(expr.right)
+        )
 
     def visit_ternary_operator(self, expr):
-        return (
-            "( ("
-            + self.visit_expr(expr.cond)
-            + ") ? "
-            + "("
-            + self.visit_expr(expr.left)
-            + ") : ("
-            + self.visit_expr(expr.right)
-            + ") )"
+        return "( ({}) ? ({}) : ({}))".format(
+            self.visit_expr(expr.cond),
+            self.visit_expr(expr.left),
+            self.visit_expr(expr.right)
         )
 
     @staticmethod
@@ -134,28 +139,28 @@ class TaskletBuilder:
         return expr.callee + "(" + ",".join(self.visit_expr(x) for x in expr.arguments) + ")"
 
     def visit_expr(self, expr):
-        if expr.WhichOneof("expr") == "unary_operator":
+        ex = expr.WhichOneof("expr")
+        if ex == "unary_operator":
             return self.visit_unary_operator(expr.unary_operator)
-        elif expr.WhichOneof("expr") == "binary_operator":
+        if ex == "binary_operator":
             return self.visit_binary_operator(expr.binary_operator)
-        elif expr.WhichOneof("expr") == "assignment_expr":
+        if ex == "assignment_expr":
             return self.visit_assignment_expr(expr.assignment_expr)
-        elif expr.WhichOneof("expr") == "ternary_operator":
+        if ex == "ternary_operator":
             return self.visit_ternary_operator(expr.ternary_operator)
-        elif expr.WhichOneof("expr") == "fun_call_expr":
+        if ex == "fun_call_expr":
             return self.visit_fun_call_expr(expr.fun_call_expr)
-        elif expr.WhichOneof("expr") == "stencil_fun_call_expr":
+        if ex == "stencil_fun_call_expr":
             raise ValueError("non supported expression")
-        elif expr.WhichOneof("expr") == "stencil_fun_arg_expr":
+        if ex == "stencil_fun_arg_expr":
             raise ValueError("non supported expression")
-        elif expr.WhichOneof("expr") == "var_access_expr":
+        if ex == "var_access_expr":
             return self.visit_var_access_expr(expr.var_access_expr)
-        elif expr.WhichOneof("expr") == "field_access_expr":
+        if ex == "field_access_expr":
             return self.visit_field_access_expr(expr.field_access_expr)
-        elif expr.WhichOneof("expr") == "literal_access_expr":
+        if ex == "literal_access_expr":
             return self.visit_literal_access_expr(expr.literal_access_expr)
-        else:
-            raise ValueError("Unknown expression")
+        raise ValueError("Unknown expression")
 
     def visit_var_decl_stmt(self, var_decl):
         # No declaration is performed
@@ -172,7 +177,6 @@ class TaskletBuilder:
             return ""
 
     def visit_expr_stmt(self, stmt):
-
         return self.visit_expr(stmt.expr)
 
     def visit_if_stmt(self, stmt):
@@ -197,18 +201,16 @@ class TaskletBuilder:
         return stmt_str
 
     def visit_body_stmt(self, stmt):
-        if stmt.WhichOneof("stmt") == "var_decl_stmt":
-            stmt_str = self.visit_var_decl_stmt(stmt.var_decl_stmt)
-        elif stmt.WhichOneof("stmt") == "expr_stmt":
-            stmt_str = self.visit_expr_stmt(stmt.expr_stmt)
-        elif stmt.WhichOneof("stmt") == "if_stmt":
-            stmt_str = self.visit_if_stmt(stmt.if_stmt)
-        elif stmt.WhichOneof("stmt") == "block_stmt":
-            stmt_str = self.visit_block_stmt(stmt.block_stmt)
-        else:
-            raise ValueError("Stmt not supported :" + stmt.WhichOneof("stmt"))
-
-        return stmt_str
+        st = stmt.WhichOneof("stmt")
+        if st == "var_decl_stmt":
+            return self.visit_var_decl_stmt(stmt.var_decl_stmt)
+        if st == "expr_stmt":
+            return self.visit_expr_stmt(stmt.expr_stmt)
+        if st == "if_stmt":
+            return self.visit_if_stmt(stmt.if_stmt)
+        if st == "block_stmt":
+            return self.visit_block_stmt(stmt.block_stmt)
+        raise ValueError("Stmt not supported :" + stmt.WhichOneof("stmt"))
 
     @staticmethod
     def visit_interval(interval):
@@ -244,25 +246,17 @@ class TaskletBuilder:
         return start, end, startint
 
     def visit_statement(self, stmt):
-
         return self.visit_body_stmt(stmt.ASTStmt)
 
     @staticmethod
     def create_extent_str(extents):
-        extent_str = ""
-        for extent in extents.extents:
-            if not extent_str:
-                extent_str = "{"
-            else:
-                extent_str += ","
-            extent_str += str(extent.minus) + "," + str(extent.plus)
-
-        extent_str += "}"
+        it = ("{},{}".format(ex.minus, ex.plus) for ex in extents.extents)
+        return "{" + ",".join(it) + "}"
 
     def visit_access(self, accesses):
-        for access_id, extents in accesses.writeAccess.iteritems():
+        for _, extents in accesses.writeAccess.iteritems():
             self.create_extent_str(extents)
-        for access_id, extents in accesses.readAccess.iteritems():
+        for _, extents in accesses.readAccess.iteritems():
             self.create_extent_str(extents)
 
     def visit_do_method(self, domethod):
@@ -395,9 +389,8 @@ class TaskletBuilder:
 
         for stage in multi_stage.stages:
             for do_method in stage.doMethods:
-                do_method_name = "DoMethod_" + str(do_method.doMethodID)
                 extent_start, extent_end, _ = self.visit_interval(do_method.interval)
-                do_method_name += "(%s:%s)" % (extent_start, extent_end)
+                do_method_name = "DoMethod_{}({}:{})".format(do_method.doMethodID, extent_start, extent_end)
 
                 if interval[0] != extent_start or interval[1] != extent_end:
                     continue
@@ -424,16 +417,13 @@ class TaskletBuilder:
                         if __debug__:
                             print("before inout transformation")
                             print(stmt_str)
+                        
                         tree = ast.parse(stmt_str)
-                        output_stmt = astunparse.unparse(RenameInput().visit(tree))
+                        stmt_str = astunparse.unparse(RenameInput().visit(tree))
 
                         if __debug__:
                             print("after inout transformation")
-                            print(output_stmt)
-
-                        stmt_str = output_stmt
-
-                        if __debug__:
+                            print(stmt_str)
                             print("this is the stmt-str:")
                             print(stmt_str)
                             print("in-mem")
