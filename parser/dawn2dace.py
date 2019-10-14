@@ -16,6 +16,56 @@ sys.path.append(
 import IIR_pb2
 
 
+class Interval:
+    """Represents an interval [begin, end)"""
+
+    def __init__(self, begin, end, sort_key):
+        self.begin = begin
+        self.end = end
+        self.sort_key = sort_key
+
+    def __str__(self):
+        return "{}:{}".format(self.begin, self.end)
+
+
+class MemoryExtent1D:
+    def __init__(self, minus: int, plus: int):
+        self.minus = minus
+        self.plus = plus
+
+    def expand_with(self, o):
+        self.minus = min(self.minus, o.minus)
+        self.plus = max(self.plus, o.plus)
+
+
+class MemoryExtent3D:
+    def __init__(self, i: MemoryExtent1D, j: MemoryExtent1D, k: MemoryExtent1D):
+        self.i = i
+        self.j = j
+        self.k = k
+
+    def expand_with(self, o):
+        self.i.expand_with(o.i)
+        self.j.expand_with(o.j)
+        self.k.expand_with(o.k)
+
+
+class Memlet:
+    def __init__(self, name: str, extent):
+        self.name = name
+        self.extent = extent
+
+    def to_dace(self):
+        if self.extent is None:
+            access_pattern = "0"
+        else:
+            access_pattern = "j+{}:j+{}+1,{}:{}+1,i+{}:i+{}+1".format(
+                self.extent.j.minus, self.extent.j.plus,
+                self.extent.k.minus, self.extent.k.plus,
+                self.extent.i.minus, self.extent.i.plus)
+        return dace.Memlet.simple("S_" + self.name, access_pattern)
+
+
 I = dace.symbol("I")
 J = dace.symbol("J")
 K = dace.symbol("K")
