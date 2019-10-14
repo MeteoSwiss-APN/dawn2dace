@@ -449,30 +449,30 @@ class TaskletBuilder:
                         dace_sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                     last_state = state
 
-        me_k, mx_k = multi_stage_state.add_map("kmap", dict(k=str(extent)))
+        map_entry_k, map_exit_k = multi_stage_state.add_map("kmap", dict(k=str(extent)))
 
         # fill the sub-sdfg's {in_set} {out_set}
         input_set = tasklet_input.keys()
         output_set = tasklet_output.keys()
         nested_sdfg = multi_stage_state.add_nested_sdfg(dace_sub_sdfg, sdfg, input_set, output_set)
 
-        # add the reads and the input memlet path : read - me_k - nested_sdfg
+        # add the reads and the input memlet path : read -> map_entry_k -> nested_sdfg
         for tasklet_field, path in tasklet_input.items():
             read = multi_stage_state.add_read(path)
             #self.dataTokens_[tasklet_field].shape.
             multi_stage_state.add_memlet_path(
                 read,
-                me_k,
+                map_entry_k,
                 nested_sdfg,
                 memlet=dace.Memlet.simple(path, "0:J, k, 0:I"),
                 dst_conn=tasklet_field,
             )
-        # add the writes and the output memlet path : nested_sdfg - mx_k - write
+        # add the writes and the output memlet path : nested_sdfg -> map_exit_k -> write
         for tasklet_field, path in tasklet_output.items():
             write = multi_stage_state.add_write(path)
             multi_stage_state.add_memlet_path(
                 nested_sdfg,
-                mx_k,
+                map_exit_k,
                 write,
                 memlet=dace.Memlet.simple(path, "0:J, k, 0:I"),
                 src_conn=tasklet_field,
