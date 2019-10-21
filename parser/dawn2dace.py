@@ -15,24 +15,11 @@ sys.path.append(
 
 import IIR_pb2
 
-
 I = dace.symbol("I")
 J = dace.symbol("J")
 K = dace.symbol("K")
 halo_size = dace.symbol("haloSize")
-
 data_type = dace.float64
-block_size = (32, 4)
-fused = False
-
-
-def str2bool(v):
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 class RenameInput(ast.NodeTransformer):
@@ -55,20 +42,6 @@ class TaskletBuilder:
         for fID in self.metadata_.globalVariableIDs:
             f_name = self.metadata_.accessIDToName[fID]
             self.dataTokens_[f_name] = sdfg.add_scalar(f_name + "_t", data_type)
-
-    @staticmethod
-    def visit_builtin_type(builtin_type):
-        if builtin_type.type_id == 0:
-            raise ValueError("Builtin type not supported")
-        elif builtin_type.type_id == 1:
-            return "auto"
-        elif builtin_type.type_id == 2:
-            return "bool"
-        elif builtin_type.type_id == 3:
-            return "int"
-        elif builtin_type.type_id == 4:
-            return "float"
-        raise ValueError("Builtin type not supported")
 
     def visit_unary_operator(self, expr):
         return "{} ({})".format(
@@ -333,14 +306,6 @@ class TaskletBuilder:
     def generate_multistage(self, loop_order, multi_stage, interval):
         if loop_order == 2:
             return self.generate_parallel(multi_stage, interval)
-            #
-            #
-            # change this back to parallel once tal figured out the problem with the generated sdfg
-            #
-            #
-            #
-            #
-            # return self.generate_loop(multi_stage, interval, 0)
         else:
             return self.generate_loop(multi_stage, interval, loop_order)
 
