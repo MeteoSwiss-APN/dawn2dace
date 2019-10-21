@@ -1,5 +1,5 @@
-GRIDTOOLS   = -DBACKEND_MC -I/<path-to-gridtools-install>/include/
-GTCLANG     = -isystem <path-to-gtclang-install>/include
-BOOST       = -isystem <path-to-boost>/include
-DACE        = -I/<path-to-dace>/dace/runtime/include -std=c++14
+GRIDTOOLS   = -DBACKEND_MC -I/home/dominic/work/dawn/gtclang/bundle/build/prefix/gridtools/include
+GTCLANG     = -isystem /home/dominic/work/dawn/gtclang/bundle/install/include
+BOOST       = -isystem /home/dominic/work/boost/include
+DAPP        = -I/home/dominic/work/dace/dace/runtime/include -std=c++14
 COMPILER    = g++
