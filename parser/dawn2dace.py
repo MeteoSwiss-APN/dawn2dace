@@ -46,11 +46,6 @@ class TaskletBuilder:
         self.current_stmt_access_ = None
         self.last_state_ = None
 
-    def fill_globals(self):
-        for id in self.metadata_.globalVariableIDs:
-            name = self.get_name.FromAccessID(id)
-            self.dataTokens_[name] = sdfg.add_scalar(name + "_t", data_type)
-
     def visit_unary_operator(self, expr):
         return "{} ({})".format(
             expr.op,
@@ -298,17 +293,6 @@ class TaskletBuilder:
             str_ += str(dims_)
             str_ += ","
         return str_
-
-    def build_data_tokens(self, sdfg_):
-        for id in self.metadata_.APIFieldIDs:
-            name = self.get_name.FromAccessID(id)
-            array = sdfg_.add_array(name + "_t", shape=[J, K + 1, I], dtype=data_type)
-            self.dataTokens_[name] = array
-
-        for id in self.metadata_.temporaryFieldIDs:
-            name = self.get_name.FromAccessID(id)
-            self.dataTokens_[name] = sdfg_.add_transient(name + "_t", shape=[J, K + 1, I], dtype=data_type)
-            print("we're here 2:%s" % name)
 
     def generate_multistage(self, loop_order, multi_stage, interval):
         if loop_order == 2:
@@ -735,9 +719,18 @@ if __name__ == "__main__":
 
     des = TaskletBuilder(stencilInstantiation.metadata, name_resolver)
 
-    des.build_data_tokens(sdfg)
+    for id in metadata.APIFieldIDs:
+        name = name_resolver.FromAccessID(id)
+        array = sdfg.add_array(name + "_t", shape=[J, K + 1, I], dtype=data_type)
+        des.dataTokens_[name] = array
 
-    des.fill_globals()
+    for id in metadata.temporaryFieldIDs:
+        name = name_resolver.FromAccessID(id)
+        des.dataTokens_[name] = sdfg.add_transient(name + "_t", shape=[J, K + 1, I], dtype=data_type)
+
+    for id in metadata.globalVariableIDs:
+        name = name_resolver.FromAccessID(id)
+        des.dataTokens_[name] = sdfg.add_scalar(name + "_t", data_type)
 
     for stencil in stencilInstantiation.internalIR.stencils:
         des.visit_stencil(stencil)
