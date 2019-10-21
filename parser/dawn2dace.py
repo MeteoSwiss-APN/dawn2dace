@@ -100,15 +100,6 @@ class TaskletBuilder:
         for access_id, extents in accesses.readAccess.iteritems():
             self.create_extent_str(extents)
 
-    def visit_do_method(self, domethod):
-        do_method_name = "DoMethod_" + str(domethod.doMethodID)
-        extent_start, extent_end, _ = self.visit_interval(domethod.interval)
-        do_method_name += "(%s:%s)" % (extent_start, extent_end)
-
-    def visit_stage(self, stage):
-        for do_method in stage.doMethods:
-            self.visit_do_method(do_method)
-
     def visit_multi_stage(self, ms):
         intervals = set()
         for stage in ms.stages:
