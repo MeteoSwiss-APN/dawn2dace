@@ -32,7 +32,7 @@ int main(int argc, char const *argv[]) {
 
   // Call the gtclang stencil
   dawn_generated::gt::test test_gtclang(dom, input, out_gtclang);
-  test_gtclang.run();
+  test_gtclang.run(input, out_gtclang);
 
   // call the dapp-stencil
   auto raw_out_dapp = gridtools::make_host_view(out_dapp).data();

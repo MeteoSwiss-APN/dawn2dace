@@ -34,7 +34,7 @@ int main(int argc, char const *argv[]) {
   // Call the gtclang stencil
   dawn_generated::gt::vertical_spec_stencil test_gtclang(dom, input_1, input_2,
                                                          output_gtclang);
-  test_gtclang.run();
+  test_gtclang.run(input_1, input_2, output_gtclang);
 
   // call the dace-stencil
   auto raw_out_dace = gridtools::make_host_view(output_dace).data();
