@@ -30,11 +30,10 @@ halo_size = dace.symbol("haloSize")
 data_type = dace.float64
 
 
-class RenameInput(ast.NodeTransformer):
+class InputRenamer(ast.NodeTransformer):
     def visit_Name(self, node):
         if isinstance(node.ctx, ast.Load):
             node.id += "_input"
-            return node
         return node
 
 
@@ -444,7 +443,7 @@ class TaskletBuilder:
                             print("before inout transformation")
                             print(stmt_str)
                         tree = ast.parse(stmt_str)
-                        output_stmt = astunparse.unparse(RenameInput().visit(tree))
+                        output_stmt = astunparse.unparse(InputRenamer().visit(tree))
 
                         if __debug__:
                             print("after inout transformation")
@@ -620,7 +619,7 @@ class TaskletBuilder:
                             print(stmt_str)
 
                         tree = ast.parse(stmt_str)
-                        output_stmt = astunparse.unparse(RenameInput().visit(tree))
+                        output_stmt = astunparse.unparse(InputRenamer().visit(tree))
 
                         if __debug__:
                             print("after inout transformation")
