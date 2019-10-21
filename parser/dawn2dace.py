@@ -17,6 +17,12 @@ sys.path.append(
 
 import IIR_pb2
 
+I = dace.symbol("I")
+J = dace.symbol("J")
+K = dace.symbol("K")
+halo_size = dace.symbol("haloSize")
+data_type = dace.float64
+
 def CreateUID() -> int:
     """ Creates unique identification numbers. """
     if not hasattr(CreateUID, "counter"):
@@ -24,11 +30,18 @@ def CreateUID() -> int:
     CreateUID.counter += 1
     return CreateUID.counter
 
-I = dace.symbol("I")
-J = dace.symbol("J")
-K = dace.symbol("K")
-halo_size = dace.symbol("haloSize")
-data_type = dace.float64
+def try_add_array(sdfg, name):
+    try:
+        sdfg.add_array(name, shape=[J, K + 1, I], dtype=data_type)
+    except:
+        pass
+
+def try_add_transient(sdfg, name):
+    try:
+        sdfg.add_transient(name, shape=[J, K + 1, I], dtype=data_type)
+    except:
+        pass
+    
 
 class K_Interval:
     """Represents an interval [begin, end) in dimention K"""
@@ -53,7 +66,6 @@ class TaskletBuilder:
     def __init__(self, _metadata, name_resolver:NameResolver):
         self.get_name = name_resolver
         self.metadata_ = _metadata
-        self.dataTokens_ = {}
         self.last_state_ = None
 
     def visit_statement(self, stmt_access_pair) -> str:
@@ -148,7 +160,6 @@ class TaskletBuilder:
     def generate_parallel(self, multi_stage, interval):
         multi_stage_state = sdfg.add_state("state_" + str(CreateUID()))
         sub_sdfg = dace.SDFG("ms_subsdfg" + str(CreateUID()))
-        sub_sdfg_arrays = {}
         last_state_in_multi_stage = None
         last_state = None
         # to connect them we need all input and output names
@@ -181,20 +192,13 @@ class TaskletBuilder:
                         access_pattern = self.GetAccessPatternWithoutK(key, stmt_access.accesses.readAccess)
 
                         # we promote every local variable to a temporary:
-                        if f_name not in self.dataTokens_:
-                            # add the transient to the top level sdfg
-                            self.dataTokens_[f_name] = sdfg.add_array(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
-                            )
+                        try_add_array(sdfg, f_name + "_t")
 
                         # create the memlet to create the mapped stmt
                         input_memlets[f_name + "_input"] = dace.Memlet.simple("S_" + f_name, access_pattern)
 
                         # add the field to the sub-sdfg as an array
-                        if "S_" + f_name not in sub_sdfg_arrays:
-                            sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
-                                "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
-                            )
+                        try_add_array(sub_sdfg, "S_" + f_name)
 
                         # collection of all the input fields for the memlet paths outside the sub-sdfg
                         collected_input_mapping["S_" + f_name] = f_name + "_t"
@@ -204,20 +208,13 @@ class TaskletBuilder:
                         access_pattern = self.GetAccessPatternWithoutK(key, stmt_access.accesses.writeAccess)
 
                         # we promote every local variable to a temporary:
-                        if f_name not in self.dataTokens_:
-                            # add the transient to the top level sdfg
-                            self.dataTokens_[f_name] = sdfg.add_array(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
-                            )
+                        try_add_array(sdfg, f_name + "_t")
 
                         # create the memlet
                         output_memlets[f_name] = dace.Memlet.simple("S_" + f_name, access_pattern)
 
                         # add the field to the sub-sdfg as an array
-                        if "S_" + f_name not in sub_sdfg_arrays:
-                            sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
-                                "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
-                            )
+                        try_add_array(sub_sdfg, "S_" + f_name)
 
                         # collection of all the output fields for the memlet paths outside the sub-sdfg
                         collected_output_mapping["S_" + f_name] = f_name + "_t"
@@ -326,10 +323,7 @@ class TaskletBuilder:
                         access_pattern = self.GetAccessPattern(key, stmt_access.accesses.readAccess)
 
                         # we promote every local variable to a temporary:
-                        if f_name not in self.dataTokens_:
-                            self.dataTokens_[f_name] = sdfg.add_transient(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
-                            )
+                        try_add_transient(sdfg, f_name + "_t")
 
                         input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
@@ -338,10 +332,7 @@ class TaskletBuilder:
                         access_pattern = self.GetAccessPattern(key, stmt_access.accesses.writeAccess)
 
                         # we promote every local variable to a temporary:
-                        if f_name not in self.dataTokens_:
-                            self.dataTokens_[f_name] = sdfg.add_transient(
-                                f_name + "_t", shape=[J, K + 1, I], dtype=data_type
-                            )
+                        try_add_transient(sdfg, f_name + "_t")
 
                         output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
@@ -455,16 +446,15 @@ if __name__ == "__main__":
 
     for id in metadata.APIFieldIDs:
         name = name_resolver.FromAccessID(id)
-        array = sdfg.add_array(name + "_t", shape=[J, K + 1, I], dtype=data_type)
-        des.dataTokens_[name] = array
+        sdfg.add_array(name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
     for id in metadata.temporaryFieldIDs:
         name = name_resolver.FromAccessID(id)
-        des.dataTokens_[name] = sdfg.add_transient(name + "_t", shape=[J, K + 1, I], dtype=data_type)
+        sdfg.add_transient(name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
     for id in metadata.globalVariableIDs:
         name = name_resolver.FromAccessID(id)
-        des.dataTokens_[name] = sdfg.add_scalar(name + "_t", data_type)
+        sdfg.add_scalar(name + "_t", data_type)
 
     for stencil in stencilInstantiation.internalIR.stencils:
         des.visit_stencil(stencil)
