@@ -15,6 +15,13 @@ sys.path.append(
 
 import IIR_pb2
 
+def CreateUID() -> int:
+    """ Creates unique identification numbers. """
+    if not hasattr(CreateUID, "counter"):
+        CreateUID.counter = 0
+    CreateUID.counter += 1
+    return CreateUID.counter
+
 I = dace.symbol("I")
 J = dace.symbol("J")
 K = dace.symbol("K")
@@ -35,7 +42,6 @@ class TaskletBuilder:
         self.metadata_ = _metadata
         self.dataTokens_ = {}
         self.current_stmt_access_ = None
-        self.state_counter_ = 0
         self.last_state_ = None
 
     def fill_globals(self):
@@ -310,11 +316,9 @@ class TaskletBuilder:
             return self.generate_loop(multi_stage, interval, loop_order)
 
     def generate_parallel(self, multi_stage, interval):
-        multi_stage_state = sdfg.add_state("state_" + str(self.state_counter_))
-        self.state_counter_ += 1
-        sub_sdfg = dace.SDFG("ms_subsdfg" + str(self.state_counter_))
+        multi_stage_state = sdfg.add_state("state_" + str(CreateUID()))
+        sub_sdfg = dace.SDFG("ms_subsdfg" + str(CreateUID()))
         sub_sdfg_arrays = {}
-        self.state_counter_ += 1
         last_state_in_multi_stage = None
         last_state = None
         # to connect them we need all input and output names
@@ -331,8 +335,7 @@ class TaskletBuilder:
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
-                    state = sub_sdfg.add_state("state_" + str(self.state_counter_))
-                    self.state_counter_ += 1
+                    state = sub_sdfg.add_state("state_" + str(CreateUID()))
                     # check if this if is required
                     if last_state_in_multi_stage is not None:
                         sub_sdfg.add_edge(last_state_in_multi_stage, state, dace.InterstateEdge())
@@ -534,8 +537,7 @@ class TaskletBuilder:
 
                 for stmt_access in do_method.stmtaccesspairs:
                     # A State for every stmt makes sure they can be sequential
-                    state = sdfg.add_state("state_" + str(self.state_counter_))
-                    self.state_counter_ += 1
+                    state = sdfg.add_state("state_" + str(CreateUID()))
                     if first_interval_state is None:
                         first_interval_state = state
                     else:
