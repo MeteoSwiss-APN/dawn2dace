@@ -43,7 +43,6 @@ class TaskletBuilder:
         self.get_name = name_resolver
         self.metadata_ = _metadata
         self.dataTokens_ = {}
-        self.current_stmt_access_ = None
         self.last_state_ = None
 
     def visit_statement(self, stmt_access_pair) -> str:
@@ -181,7 +180,6 @@ class TaskletBuilder:
                         sub_sdfg.add_edge(last_state_in_multi_stage, state, dace.InterstateEdge())
 
                     # Creation of the Memlet in the state
-                    self.current_stmt_access_ = stmt_access
                     input_memlets = {}
                     output_memlets = {}
 
@@ -384,7 +382,6 @@ class TaskletBuilder:
                         sdfg.add_edge(self.last_state_, state, dace.InterstateEdge())
 
                     # Creation of the Memlet in the state
-                    self.current_stmt_access_ = stmt_access
                     input_memlets = {}
                     output_memlets = {}
 
