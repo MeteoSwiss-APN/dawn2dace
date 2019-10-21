@@ -447,10 +447,9 @@ if __name__ == "__main__":
 
     sdfg = dace.SDFG("IIRToSDFG")
 
-    loopFields = {}
-    for a in metadata.APIFieldIDs:
-        field_name = metadata.accessIDToName[a]
-        sdfg.add_array("c" + field_name + "_t", shape=[J, K + 1, I], dtype=data_type)
+    for id in metadata.APIFieldIDs:
+        name = name_resolver.FromAccessID(id)
+        sdfg.add_array("c" + name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
     des = TaskletBuilder(stencilInstantiation.metadata, name_resolver)
 
