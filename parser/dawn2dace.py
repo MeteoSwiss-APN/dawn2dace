@@ -735,28 +735,17 @@ if __name__ == "__main__":
 
     sdfg.fill_scope_connectors()
 
-    nodes = list(sdfg.nodes())
-    if __debug__:
-        print("number of states generated: %d" % len(nodes))
+    print("number of states generated: %d" % len(sdfg.nodes()))
 
-    print("SDFG generation successful")
-
-    sdfg.draw_to_file("before_transformation.dot")
-
-    pickle.dump(sdfg, open("before.sdfg", "wb"))
+    sdfg.save("untransformed.sdfg", use_pickle=False)
+    print("SDFG generated.")
 
     sdfg.apply_strict_transformations()
-    sdfg.draw_to_file("final.dot")
-
-    print("Strict transformations applied, state graphs before and after are drawn")
-
-    pickle.dump(sdfg, open("after.sdfg", "wb"))
-
-    print("sdfg stored in example.sdfg")
+    sdfg.save("transformed.sdfg", use_pickle=False)
+    print("SDFG transformed strictly.")
 
     sdfg.validate()
-    print("sdfg validated")
+    print("SDFG validated.")
 
     sdfg.compile()
-
-    print("compilation successful")
+    print("SDFG compiled.")
