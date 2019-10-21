@@ -47,9 +47,9 @@ class TaskletBuilder:
         self.last_state_ = None
 
     def fill_globals(self):
-        for fID in self.metadata_.globalVariableIDs:
-            f_name = self.metadata_.accessIDToName[fID]
-            self.dataTokens_[f_name] = sdfg.add_scalar(f_name + "_t", data_type)
+        for id in self.metadata_.globalVariableIDs:
+            name = self.get_name.FromAccessID(id)
+            self.dataTokens_[name] = sdfg.add_scalar(name + "_t", data_type)
 
     def visit_unary_operator(self, expr):
         return "{} ({})".format(
@@ -83,8 +83,7 @@ class TaskletBuilder:
         return metadata.accessIDToName[metadata.exprIDToAccessID[expr.ID]]
 
     def visit_field_access_expr(self, expr):
-        field_id = self.metadata_.exprIDToAccessID[expr.ID]
-        str_ = metadata.accessIDToName[field_id]
+        field_id = self.get_name.ExprToAccessID(expr)
         # since we assume writes only to center, we only check out this map:
         access_pattern = ""
         if field_id in self.current_stmt_access_.accesses.readAccess:
@@ -110,7 +109,7 @@ class TaskletBuilder:
                     # remove the trailing ,
                     access_pattern = access_pattern[:-1]
                     access_pattern += "]"
-        return str_ + access_pattern
+        return self.get_name.FromExpression(expr) + access_pattern
 
     @staticmethod
     def visit_literal_access_expr(expr):
@@ -147,7 +146,7 @@ class TaskletBuilder:
     def visit_var_decl_stmt(self, var_decl):
         # No declaration is performed
         if var_decl.init_list:
-            str_ = metadata.accessIDToName[metadata.stmtIDToAccessID[var_decl.ID]]
+            str_ = self.get_name.FromStatement(var_decl)
 
             str_ += var_decl.op
 
@@ -301,15 +300,15 @@ class TaskletBuilder:
         return str_
 
     def build_data_tokens(self, sdfg_):
-        for fID in self.metadata_.APIFieldIDs:
-            f_name = self.metadata_.accessIDToName[fID]
-            array = sdfg_.add_array(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
-            self.dataTokens_[f_name] = array
+        for id in self.metadata_.APIFieldIDs:
+            name = self.get_name.FromAccessID(id)
+            array = sdfg_.add_array(name + "_t", shape=[J, K + 1, I], dtype=data_type)
+            self.dataTokens_[name] = array
 
-        for fID in self.metadata_.temporaryFieldIDs:
-            f_name = self.metadata_.accessIDToName[fID]
-            self.dataTokens_[f_name] = sdfg_.add_transient(f_name + "_t", shape=[J, K + 1, I], dtype=data_type)
-            print("we're here 2:%s" % f_name)
+        for id in self.metadata_.temporaryFieldIDs:
+            name = self.get_name.FromAccessID(id)
+            self.dataTokens_[name] = sdfg_.add_transient(name + "_t", shape=[J, K + 1, I], dtype=data_type)
+            print("we're here 2:%s" % name)
 
     def generate_multistage(self, loop_order, multi_stage, interval):
         if loop_order == 2:
@@ -351,7 +350,7 @@ class TaskletBuilder:
                         # since keys with negative ID's are *only* literals, we can skip those
                         if key < 0:
                             continue
-                        f_name = self.metadata_.accessIDToName[key]
+                        f_name = self.get_name.FromAccessID(key)
                         i_extent = stmt_access.accesses.readAccess[key].extents[0]
                         j_extent = stmt_access.accesses.readAccess[key].extents[1]
                         k_extent = stmt_access.accesses.readAccess[key].extents[2]
@@ -402,7 +401,7 @@ class TaskletBuilder:
                         collected_input_mapping["S_" + f_name] = f_name + "_t"
 
                     for key in stmt_access.accesses.writeAccess:
-                        f_name = self.metadata_.accessIDToName[key]
+                        f_name = self.get_name.FromAccessID(key)
 
                         i_extent = stmt_access.accesses.writeAccess[key].extents[0]
                         j_extent = stmt_access.accesses.writeAccess[key].extents[1]
@@ -556,7 +555,7 @@ class TaskletBuilder:
                         if key < 0:
                             continue
 
-                        f_name = self.metadata_.accessIDToName[key]
+                        f_name = self.get_name.FromAccessID(key)
 
                         i_extent = stmt_access.accesses.readAccess[key].extents[0]
                         j_extent = stmt_access.accesses.readAccess[key].extents[1]
@@ -594,7 +593,7 @@ class TaskletBuilder:
 
                     for key in stmt_access.accesses.writeAccess:
 
-                        f_name = self.metadata_.accessIDToName[key]
+                        f_name = self.get_name.FromAccessID(key)
 
                         i_extent = stmt_access.accesses.writeAccess[key].extents[0]
                         j_extent = stmt_access.accesses.writeAccess[key].extents[1]
