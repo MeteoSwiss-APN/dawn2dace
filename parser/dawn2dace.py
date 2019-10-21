@@ -9,6 +9,7 @@ import pickle
 import sys
 import astunparse
 from NameResolver import NameResolver
+from StatementVisitor import StatementVisitor
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "build", "gen", "iir_specification"))
@@ -45,150 +46,9 @@ class TaskletBuilder:
         self.current_stmt_access_ = None
         self.last_state_ = None
 
-    def visit_unary_operator(self, expr):
-        return "{} ({})".format(
-            expr.op,
-            self.visit_expr(expr.operand)
-        )
-
-    def visit_binary_operator(self, expr):
-        return "({}) {} ({})".format(
-            self.visit_expr(expr.left),
-            expr.op,
-            self.visit_expr(expr.right)
-        )
-
-    def visit_assignment_expr(self, expr):
-        return "{} {} ({})".format(
-            self.visit_expr(expr.left),
-            expr.op,
-            self.visit_expr(expr.right)
-        )
-
-    def visit_ternary_operator(self, expr):
-        return "( ({}) ? ({}) : ({}))".format(
-            self.visit_expr(expr.cond),
-            self.visit_expr(expr.left),
-            self.visit_expr(expr.right)
-        )
-
-    @staticmethod
-    def visit_var_access_expr(expr):
-        return metadata.accessIDToName[metadata.exprIDToAccessID[expr.ID]]
-
-    def visit_field_access_expr(self, expr):
-        field_id = self.get_name.ExprToAccessID(expr)
-        # since we assume writes only to center, we only check out this map:
-        access_pattern = ""
-        if field_id in self.current_stmt_access_.accesses.readAccess:
-            i_extent = self.current_stmt_access_.accesses.readAccess[field_id].extents[0]
-            j_extent = self.current_stmt_access_.accesses.readAccess[field_id].extents[1]
-            k_extent = self.current_stmt_access_.accesses.readAccess[field_id].extents[2]
-            has_i = (i_extent.plus - i_extent.minus) > 0
-            has_j = (j_extent.plus - j_extent.minus) > 0
-            has_k = (k_extent.plus - k_extent.minus) > 0
-            has_extent = has_i or has_j or has_k
-            if has_extent:
-                access_pattern = "["
-                if has_j:
-                    access_pattern += str(expr.offset[1] - j_extent.minus)
-                    access_pattern += ","
-                if has_k:
-                    access_pattern += str(expr.offset[2] - k_extent.minus)
-                    access_pattern += ","
-                if has_i:
-                    access_pattern += str(expr.offset[0] - i_extent.minus)
-                    access_pattern += ","
-                if has_extent:
-                    # remove the trailing ,
-                    access_pattern = access_pattern[:-1]
-                    access_pattern += "]"
-        return self.get_name.FromExpression(expr) + access_pattern
-
-    @staticmethod
-    def visit_literal_access_expr(expr):
-        return expr.value
-
-    # call to external function, like math::sqrt
-    def visit_fun_call_expr(self, expr):
-        return expr.callee + "(" + ",".join(self.visit_expr(x) for x in expr.arguments) + ")"
-
-    def visit_expr(self, expr):
-        if expr.WhichOneof("expr") == "unary_operator":
-            return self.visit_unary_operator(expr.unary_operator)
-        elif expr.WhichOneof("expr") == "binary_operator":
-            return self.visit_binary_operator(expr.binary_operator)
-        elif expr.WhichOneof("expr") == "assignment_expr":
-            return self.visit_assignment_expr(expr.assignment_expr)
-        elif expr.WhichOneof("expr") == "ternary_operator":
-            return self.visit_ternary_operator(expr.ternary_operator)
-        elif expr.WhichOneof("expr") == "fun_call_expr":
-            return self.visit_fun_call_expr(expr.fun_call_expr)
-        elif expr.WhichOneof("expr") == "stencil_fun_call_expr":
-            raise ValueError("non supported expression")
-        elif expr.WhichOneof("expr") == "stencil_fun_arg_expr":
-            raise ValueError("non supported expression")
-        elif expr.WhichOneof("expr") == "var_access_expr":
-            return self.visit_var_access_expr(expr.var_access_expr)
-        elif expr.WhichOneof("expr") == "field_access_expr":
-            return self.visit_field_access_expr(expr.field_access_expr)
-        elif expr.WhichOneof("expr") == "literal_access_expr":
-            return self.visit_literal_access_expr(expr.literal_access_expr)
-        else:
-            raise ValueError("Unknown expression")
-
-    def visit_var_decl_stmt(self, var_decl):
-        # No declaration is performed
-        if var_decl.init_list:
-            str_ = self.get_name.FromStatement(var_decl)
-
-            str_ += var_decl.op
-
-            for expr in var_decl.init_list:
-                str_ += self.visit_expr(expr)
-
-            return str_
-        else:
-            return ""
-
-    def visit_expr_stmt(self, stmt):
-
-        return self.visit_expr(stmt.expr)
-
-    def visit_if_stmt(self, stmt):
-        cond = stmt.cond_part
-        if cond.WhichOneof("stmt") != "expr_stmt":
-            raise ValueError("Not expected stmt")
-
-        stmt_str = "if "
-        stmt_str += "True"  # self.visit_expr_stmt(stmt.cond_part)
-        stmt_str += ":\n\t"
-        stmt_str += self.visit_body_stmt(stmt.then_part)
-        stmt_str += "\nelse:\n\t"
-        stmt_str += self.visit_body_stmt(stmt.else_part)
-
-        return stmt_str
-
-    def visit_block_stmt(self, stmt):
-        stmt_str = ""
-        for each in stmt.statements:
-            stmt_str += self.visit_body_stmt(each)
-
-        return stmt_str
-
-    def visit_body_stmt(self, stmt):
-        if stmt.WhichOneof("stmt") == "var_decl_stmt":
-            stmt_str = self.visit_var_decl_stmt(stmt.var_decl_stmt)
-        elif stmt.WhichOneof("stmt") == "expr_stmt":
-            stmt_str = self.visit_expr_stmt(stmt.expr_stmt)
-        elif stmt.WhichOneof("stmt") == "if_stmt":
-            stmt_str = self.visit_if_stmt(stmt.if_stmt)
-        elif stmt.WhichOneof("stmt") == "block_stmt":
-            stmt_str = self.visit_block_stmt(stmt.block_stmt)
-        else:
-            raise ValueError("Stmt not supported :" + stmt.WhichOneof("stmt"))
-
-        return stmt_str
+    def visit_statement(self, stmt_access_pair) -> str:
+        visitor = StatementVisitor(self.get_name, stmt_access_pair.accesses)
+        return visitor.visit_body_stmt(stmt_access_pair.ASTStmt)
 
     @staticmethod
     def visit_interval(interval):
@@ -222,10 +82,6 @@ class TaskletBuilder:
         end += "+1"
         endint += 1
         return start, end, startint
-
-    def visit_statement(self, stmt):
-
-        return self.visit_body_stmt(stmt.ASTStmt)
 
     @staticmethod
     def create_extent_str(extents):
