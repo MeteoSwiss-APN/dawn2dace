@@ -155,6 +155,28 @@ class TaskletBuilder:
         else:
             return self.generate_loop(multi_stage, interval, loop_order)
 
+    def GetAccessPattern(self, id, access) -> str:
+        if id in self.metadata_.globalVariableIDs:
+            return "0"
+
+        i,j,k = access[id].extents
+        return "j+{}:j+{}+1,k+{}:k+{}+1,i+{}:i+{}+1".format(
+            j.minus, j.plus,
+            k.minus, k.plus,
+            i.minus, i.plus
+        )
+
+    def GetAccessPatternWithoutK(self, id, access) -> str:
+        if id in self.metadata_.globalVariableIDs:
+            return "0"
+
+        i,j,k = access[id].extents
+        return "j+{}:j+{}+1,{}:{}+1,i+{}:i+{}+1".format(
+            j.minus, j.plus,
+            k.minus, k.plus,
+            i.minus, i.plus
+        )
+
     def generate_parallel(self, multi_stage, interval):
         multi_stage_state = sdfg.add_state("state_" + str(CreateUID()))
         sub_sdfg = dace.SDFG("ms_subsdfg" + str(CreateUID()))
@@ -188,29 +210,7 @@ class TaskletBuilder:
                         if key < 0:
                             continue
                         f_name = self.get_name.FromAccessID(key)
-                        i_extent = stmt_access.accesses.readAccess[key].extents[0]
-                        j_extent = stmt_access.accesses.readAccess[key].extents[1]
-                        k_extent = stmt_access.accesses.readAccess[key].extents[2]
-                        if key not in self.metadata_.globalVariableIDs:
-                            access_pattern = (
-                                "j+"
-                                + str(j_extent.minus)
-                                + ":j+"
-                                + str(j_extent.plus)
-                                + "+1"
-                                + ","
-                                + str(k_extent.minus)
-                                + ":"
-                                + str(k_extent.plus)
-                                + "+1,"
-                                + "i+"
-                                + str(i_extent.minus)
-                                + ":i+"
-                                + str(i_extent.plus)
-                                + "+1"
-                            )
-                        else:
-                            access_pattern = "0"
+                        access_pattern = self.GetAccessPatternWithoutK(key, stmt_access.accesses.readAccess)
 
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
@@ -239,28 +239,7 @@ class TaskletBuilder:
 
                     for key in stmt_access.accesses.writeAccess:
                         f_name = self.get_name.FromAccessID(key)
-
-                        i_extent = stmt_access.accesses.writeAccess[key].extents[0]
-                        j_extent = stmt_access.accesses.writeAccess[key].extents[1]
-                        k_extent = stmt_access.accesses.writeAccess[key].extents[2]
-
-                        access_pattern = (
-                            "j+"
-                            + str(j_extent.minus)
-                            + ":j+"
-                            + str(j_extent.plus)
-                            + "+1"
-                            + ","
-                            + str(k_extent.minus)
-                            + ":"
-                            + str(k_extent.plus)
-                            + "+1,"
-                            + "i+"
-                            + str(i_extent.minus)
-                            + ":i+"
-                            + str(i_extent.plus)
-                            + "+1"
-                        )
+                        access_pattern = self.GetAccessPatternWithoutK(key, stmt_access.accesses.writeAccess)
 
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
@@ -390,32 +369,7 @@ class TaskletBuilder:
                             continue
 
                         f_name = self.get_name.FromAccessID(key)
-
-                        i_extent = stmt_access.accesses.readAccess[key].extents[0]
-                        j_extent = stmt_access.accesses.readAccess[key].extents[1]
-                        k_extent = stmt_access.accesses.readAccess[key].extents[2]
-
-                        # create the access extent for the read-Access
-                        if key not in self.metadata_.globalVariableIDs:
-                            access_pattern = (
-                                "j+"
-                                + str(j_extent.minus)
-                                + ":j+"
-                                + str(j_extent.plus)
-                                + "+1"
-                                + ",k+"
-                                + str(k_extent.minus)
-                                + ":k+"
-                                + str(k_extent.plus)
-                                + "+1,"
-                                + "i+"
-                                + str(i_extent.minus)
-                                + ":i+"
-                                + str(i_extent.plus)
-                                + "+1"
-                            )
-                        else:
-                            access_pattern = "0"
+                        access_pattern = self.GetAccessPattern(key, stmt_access.accesses.readAccess)
 
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
@@ -426,30 +380,8 @@ class TaskletBuilder:
                         input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
                     for key in stmt_access.accesses.writeAccess:
-
                         f_name = self.get_name.FromAccessID(key)
-
-                        i_extent = stmt_access.accesses.writeAccess[key].extents[0]
-                        j_extent = stmt_access.accesses.writeAccess[key].extents[1]
-                        k_extent = stmt_access.accesses.writeAccess[key].extents[2]
-
-                        access_pattern = (
-                            "j+"
-                            + str(j_extent.minus)
-                            + ":j+"
-                            + str(j_extent.plus)
-                            + "+1"
-                            + ",k+"
-                            + str(k_extent.minus)
-                            + ":k+"
-                            + str(k_extent.plus)
-                            + "+1,"
-                            + "i+"
-                            + str(i_extent.minus)
-                            + ":i+"
-                            + str(i_extent.plus)
-                            + "+1"
-                        )
+                        access_pattern = self.GetAccessPattern(key, stmt_access.accesses.writeAccess)
 
                         # we promote every local variable to a temporary:
                         if f_name not in self.dataTokens_:
