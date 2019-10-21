@@ -54,7 +54,7 @@ class TaskletBuilder:
     def fill_globals(self):
         for fID in self.metadata_.globalVariableIDs:
             f_name = self.metadata_.accessIDToName[fID]
-            self.dataTokens_[f_name] = sdfg.add_scalar(f_name + "_t", dace.float32)
+            self.dataTokens_[f_name] = sdfg.add_scalar(f_name + "_t", data_type)
 
     @staticmethod
     def visit_builtin_type(builtin_type):
