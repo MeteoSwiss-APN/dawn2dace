@@ -32,7 +32,7 @@ int main(int argc, char const *argv[]) {
 
   // Call the gtclang stencil
   dawn_generated::gt::copy_stencil copy_gtclang(dom, input, out_gtclang);
-  copy_gtclang.run();
+  copy_gtclang.run(input, out_gtclang);
 
   // call the dace-stencil
   auto raw_out_dace = gridtools::make_host_view(out_dace).data();
