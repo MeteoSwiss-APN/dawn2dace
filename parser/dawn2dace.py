@@ -92,24 +92,6 @@ class TaskletBuilder:
 
         return K_Interval(begin, end, sort_key)
 
-    @staticmethod
-    def create_extent_str(extents):
-        extent_str = ""
-        for extent in extents.extents:
-            if not extent_str:
-                extent_str = "{"
-            else:
-                extent_str += ","
-            extent_str += str(extent.minus) + "," + str(extent.plus)
-
-        extent_str += "}"
-
-    def visit_access(self, accesses):
-        for access_id, extents in accesses.writeAccess.iteritems():
-            self.create_extent_str(extents)
-        for access_id, extents in accesses.readAccess.iteritems():
-            self.create_extent_str(extents)
-
     def visit_multi_stage(self, ms):
         intervals = set()
         for stage in ms.stages:
@@ -134,20 +116,6 @@ class TaskletBuilder:
     def visit_stencil(self, stencil_):
         for ms in stencil_.multiStages:
             self.visit_multi_stage(ms)
-
-    @staticmethod
-    def visit_fields(fields_):
-        str_ = "field "
-        for field in fields_:
-            str_ += field.name
-            dims = ["i", "j", "k"]
-            dims_ = []
-            for dim in range(1, 3):
-                if field.field_dimensions[dim] != -1:
-                    dims_.append(dims[dim])
-            str_ += str(dims_)
-            str_ += ","
-        return str_
 
     def generate_multistage(self, loop_order, multi_stage, interval):
         if loop_order == 2:
@@ -219,12 +187,6 @@ class TaskletBuilder:
                                 f_name + "_t", shape=[J, K + 1, I], dtype=data_type
                             )
 
-                            # add the transient to the sub_sdfg:
-                            if "S_" + f_name not in sub_sdfg_arrays:
-                                sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
-                                    "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
-                                )
-
                         # create the memlet to create the mapped stmt
                         input_memlets[f_name + "_input"] = dace.Memlet.simple("S_" + f_name, access_pattern)
 
@@ -248,12 +210,6 @@ class TaskletBuilder:
                                 f_name + "_t", shape=[J, K + 1, I], dtype=data_type
                             )
 
-                            # add the transient to the sub_sdfg:
-                            if "S_" + f_name not in sub_sdfg_arrays:
-                                sub_sdfg_arrays["S_" + f_name] = sub_sdfg.add_array(
-                                    "S_" + f_name, shape=[J, K + 1, I], dtype=data_type
-                                )
-
                         # create the memlet
                         output_memlets[f_name] = dace.Memlet.simple("S_" + f_name, access_pattern)
 
@@ -266,9 +222,7 @@ class TaskletBuilder:
                         # collection of all the output fields for the memlet paths outside the sub-sdfg
                         collected_output_mapping["S_" + f_name] = f_name + "_t"
 
-                    stmt_str = ""
-
-                    stmt_str += self.visit_statement(stmt_access)
+                    stmt_str = self.visit_statement(stmt_access)
 
                     if stmt_str:
                         # adding input to every input-field for separation:
@@ -392,8 +346,7 @@ class TaskletBuilder:
                         output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
 
                     # Create the statement
-                    stmt_str = ""
-                    stmt_str += self.visit_statement(stmt_access)
+                    stmt_str = self.visit_statement(stmt_access)
 
                     if stmt_str:
                         # adding input to every input-field for separation:
