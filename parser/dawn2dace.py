@@ -30,6 +30,17 @@ K = dace.symbol("K")
 halo_size = dace.symbol("haloSize")
 data_type = dace.float64
 
+class K_Interval:
+    """Represents an interval [begin, end) in dimention K"""
+
+    def __init__(self, begin, end, sort_key:int):
+        self.begin = begin
+        self.end = end
+        self.sort_key = sort_key
+
+    def __str__(self):
+        return "{}:{}".format(self.begin, self.end)
+
 
 class InputRenamer(ast.NodeTransformer):
     def visit_Name(self, node):
@@ -50,37 +61,36 @@ class TaskletBuilder:
         return visitor.visit_body_stmt(stmt_access_pair.ASTStmt)
 
     @staticmethod
-    def visit_interval(interval):
+    def visit_interval(interval) -> K_Interval:
+        """ Converts a Dawn interval into a Dawn2Dice interval. 
+            Note: Only works for dimension 'K', which is sufficient for COSMO.
+        """
         if interval.WhichOneof("LowerLevel") == "special_lower_level":
             if interval.special_lower_level == 0:
-                start = "0"
-                startint = 0
+                begin = "0"
+                sort_key = 0
             else:
-                start = "K-1"
-                startint = 10000 - 1
+                begin = "K-1"
+                sort_key = 10000 - 1
         elif interval.WhichOneof("LowerLevel") == "lower_level":
-            start = str(interval.lower_level)
-            startint = interval.lower_level
-        start += " + " + str(interval.lower_offset)
-        startint += interval.lower_offset
+            begin = str(interval.lower_level)
+            sort_key = interval.lower_level
+        begin += " + " + str(interval.lower_offset)
+        sort_key += interval.lower_offset
 
         if interval.WhichOneof("UpperLevel") == "special_upper_level":
             if interval.special_upper_level == 0:
                 end = "0"
-                endint = 0
             else:
                 # intervals are adapted to be inclusive so K-1 is what we want (starting from 0)
                 end = "K-1"
-                endint = 10000 - 1
         elif interval.WhichOneof("UpperLevel") == "upper_level":
             end = str(interval.upper_level)
-            endint = interval.upper_level
+
         end += " + " + str(interval.upper_offset)
-        endint += interval.upper_offset
-        # since python interval are open we need to add 1
-        end += "+1"
-        endint += 1
-        return start, end, startint
+        end += "+1" # since python interval are open we need to add 1.
+
+        return K_Interval(begin, end, sort_key)
 
     @staticmethod
     def create_extent_str(extents):
@@ -104,19 +114,19 @@ class TaskletBuilder:
         intervals = set()
         for stage in ms.stages:
             for do_method in stage.doMethods:
-                extent_start, extent_end, startint = self.visit_interval(do_method.interval)
-                intervals.add((extent_start, extent_end, startint))
+                intervals.add(self.visit_interval(do_method.interval))
         intervals = list(intervals)
-        # sort the intervals
-        if ms.loopOrder == 1:
-            intervals.sort(key=lambda tup: tup[2], reverse=True)
-        else:
-            intervals.sort(key=lambda tup: tup[2])
+        
+        intervals.sort(
+            key=lambda interval: interval.sort_key,
+            reverse=(ms.loopOrder == 1)
+        )
 
         if __debug__:
             print("list of all the intervals:")
-            for (x, y, _) in intervals:
-                print("[ " + x + " , " + y + " ]")
+            for i in intervals:
+                print(i)
+
         # generate the multistage for every interval (in loop order)
         for interval in intervals:
             self.last_state_ = self.generate_multistage(ms.loopOrder, ms, interval)
@@ -157,11 +167,10 @@ class TaskletBuilder:
 
         for stage in multi_stage.stages:
             for do_method in stage.doMethods:
-                do_method_name = "DoMethod_" + str(do_method.doMethodID)
-                extent_start, extent_end, _ = self.visit_interval(do_method.interval)
-                do_method_name += "(%s:%s)" % (extent_start, extent_end)
+                extent = self.visit_interval(do_method.interval)
+                do_method_name = "DoMethod_{}({})".format(do_method.doMethodID, extent)
 
-                if interval[0] != extent_start or interval[1] != extent_end:
+                if interval.begin != extent.begin or interval.end != extent.end:
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
@@ -317,7 +326,7 @@ class TaskletBuilder:
                         sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                     last_state = state
 
-        me_k, mx_k = multi_stage_state.add_map("kmap", dict(k="%s:%s" % (extent_start, extent_end)))
+        me_k, mx_k = multi_stage_state.add_map("kmap", dict(k="%s:%s" % (extent.begin, extent.end)))
         # fill the sub-sdfg's {in_set} {out_set}
         input_set = collected_input_mapping.keys()
         output_set = collected_output_mapping.keys()
@@ -355,13 +364,11 @@ class TaskletBuilder:
         prev_state = self.last_state_
         for stage in multi_stage.stages:
             for do_method in stage.doMethods:
-                # Generate the name of the Do-Method
-                do_method_name = "DoMethod_" + str(do_method.doMethodID)
-                extent_start, extent_end, _ = self.visit_interval(do_method.interval)
-                do_method_name += "(%s:%s)" % (extent_start, extent_end)
+                extent = self.visit_interval(do_method.interval)
+                do_method_name = "DoMethod_{}({})".format(do_method.doMethodID, extent)
                 # since we only want to generate stmts for the Do-Methods that are matching the interval, we're ignoring
                 # the other ones
-                if interval[0] != extent_start or interval[1] != extent_end:
+                if interval.begin != extent.begin or interval.end != extent.end:
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
