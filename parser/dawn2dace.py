@@ -8,6 +8,7 @@ import os
 import pickle
 import sys
 import astunparse
+from NameResolver import NameResolver
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "build", "gen", "iir_specification"))
@@ -38,7 +39,8 @@ class RenameInput(ast.NodeTransformer):
 
 
 class TaskletBuilder:
-    def __init__(self, _metadata):
+    def __init__(self, _metadata, name_resolver:NameResolver):
+        self.get_name = name_resolver
         self.metadata_ = _metadata
         self.dataTokens_ = {}
         self.current_stmt_access_ = None
@@ -715,6 +717,12 @@ if __name__ == "__main__":
 
     print("Generate SDFG for `%s`" % metadata.stencilName)
 
+    name_resolver = NameResolver(
+        metadata.accessIDToName,
+        metadata.exprIDToAccessID,
+        metadata.stmtIDToAccessID
+        )
+
     fields = {}
     for a in metadata.APIFieldIDs:
         fields[metadata.accessIDToName[a]] = dace.ndarray([J, K + 1, I], dtype=data_type)
@@ -726,7 +734,7 @@ if __name__ == "__main__":
         field_name = metadata.accessIDToName[a]
         sdfg.add_array("c" + field_name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
-    des = TaskletBuilder(stencilInstantiation.metadata)
+    des = TaskletBuilder(stencilInstantiation.metadata, name_resolver)
 
     des.build_data_tokens(sdfg)
 
