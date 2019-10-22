@@ -51,8 +51,17 @@ class K_Interval:
         self.end = end
         self.sort_key = sort_key
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{}:{}".format(self.begin, self.end)
+
+    def __eq__(self, other) -> bool:
+        return self.begin == other.begin and self.end == other.end
+
+    def __ne__(self, other) -> bool:
+        return not self == other
+
+    def __hash__(self):
+        return hash(self.__dict__.values())
 
 
 class InputRenamer(ast.NodeTransformer):
@@ -168,10 +177,7 @@ class TaskletBuilder:
 
         for stage in multi_stage.stages:
             for do_method in stage.doMethods:
-                extent = self.visit_interval(do_method.interval)
-                do_method_name = "DoMethod_{}({})".format(do_method.doMethodID, extent)
-
-                if interval.begin != extent.begin or interval.end != extent.end:
+                if self.visit_interval(do_method.interval) != interval:
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
@@ -256,7 +262,7 @@ class TaskletBuilder:
                         sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                     last_state = state
 
-        me_k, mx_k = multi_stage_state.add_map("kmap", dict(k="%s:%s" % (extent.begin, extent.end)))
+        me_k, mx_k = multi_stage_state.add_map("kmap", dict(k=str(interval)))
         # fill the sub-sdfg's {in_set} {out_set}
         input_set = collected_input_mapping.keys()
         output_set = collected_output_mapping.keys()
@@ -294,11 +300,9 @@ class TaskletBuilder:
         prev_state = self.last_state_
         for stage in multi_stage.stages:
             for do_method in stage.doMethods:
-                extent = self.visit_interval(do_method.interval)
-                do_method_name = "DoMethod_{}({})".format(do_method.doMethodID, extent)
-                # since we only want to generate stmts for the Do-Methods that are matching the interval, we're ignoring
-                # the other ones
-                if interval.begin != extent.begin or interval.end != extent.end:
+                if self.visit_interval(do_method.interval) != interval:
+                    # since we only want to generate stmts for the Do-Methods that are matching the interval, we're ignoring
+                    # the other ones
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
@@ -314,7 +318,6 @@ class TaskletBuilder:
                     output_memlets = {}
 
                     for key in stmt_access.accesses.readAccess:
-
                         # since keys with negative ID's are *only* literals, we can skip those
                         if key < 0:
                             continue
@@ -380,8 +383,8 @@ class TaskletBuilder:
                 first_interval_state,
                 None,
                 "k",
-                interval[0],
-                "k < %s" % interval[1],
+                interval.begin,
+                "k < %s" % interval.end,
                 "k + 1",
                 self.last_state_,
             )
@@ -392,8 +395,8 @@ class TaskletBuilder:
                 first_interval_state,
                 None,
                 "k",
-                interval[0],
-                "k > %s" % interval[1],
+                interval.begin,
+                "k > %s" % interval.end,
                 "k - 1",
                 self.last_state_,
             )
