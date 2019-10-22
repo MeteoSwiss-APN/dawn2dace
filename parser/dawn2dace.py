@@ -144,23 +144,17 @@ class TaskletBuilder:
         else:
             return self.generate_loop(multi_stage, interval, loop_order)
 
-    def GetAccessPattern(self, id, access) -> str:
+    def GetAccessPattern(self, id, access, with_k = True) -> str:
         if id in self.metadata_.globalVariableIDs:
             return "0"
 
-        i,j,k = access[id].extents
-        return "j+{}:j+{}+1,k+{}:k+{}+1,i+{}:i+{}+1".format(
-            j.minus, j.plus,
-            k.minus, k.plus,
-            i.minus, i.plus
-        )
-
-    def GetAccessPatternWithoutK(self, id, access) -> str:
-        if id in self.metadata_.globalVariableIDs:
-            return "0"
+        if with_k:
+            template = "j+{}:j+{}+1,k+{}:k+{}+1,i+{}:i+{}+1"
+        else:
+            template = "j+{}:j+{}+1,{}:{}+1,i+{}:i+{}+1"
 
         i,j,k = access[id].extents
-        return "j+{}:j+{}+1,{}:{}+1,i+{}:i+{}+1".format(
+        return template.format(
             j.minus, j.plus,
             k.minus, k.plus,
             i.minus, i.plus
@@ -195,7 +189,7 @@ class TaskletBuilder:
                         if key < 0:
                             continue
                         f_name = self.get_name.FromAccessID(key)
-                        access_pattern = self.GetAccessPatternWithoutK(key, stmt_access.accesses.readAccess)
+                        access_pattern = self.GetAccessPattern(key, stmt_access.accesses.readAccess, with_k = False)
 
                         # we promote every local variable to a temporary:
                         try_add_array(sdfg, f_name + "_t")
@@ -211,7 +205,7 @@ class TaskletBuilder:
 
                     for key in stmt_access.accesses.writeAccess:
                         f_name = self.get_name.FromAccessID(key)
-                        access_pattern = self.GetAccessPatternWithoutK(key, stmt_access.accesses.writeAccess)
+                        access_pattern = self.GetAccessPattern(key, stmt_access.accesses.writeAccess, with_k = False)
 
                         # we promote every local variable to a temporary:
                         try_add_array(sdfg, f_name + "_t")
