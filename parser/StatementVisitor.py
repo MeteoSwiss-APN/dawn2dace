@@ -127,7 +127,7 @@ class StatementVisitor:
         if which == "expr_stmt":
             return self.visit_expr_stmt(stmt.expr_stmt)
         if which == "var_decl_stmt":
-            return self.self.visit_var_decl_stmt(stmt.var_decl_stmt)
+            return self.visit_var_decl_stmt(stmt.var_decl_stmt)
         if which == "if_stmt":
             return self.visit_if_stmt(stmt.if_stmt)
         if which == "block_stmt":
