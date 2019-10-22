@@ -195,13 +195,13 @@ class TaskletBuilder:
                         try_add_array(sdfg, name + "_t")
 
                         # create the memlet to create the mapped stmt
-                        input_memlets[name + "_input"] = dace.Memlet.simple("S_" + name, access_pattern)
+                        input_memlets[name + "_input"] = dace.Memlet.simple(name + "_S", access_pattern)
 
                         # add the field to the sub-sdfg as an array
-                        try_add_array(sub_sdfg, "S_" + name)
+                        try_add_array(sub_sdfg, name + "_S")
 
                         # collection of all the input fields for the memlet paths outside the sub-sdfg
-                        collected_input_mapping["S_" + name] = name + "_t"
+                        collected_input_mapping[name + "_S"] = name + "_t"
 
                     for key in stmt_access.accesses.writeAccess:
                         name = self.get_name.FromAccessID(key)
@@ -211,13 +211,13 @@ class TaskletBuilder:
                         try_add_array(sdfg, name + "_t")
 
                         # create the memlet
-                        output_memlets[name] = dace.Memlet.simple("S_" + name, access_pattern)
+                        output_memlets[name] = dace.Memlet.simple(name + "_S", access_pattern)
 
                         # add the field to the sub-sdfg as an array
-                        try_add_array(sub_sdfg, "S_" + name)
+                        try_add_array(sub_sdfg, name + "_S")
 
                         # collection of all the output fields for the memlet paths outside the sub-sdfg
-                        collected_output_mapping["S_" + name] = name + "_t"
+                        collected_output_mapping[name + "_S"] = name + "_t"
 
                     stmt_str = self.visit_statement(stmt_access)
 
