@@ -77,9 +77,13 @@ class TaskletBuilder:
         self.metadata_ = _metadata
         self.last_state_ = None
 
-    def visit_statement(self, stmt_access_pair) -> str:
+    def GetCode(self, stmt_access_pair) -> str:
         visitor = StatementVisitor(self.get_name, stmt_access_pair.accesses)
-        return visitor.visit_body_stmt(stmt_access_pair.ASTStmt)
+        code = visitor.visit_body_stmt(stmt_access_pair.ASTStmt)
+        if code:
+            tree = ast.parse(code)
+            code = astunparse.unparse(InputRenamer().visit(tree))
+        return code
 
     @staticmethod
     def visit_interval(interval) -> K_Interval:
@@ -219,35 +223,13 @@ class TaskletBuilder:
                         # collection of all the output fields for the memlet paths outside the sub-sdfg
                         collected_output_mapping[name + "_S"] = name + "_t"
 
-                    stmt_str = self.visit_statement(stmt_access)
-
-                    if stmt_str:
-                        # adding input to every input-field for separation:
-                        if __debug__:
-                            print("before inout transformation")
-                            print(stmt_str)
-                        tree = ast.parse(stmt_str)
-                        output_stmt = astunparse.unparse(InputRenamer().visit(tree))
-
-                        if __debug__:
-                            print("after inout transformation")
-                            print(output_stmt)
-
-                        stmt_str = output_stmt
-
-                        if __debug__:
-                            print("this is the stmt-str:")
-                            print(stmt_str)
-                            print("in-mem")
-                            print(input_memlets)
-                            print("out-mem")
-                            print(output_memlets)
-
+                    code = self.GetCode(stmt_access)
+                    if code:
                         # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                         # the maps are ij-only
                         map_range = dict(j="halo_size:J-halo_size", i="halo_size:I-halo_size")
                         state.add_mapped_tasklet(
-                            "statement", map_range, input_memlets, stmt_str, output_memlets, external_edges=True
+                            "statement", map_range, input_memlets, code, output_memlets, external_edges=True
                         )
 
                     # set the state  to be the last one to connect them
@@ -333,37 +315,13 @@ class TaskletBuilder:
 
                         output_memlets[name] = dace.Memlet.simple(name + "_t", access_pattern)
 
-                    # Create the statement
-                    stmt_str = self.visit_statement(stmt_access)
-
-                    if stmt_str:
-                        # adding input to every input-field for separation:
-                        if __debug__:
-                            print("before inout transformation")
-                            print(stmt_str)
-
-                        tree = ast.parse(stmt_str)
-                        output_stmt = astunparse.unparse(InputRenamer().visit(tree))
-
-                        if __debug__:
-                            print("after inout transformation")
-                            print(output_stmt)
-
-                        stmt_str = output_stmt
-
-                        if __debug__:
-                            print("this is the stmt-str:")
-                            print(stmt_str)
-                            print("in-mem")
-                            print(input_memlets)
-                            print("out-mem")
-                            print(output_memlets)
-
+                    code = self.GetCode(stmt_access)
+                    if code:
                         # Since we're in a sequential loop, we only need a map in i and j
                         map_range = dict(j="halo_size:J-halo_size", i="halo_size:I-halo_size")
 
                         state.add_mapped_tasklet(
-                            "statement", map_range, input_memlets, stmt_str, output_memlets, external_edges=True
+                            "statement", map_range, input_memlets, code, output_memlets, external_edges=True
                         )
 
                     # set the state to be the last one to connect to it
