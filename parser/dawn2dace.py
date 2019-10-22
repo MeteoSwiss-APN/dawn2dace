@@ -167,8 +167,8 @@ class TaskletBuilder:
         )
 
     def generate_parallel(self, multi_stage, interval):
-        multi_stage_state = sdfg.add_state("state_" + str(CreateUID()))
-        sub_sdfg = dace.SDFG("ms_subsdfg" + str(CreateUID()))
+        multi_stage_state = sdfg.add_state("state_{}".format(CreateUID()))
+        sub_sdfg = dace.SDFG("ms_subsdfg{}".format(CreateUID()))
         last_state_in_multi_stage = None
         last_state = None
         # to connect them we need all input and output names
@@ -181,7 +181,7 @@ class TaskletBuilder:
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
-                    state = sub_sdfg.add_state("state_" + str(CreateUID()))
+                    state = sub_sdfg.add_state("state_{}".format(CreateUID()))
                     # check if this if is required
                     if last_state_in_multi_stage is not None:
                         sub_sdfg.add_edge(last_state_in_multi_stage, state, dace.InterstateEdge())
@@ -307,7 +307,7 @@ class TaskletBuilder:
 
                 for stmt_access in do_method.stmtaccesspairs:
                     # A State for every stmt makes sure they can be sequential
-                    state = sdfg.add_state("state_" + str(CreateUID()))
+                    state = sdfg.add_state("state_{}".format(CreateUID()))
                     if first_interval_state is None:
                         first_interval_state = state
                     else:
