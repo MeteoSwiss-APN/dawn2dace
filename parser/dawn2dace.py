@@ -188,36 +188,36 @@ class TaskletBuilder:
                         # since keys with negative ID's are *only* literals, we can skip those
                         if key < 0:
                             continue
-                        f_name = self.get_name.FromAccessID(key)
+                        name = self.get_name.FromAccessID(key)
                         access_pattern = self.GetAccessPattern(key, stmt_access.accesses.readAccess, with_k = False)
 
                         # we promote every local variable to a temporary:
-                        try_add_array(sdfg, f_name + "_t")
+                        try_add_array(sdfg, name + "_t")
 
                         # create the memlet to create the mapped stmt
-                        input_memlets[f_name + "_input"] = dace.Memlet.simple("S_" + f_name, access_pattern)
+                        input_memlets[name + "_input"] = dace.Memlet.simple("S_" + name, access_pattern)
 
                         # add the field to the sub-sdfg as an array
-                        try_add_array(sub_sdfg, "S_" + f_name)
+                        try_add_array(sub_sdfg, "S_" + name)
 
                         # collection of all the input fields for the memlet paths outside the sub-sdfg
-                        collected_input_mapping["S_" + f_name] = f_name + "_t"
+                        collected_input_mapping["S_" + name] = name + "_t"
 
                     for key in stmt_access.accesses.writeAccess:
-                        f_name = self.get_name.FromAccessID(key)
+                        name = self.get_name.FromAccessID(key)
                         access_pattern = self.GetAccessPattern(key, stmt_access.accesses.writeAccess, with_k = False)
 
                         # we promote every local variable to a temporary:
-                        try_add_array(sdfg, f_name + "_t")
+                        try_add_array(sdfg, name + "_t")
 
                         # create the memlet
-                        output_memlets[f_name] = dace.Memlet.simple("S_" + f_name, access_pattern)
+                        output_memlets[name] = dace.Memlet.simple("S_" + name, access_pattern)
 
                         # add the field to the sub-sdfg as an array
-                        try_add_array(sub_sdfg, "S_" + f_name)
+                        try_add_array(sub_sdfg, "S_" + name)
 
                         # collection of all the output fields for the memlet paths outside the sub-sdfg
-                        collected_output_mapping["S_" + f_name] = f_name + "_t"
+                        collected_output_mapping["S_" + name] = name + "_t"
 
                     stmt_str = self.visit_statement(stmt_access)
 
@@ -316,22 +316,22 @@ class TaskletBuilder:
                         if key < 0:
                             continue
 
-                        f_name = self.get_name.FromAccessID(key)
+                        name = self.get_name.FromAccessID(key)
                         access_pattern = self.GetAccessPattern(key, stmt_access.accesses.readAccess)
 
                         # we promote every local variable to a temporary:
-                        try_add_transient(sdfg, f_name + "_t")
+                        try_add_transient(sdfg, name + "_t")
 
-                        input_memlets[f_name + "_input"] = dace.Memlet.simple(f_name + "_t", access_pattern)
+                        input_memlets[name + "_input"] = dace.Memlet.simple(name + "_t", access_pattern)
 
                     for key in stmt_access.accesses.writeAccess:
-                        f_name = self.get_name.FromAccessID(key)
+                        name = self.get_name.FromAccessID(key)
                         access_pattern = self.GetAccessPattern(key, stmt_access.accesses.writeAccess)
 
                         # we promote every local variable to a temporary:
-                        try_add_transient(sdfg, f_name + "_t")
+                        try_add_transient(sdfg, name + "_t")
 
-                        output_memlets[f_name] = dace.Memlet.simple(f_name + "_t", access_pattern)
+                        output_memlets[name] = dace.Memlet.simple(name + "_t", access_pattern)
 
                     # Create the statement
                     stmt_str = self.visit_statement(stmt_access)
