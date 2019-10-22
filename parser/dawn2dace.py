@@ -71,7 +71,7 @@ class InputRenamer(ast.NodeTransformer):
         return node
 
 
-class TaskletBuilder:
+class Converter:
     def __init__(self, _metadata, name_resolver:NameResolver):
         self.get_name = name_resolver
         self.metadata_ = _metadata
@@ -86,7 +86,7 @@ class TaskletBuilder:
         return code
 
     @staticmethod
-    def visit_interval(interval) -> K_Interval:
+    def ImportInterval(interval) -> K_Interval:
         """ Converts a Dawn interval into a Dawn2Dice interval. 
             Note: Only works for dimension 'K', which is sufficient for COSMO.
         """
@@ -121,7 +121,7 @@ class TaskletBuilder:
         intervals = set()
         for stage in ms.stages:
             for do_method in stage.doMethods:
-                intervals.add(self.visit_interval(do_method.interval))
+                intervals.add(self.ImportInterval(do_method.interval))
         intervals = list(intervals)
         
         intervals.sort(
@@ -175,7 +175,7 @@ class TaskletBuilder:
 
         for stage in multi_stage.stages:
             for do_method in stage.doMethods:
-                if self.visit_interval(do_method.interval) != interval:
+                if self.ImportInterval(do_method.interval) != interval:
                     continue
 
                 for stmt_access in do_method.stmtaccesspairs:
@@ -195,32 +195,18 @@ class TaskletBuilder:
                         name = self.get_name.FromAccessID(key)
                         access_pattern = self.GetAccessPattern(key, stmt_access.accesses.readAccess, with_k = False)
 
-                        # we promote every local variable to a temporary:
-                        try_add_array(sdfg, name + "_t")
-
-                        # create the memlet to create the mapped stmt
-                        input_memlets[name + "_input"] = dace.Memlet.simple(name + "_S", access_pattern)
-
-                        # add the field to the sub-sdfg as an array
                         try_add_array(sub_sdfg, name + "_S")
-
-                        # collection of all the input fields for the memlet paths outside the sub-sdfg
+                        try_add_array(sdfg, name + "_t")
+                        input_memlets[name + "_input"] = dace.Memlet.simple(name + "_S", access_pattern)
                         collected_input_mapping[name + "_S"] = name + "_t"
 
                     for key in stmt_access.accesses.writeAccess:
                         name = self.get_name.FromAccessID(key)
                         access_pattern = self.GetAccessPattern(key, stmt_access.accesses.writeAccess, with_k = False)
 
-                        # we promote every local variable to a temporary:
-                        try_add_array(sdfg, name + "_t")
-
-                        # create the memlet
-                        output_memlets[name] = dace.Memlet.simple(name + "_S", access_pattern)
-
-                        # add the field to the sub-sdfg as an array
                         try_add_array(sub_sdfg, name + "_S")
-
-                        # collection of all the output fields for the memlet paths outside the sub-sdfg
+                        try_add_array(sdfg, name + "_t")
+                        output_memlets[name] = dace.Memlet.simple(name + "_S", access_pattern)
                         collected_output_mapping[name + "_S"] = name + "_t"
 
                     code = self.GetCode(stmt_access)
@@ -229,7 +215,12 @@ class TaskletBuilder:
                         # the maps are ij-only
                         map_range = dict(j="halo_size:J-halo_size", i="halo_size:I-halo_size")
                         state.add_mapped_tasklet(
-                            "statement", map_range, input_memlets, code, output_memlets, external_edges=True
+                            "statement",
+                            map_range,
+                            input_memlets,
+                            code,
+                            output_memlets,
+                            external_edges = True
                         )
 
                     # set the state  to be the last one to connect them
@@ -238,28 +229,28 @@ class TaskletBuilder:
                         sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                     last_state = state
 
-        me_k, mx_k = multi_stage_state.add_map("kmap", dict(k=str(interval)))
+        map_entry, map_exit = multi_stage_state.add_map("kmap", dict(k=str(interval)))
         # fill the sub-sdfg's {in_set} {out_set}
         input_set = collected_input_mapping.keys()
         output_set = collected_output_mapping.keys()
         nested_sdfg = multi_stage_state.add_nested_sdfg(sub_sdfg, sdfg, input_set, output_set)
 
-        # add the reads and the input memlet path : read - me_k - nsdfg
+        # add the reads and the input memlet path : read - map_entry - nsdfg
         for k, v in collected_input_mapping.items():
             read = multi_stage_state.add_read(v)
             multi_stage_state.add_memlet_path(
                 read,
-                me_k,
+                map_entry,
                 nested_sdfg,
                 memlet=dace.Memlet.simple(v, "0:J, k, 0:I"),
                 dst_conn=k,
             )
-        # add the writes and the output memlet path : nsdfg - mx_k - write
+        # add the writes and the output memlet path : nsdfg - map_exit - write
         for k, v in collected_output_mapping.items():
             write = multi_stage_state.add_write(v)
             multi_stage_state.add_memlet_path(
                 nested_sdfg,
-                mx_k,
+                map_exit,
                 write,
                 memlet=dace.Memlet.simple(v, "0:J, k, 0:I"),
                 src_conn=k,
@@ -276,7 +267,7 @@ class TaskletBuilder:
         prev_state = self.last_state_
         for stage in multi_stage.stages:
             for do_method in stage.doMethods:
-                if self.visit_interval(do_method.interval) != interval:
+                if self.ImportInterval(do_method.interval) != interval:
                     # since we only want to generate stmts for the Do-Methods that are matching the interval, we're ignoring
                     # the other ones
                     continue
@@ -397,7 +388,7 @@ if __name__ == "__main__":
         name = name_resolver.FromAccessID(id)
         sdfg.add_array("c" + name + "_t", shape=[J, K + 1, I], dtype=data_type)
 
-    des = TaskletBuilder(stencilInstantiation.metadata, name_resolver)
+    des = Converter(stencilInstantiation.metadata, name_resolver)
 
     for id in metadata.APIFieldIDs:
         name = name_resolver.FromAccessID(id)
