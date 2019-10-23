@@ -109,17 +109,14 @@ class Converter:
 
         # generate the multistage for every interval (in loop order)
         for interval in intervals:
-            self.last_state_ = self.generate_multistage(ms.loopOrder, ms, interval)
+            if ms.loopOrder == 2:
+                self.last_state_ = self.generate_parallel(ms, interval)
+            else:
+                self.last_state_ = self.generate_loop(ms, interval, ms.loopOrder)
 
     def visit_stencil(self, stencil_):
         for ms in stencil_.multiStages:
             self.visit_multi_stage(ms)
-
-    def generate_multistage(self, loop_order, multi_stage, interval):
-        if loop_order == 2:
-            return self.generate_parallel(multi_stage, interval)
-        else:
-            return self.generate_loop(multi_stage, interval, loop_order)
 
     def GetAccessPattern(self, id, access, with_k = True) -> str:
         if id in self.metadata_.globalVariableIDs:
