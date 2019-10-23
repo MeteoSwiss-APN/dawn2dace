@@ -52,7 +52,7 @@ class Converter:
 
     def GetCode(self, stmt_access_pair) -> str:
         visitor = StatementVisitor(self.get_name, stmt_access_pair.accesses)
-        code = visitor.visit_body_stmt(stmt_access_pair.ASTStmt)
+        code = visitor.unparse_body_stmt(stmt_access_pair.ASTStmt)
         if code:
             tree = ast.parse(code)
             code = astunparse.unparse(InputRenamer().visit(tree))
