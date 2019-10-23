@@ -8,6 +8,7 @@ import os
 import pickle
 import sys
 import astunparse
+from Intermedates import *
 from NameResolver import NameResolver
 from StatementVisitor import StatementVisitor
 
@@ -23,13 +24,6 @@ K = dace.symbol("K")
 halo_size = dace.symbol("haloSize")
 data_type = dace.float64
 
-def CreateUID() -> int:
-    """ Creates unique identification numbers. """
-    if not hasattr(CreateUID, "counter"):
-        CreateUID.counter = 0
-    CreateUID.counter += 1
-    return CreateUID.counter
-
 def try_add_array(sdfg, name):
     try:
         sdfg.add_array(name, shape=[J, K + 1, I], dtype=data_type)
@@ -41,27 +35,6 @@ def try_add_transient(sdfg, name):
         sdfg.add_transient(name, shape=[J, K + 1, I], dtype=data_type)
     except:
         pass
-    
-
-class K_Interval:
-    """Represents an interval [begin, end) in dimention K"""
-
-    def __init__(self, begin, end, sort_key:int):
-        self.begin = begin
-        self.end = end
-        self.sort_key = sort_key
-
-    def __str__(self) -> str:
-        return "{}:{}".format(self.begin, self.end)
-
-    def __eq__(self, other) -> bool:
-        return self.begin == other.begin and self.end == other.end
-
-    def __ne__(self, other) -> bool:
-        return not self == other
-
-    def __hash__(self):
-        return hash(self.__dict__.values())
 
 
 class InputRenamer(ast.NodeTransformer):
