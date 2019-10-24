@@ -19,6 +19,19 @@ sys.path.append(
 
 import IIR_pb2
 
+def FixNegativeIndices(stencils: list):
+    for stencil in stencils:
+        for multi_stage in stencil.multi_stages:
+            min = multi_stage.GetMinReadInK()
+            if min < 0:
+                for stage in multi_stage.stages:
+                    for do_method in stage.do_methods:
+                        for memory_access in do_method.memory_accesses:
+                            for read in memory_access.reads:
+                                read.offset(k = -min)
+                            for write in memory_access.writes:
+                                write.offset(k = -min)
+
 
 if __name__ == "__main__":
     print("==== Program start ====")
@@ -74,6 +87,7 @@ if __name__ == "__main__":
     exp = Exporter(name_resolver, sdfg)
 
     stencils = imp.Import_Stencils(IIR_stencils)
+    FixNegativeIndices(stencils)
     exp.Export_Stencils(stencils)
 
     sdfg.fill_scope_connectors()
