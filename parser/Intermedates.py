@@ -112,16 +112,16 @@ class Stage:
         return max((x.GetMaxReadInK() for x in self.do_methods))
 
 
-class Region(Enum):
+class ExecutionOrder(Enum):
     Forward_Loop = 0
     Backward_Loop = 1
     Parallel = 2
 
 
 class MultiStage:
-    def __init__(self, region:Region, stages:list):
+    def __init__(self, execution_order:ExecutionOrder, stages:list):
         self.uid = CreateUID()
-        self.region = region
+        self.execution_order = execution_order
         self.stages = stages
 
     def __str__(self):
@@ -132,3 +132,14 @@ class MultiStage:
 
     def GetMaxReadInK(self) -> int:
         return max((x.GetMaxReadInK() for x in self.stages))
+
+
+class Stencil:
+    def __init__(self, multi_stages:list):
+        if not isinstance(multi_stages, list):
+            raise TypeError("Expected list, got: {}".format(type(multi_stages).__name__))
+        for x in multi_stages:
+            if not isinstance(x, MultiStage):
+                raise TypeError("Expected MultiStage, got: {}".format(type(x).__name__))
+
+        self.multi_stages = multi_stages # list of MultiStage
