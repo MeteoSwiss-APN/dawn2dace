@@ -7,7 +7,7 @@ import os
 import pickle
 import sys
 import astunparse
-from Intermedates import *
+from Intermediates import *
 from Importer import Importer
 from Exporter import *
 from NameResolver import NameResolver

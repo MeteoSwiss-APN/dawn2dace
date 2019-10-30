@@ -1,6 +1,6 @@
 import ast
 import astunparse
-from Intermedates import *
+from Intermediates import *
 from NameResolver import NameResolver
 from StatementVisitor import StatementVisitor
 

@@ -1,5 +1,5 @@
 import dace
-from Intermedates import *
+from Intermediates import *
 from NameResolver import NameResolver
 
 I = dace.symbol("I")
