@@ -19,6 +19,8 @@
 syntax = "proto3";
 package dawn.proto.statements;
 
+import "google/protobuf/wrappers.proto";
+
 // @brief Source information
 //
 // `(-1,-1)` indicates an invalid location.
@@ -31,10 +33,18 @@ message SourceLocation {
 // @brief Description of a field argument of a Stencil or StencilFunction
 // @ingroup sir_proto
 message Field {
-  string name = 1;        // Name of the field
-  SourceLocation loc = 2; // Source location
-  bool is_temporary = 3;  // Is the field a temporary?
+  string name = 1;                     // Name of the field
+  SourceLocation loc = 2;              // Source location
+  bool is_temporary = 3;               // Is the field a temporary?
   repeated int32 field_dimensions = 4; // Legal dimension of the field initialized by the user
+
+  enum LocationType {
+    Edge = 0;
+    Vertex = 1;
+    Cell = 2;
+  }
+  // Location where the field is defined on
+  LocationType location_type = 5;
 }
 
 // @brief Directional argument of a StencilFunction
@@ -107,7 +117,13 @@ message Interval {
 // @brief Supported builtin types
 // @ingroup sir_proto
 message BuiltinType {
-  enum TypeID { Invalid = 0; Auto = 1; Boolean = 2; Integer = 3; Float = 4; }
+  enum TypeID {
+    Invalid = 0;
+    Auto = 1;
+    Boolean = 2;
+    Integer = 3;
+    Float = 4;
+  }
 
   TypeID type_id = 1; // Type identifier
 }
@@ -115,7 +131,12 @@ message BuiltinType {
 // @brief Supported builtin types
 // @ingroup sir_proto
 message Dimension {
-  enum Direction { I = 0; J = 1; K = 2; Invalid = 3; }
+  enum Direction {
+    I = 0;
+    J = 1;
+    K = 2;
+    Invalid = 3;
+  }
 
   Direction direction = 1; // Dimension identifier
 }
@@ -136,7 +157,10 @@ message Type {
 // @brief Declaration of a vertical region
 // @ingroup sir_proto
 message VerticalRegion {
-  enum LoopOrder { Forward = 0; Backward = 1; }
+  enum LoopOrder {
+    Forward = 0;
+    Backward = 1;
+  }
 
   SourceLocation loc = 1;   // Source location of the vertical region
   AST ast = 2;              // Syntax tree of the body of the vertical region
@@ -147,14 +171,57 @@ message VerticalRegion {
 // @brief Stencil call declaration
 // @ingroup sir_proto
 message StencilCall {
-  SourceLocation loc = 1;       // Source location of the stencil call
-  string callee = 2;            // Name of the called stencil (i.e callee)
-  repeated Field arguments = 3; // Fields passed as arguments during the stencil call
+  SourceLocation loc = 1;        // Source location of the stencil call
+  string callee = 2;             // Name of the called stencil (i.e callee)
+  repeated string arguments = 3; // Fields passed as arguments during the stencil call
+}
+
+/* ===-----------------------------------------------------------------------------------------===*/
+//      Accesses
+/* ===-----------------------------------------------------------------------------------------===*/
+// @brief Extent attached to a FieldAccess
+//
+// Each filed-access has extents in each dimension that define how far the accesses are in the
+// respective dimension
+message Extent {
+  int32 minus = 1;
+  int32 plus = 2;
+}
+message CartesianExtent {
+  Extent i_extent = 1;
+  Extent j_extent = 2;
+}
+message UnstructuredExtent { bool has_extent = 1; }
+message ZeroExtent {}
+
+message Extents {
+  // the three dimensions of an access-extent [Extent<i>, Extent<j>, Extent<k>]
+  oneof horizontal_extent {
+    CartesianExtent cartesian_extent = 1;
+    UnstructuredExtent unstructured_extent = 2;
+    ZeroExtent zero_extent = 3;
+  }
+  Extent vertical_extent = 4;
+}
+
+message Accesses {
+  // Map of all the write accesses [their accessID] to the Extents of the access
+  map<int32, Extents> writeAccess = 1;
+
+  // Map of all the read accesses [their accessID] to the Extents of the access
+  map<int32, Extents> readAccess = 2;
 }
 
 /*===------------------------------------------------------------------------------------------===*\
  *     AST
 \*===------------------------------------------------------------------------------------------===*/
+
+// @brief Data of Stmts
+//
+// @ingroup sir_proto
+message StmtData {
+  Accesses accesses = 1; // All the accesses of the statement
+}
 
 // @brief This is a union of all the statements
 // @ingroup sir_proto
@@ -185,6 +252,7 @@ message Expr {
     VarAccessExpr var_access_expr = 8;
     FieldAccessExpr field_access_expr = 9;
     LiteralAccessExpr literal_access_expr = 10;
+    ReductionOverNeighborExpr reduction_over_neighbor_expr = 11;
   }
 }
 
@@ -203,7 +271,8 @@ message Expr {
 message BlockStmt {
   repeated Stmt statements = 1; // List of statements
   SourceLocation loc = 2;       // Source location
-  int32 ID = 3;         // ID of the Stmt
+  StmtData data = 3;            // Generic Stmt's data container
+  int32 ID = 4;                 // ID of the Stmt
 }
 
 // @brief A statement wrapping an expression
@@ -212,7 +281,8 @@ message BlockStmt {
 message ExprStmt {
   Expr expr = 1;          // Expression
   SourceLocation loc = 2; // Source location
-  int32 ID = 3;       // ID of the Stmt
+  StmtData data = 3;      // Generic Stmt's data container
+  int32 ID = 4;           // ID of the Stmt
 }
 
 // @brief Return statement
@@ -221,7 +291,15 @@ message ExprStmt {
 message ReturnStmt {
   Expr expr = 1;          // Expression to return
   SourceLocation loc = 2; // Source location
-  int32 ID = 3;       // ID of the Stmt
+  StmtData data = 3;      // Generic Stmt's data container
+  int32 ID = 4;           // ID of the Stmt
+}
+
+// @brief Data of a VarDeclStmt
+//
+// @ingroup sir_proto
+message VarDeclStmtData {
+  google.protobuf.Int32Value accessID = 1; // ID of the variable declared in the statement
 }
 
 // @brief Declaration of a variable
@@ -258,8 +336,10 @@ message VarDeclStmt {
   // List of expression used for array initialization or just 1 element for variable initialization
   repeated Expr init_list = 5;
 
-  SourceLocation loc = 6; // Source location
-  int32 ID = 7;       // ID of the Stmt
+  SourceLocation loc = 6;                 // Source location
+  StmtData data = 7;                      // Generic Stmt's data container
+  VarDeclStmtData var_decl_stmt_data = 8; // Data of this statement
+  int32 ID = 9;                           // ID of the Stmt
 }
 
 // @brief Declaration of a vertical region
@@ -268,7 +348,8 @@ message VarDeclStmt {
 message VerticalRegionDeclStmt {
   VerticalRegion vertical_region = 1;
   SourceLocation loc = 2; // Source location
-  int32 ID = 3;       // ID of the Stmt
+  StmtData data = 3;      // Generic Stmt's data container
+  int32 ID = 4;           // ID of the Stmt
 }
 
 // @brief Declaration of a stencil call
@@ -277,17 +358,19 @@ message VerticalRegionDeclStmt {
 message StencilCallDeclStmt {
   StencilCall stencil_call = 1;
   SourceLocation loc = 2; // Source location
-  int32 ID = 3;       // ID of the Stmt
+  StmtData data = 3;      // Generic Stmt's data container
+  int32 ID = 4;           // ID of the Stmt
 }
 
 // @brief Declaration of a boundary condition
 //
 // @ingroup sir_proto
 message BoundaryConditionDeclStmt {
-  string functor = 1;        // Identifier of the boundary condition functor
-  repeated Field fields = 2; // List of field arguments to apply the functor to
-  SourceLocation loc = 3;    // Source location
-  int32 ID = 4;          // ID of the Stmt
+  string functor = 1;         // Identifier of the boundary condition functor
+  repeated string fields = 2; // List of field arguments to apply the functor to
+  SourceLocation loc = 3;     // Source location
+  StmtData data = 4;          // Generic Stmt's data container
+  int32 ID = 5;               // ID of the Stmt
 }
 
 // @brief Represent an if/then/else block
@@ -306,7 +389,8 @@ message IfStmt {
   Stmt then_part = 2;     // Then part
   Stmt else_part = 3;     // Else part (can be empty)
   SourceLocation loc = 4; // Source location
-  int32 ID = 5;           // ID of the Stmt
+  StmtData data = 5;      // Generic Stmt's data container
+  int32 ID = 6;           // ID of the Stmt
 }
 
 // @brief Apply the unary operations to an expression
@@ -347,7 +431,7 @@ message BinaryOperator {
 // @ingroup sir_proto
 message AssignmentExpr {
   Expr left = 1;          // Left-hand side
-  string op = 2;          // Operation (e.g "=" or "+=")  
+  string op = 2;          // Operation (e.g "=" or "+=")
   Expr right = 3;         // Right-hand side
   SourceLocation loc = 4; // Source location
   int32 ID = 5;           // ID of the Expr
@@ -393,7 +477,7 @@ message StencilFunCallExpr {
   string callee = 1;           // Identifier of the stencil function (i.e callee)
   repeated Expr arguments = 2; // List of arguments
   SourceLocation loc = 3;      // Source location
-  int32 ID = 4;            // ID of the Expr
+  int32 ID = 4;                // ID of the Expr
 }
 
 // @brief Stencil function argument
@@ -439,16 +523,31 @@ message StencilFunArgExpr {
   int32 ID = 5;
 }
 
+// @brief Data of an access expression
+//
+// @ingroup sir_proto
+message AccessExprData {
+  google.protobuf.Int32Value accessID = 1; // Access ID of variable/literal/field accessed
+}
+
 // @brief Access to a variable
 //
 // @ingroup sir_proto
 message VarAccessExpr {
-  string name = 1;        // Name of the variable
-  Expr index = 2;         // Is it an array access (i.e var[2])?
-  bool is_external = 3;   // Is this an access to a external variable (e.g a global)?
-  SourceLocation loc = 4; // Source location
-  int32 ID = 5;       // ID of the Expr
+  string name = 1;         // Name of the variable
+  Expr index = 2;          // Is it an array access (i.e var[2])?
+  bool is_external = 3;    // Is this an access to a external variable (e.g a global)?
+  SourceLocation loc = 4;  // Source location
+  AccessExprData data = 5; // Access data
+  int32 ID = 6;            // ID of the Expr
 }
+
+message CartesianOffset {
+  int32 i_offset = 1;
+  int32 j_offset = 2;
+}
+message UnstructuredOffset { bool has_offset = 1; }
+message ZeroOffset {}
 
 // @brief Access to a field
 //
@@ -464,7 +563,12 @@ message FieldAccessExpr {
   // if we have directional or offset arguments, we have to perform a lazy evaluation to compute
   // the real offset once we know the mapping of the directions (and offsets) to the actual
   // arguments of the stencil function.
-  repeated int32 offset = 2;
+  int32 vertical_offset = 2;
+  oneof horizontal_offset {
+    CartesianOffset cartesian_offset = 3;
+    UnstructuredOffset unstructured_offset = 4;
+    ZeroOffset zero_offset = 5;
+  }
 
   // Mapping of the directional and offset arguments of the stencil function.
   //
@@ -489,29 +593,42 @@ message FieldAccessExpr {
   //  - argumentMap    : {1, -1, -1}   // `dir` maps to the 1st argument of `avg` (0 based)
   //  - argumentOffset : {2, 0, 0}     // `dir+2` has an offset `+2`
   // @endcode
-  repeated int32 argument_map = 3;
+  repeated int32 argument_map = 6;
 
   // @see argument_map
-  repeated int32 argument_offset = 4;
+  repeated int32 argument_offset = 7;
 
   // Negate the offset (this allows writing `in(-off)`)
-  bool negate_offset = 5;
+  bool negate_offset = 8;
 
   // Source location
-  SourceLocation loc = 6;
+  SourceLocation loc = 9;
+
+  // Access data
+  AccessExprData data = 10;
 
   // ID of the Expr
-  int32 ID = 7;
+  int32 ID = 11;
 }
 
 // @brief Access of a literal
 //
 // @ingroup sir_proto
 message LiteralAccessExpr {
-  string value = 1;       // Value of the literal (e.g "1.24324")
-  BuiltinType type = 2;   // Type of the literal
-  SourceLocation loc = 3; // Source location
-  int32 ID = 4;       // ID of the Expr
+  string value = 1;        // Value of the literal (e.g "1.24324")
+  BuiltinType type = 2;    // Type of the literal
+  SourceLocation loc = 3;  // Source location
+  AccessExprData data = 4; // Access data
+  int32 ID = 5;            // ID of the Expr
+}
+
+// @brief Reduction operation over neighbors
+//
+// @ingroup sir_proto
+message ReductionOverNeighborExpr {
+  string op = 1; // Reduction operation
+  Expr rhs = 2;  // Operation to be applied for each neighbor
+  Expr init = 3; // Initial value of reduction
 }
 
 // @brief Abstract syntax tree of the SIR
