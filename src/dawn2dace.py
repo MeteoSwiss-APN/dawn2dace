@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import dace
 import argparse
 import ast
@@ -7,17 +5,12 @@ import os
 import pickle
 import sys
 import astunparse
+import IIR_pb2
 from Intermediates import *
 from Importer import Importer
 from Exporter import *
 from NameResolver import NameResolver
 from Unparser import Unparser
-
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "build", "gen", "iir_specification"))
-)
-
-import IIR_pb2
 
 def FixNegativeIndices(stencils: list):
     for stencil in stencils:
