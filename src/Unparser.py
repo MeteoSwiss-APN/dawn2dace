@@ -1,6 +1,6 @@
 from NameResolver import NameResolver
 
-class StatementVisitor:
+class Unparser:
     def __init__(self, name_resolver:NameResolver, access):
         self.get_name = name_resolver
         self.access = access

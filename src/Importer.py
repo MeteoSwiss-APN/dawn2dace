@@ -2,7 +2,7 @@ import ast
 import astunparse
 from Intermediates import *
 from NameResolver import NameResolver
-from StatementVisitor import StatementVisitor
+from Unparser import Unparser
 
 class InputRenamer(ast.NodeTransformer):
     def visit_Name(self, node):

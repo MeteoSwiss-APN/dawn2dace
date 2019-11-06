@@ -11,7 +11,7 @@ from Intermediates import *
 from Importer import Importer
 from Exporter import *
 from NameResolver import NameResolver
-from StatementVisitor import StatementVisitor
+from Unparser import Unparser
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, "build", "gen", "iir_specification"))
