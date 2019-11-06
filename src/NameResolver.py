@@ -1,7 +1,7 @@
 
 class NameResolver:
-    def __init__(self, accessIDToName:dict, exprIDToAccessID:dict, stmtIDToAccessID:dict):
-        self.__accessIDToName_ = accessIDToName
+    def __init__(self, accessIDToName:dict):
+        self.__accessIDToName = accessIDToName
     
     def FromAccessID(self, id:int) -> str:
-        return self.__accessIDToName_[id]
+        return self.__accessIDToName[id]

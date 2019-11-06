@@ -32,11 +32,7 @@ def IIR_str_to_SDFG(iir: str):
     sdfg = dace.SDFG("IIRToSDFG")
 
     metadata = stencilInstantiation.metadata
-    name_resolver = NameResolver(
-        metadata.accessIDToName,
-        None, #metadata.exprIDToAccessID,
-        None #metadata.stmtIDToAccessID
-    )
+    name_resolver = NameResolver(metadata.accessIDToName)
 
     for id in metadata.APIFieldIDs:
         name = name_resolver.FromAccessID(id)
