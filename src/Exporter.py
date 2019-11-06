@@ -10,13 +10,13 @@ data_type = dace.float64
 
 def try_add_array(sdfg, name):
     try:
-        sdfg.add_array(name, shape=[J, K + 1, I], dtype=data_type)
+        sdfg.add_array(name, shape=[J, K, I], dtype=data_type)
     except:
         pass
 
 def try_add_transient(sdfg, name):
     try:
-        sdfg.add_transient(name, shape=[J, K + 1, I], dtype=data_type)
+        sdfg.add_transient(name, shape=[J, K, I], dtype=data_type)
     except:
         pass
 
@@ -34,14 +34,14 @@ class Exporter:
             return "0"
 
         if with_k:
-            template = "j+{}:j+{}+1,k+{}:k+{}+1,i+{}:i+{}+1"
+            template = "j+{}:j+{}, k+{}:k+{}, i+{}:i+{}"
         else:
-            template = "j+{}:j+{}+1,{}:{}+1,i+{}:i+{}+1"
+            template = "j+{}:j+{}, {}:{}, i+{}:i+{}"
 
         return template.format(
-            mem_acc.j.begin, mem_acc.j.end,
-            mem_acc.k.begin, mem_acc.k.end,
-            mem_acc.i.begin, mem_acc.i.end
+            mem_acc.j.begin, mem_acc.j.end + 1,
+            mem_acc.k.begin, mem_acc.k.end + 1,
+            mem_acc.i.begin, mem_acc.i.end + 1
         )
 
     def Export_parallel(
@@ -61,14 +61,14 @@ class Exporter:
                 if do_method.k_interval != interval:
                     continue
 
-                for mem_acc in do_method.memory_accesses:
+                for stmt in do_method.statements:
                     state = sub_sdfg.add_state("state_{}".format(CreateUID()))
                     
                     # Creation of the Memlet in the state
                     input_memlets = {}
                     output_memlets = {}
 
-                    for read in mem_acc.reads:
+                    for read in stmt.reads:
                         key = read.id
                         # since keys with negative ID's are *only* literals, we can skip those
                         if key < 0:
@@ -81,7 +81,7 @@ class Exporter:
                         input_memlets[name + "_input"] = dace.Memlet.simple(name + "_S", access_pattern)
                         collected_input_mapping[name + "_S"] = name + "_t"
 
-                    for write in mem_acc.writes:
+                    for write in stmt.writes:
                         key = write.id
                         name = self.get_name.FromAccessID(key)
                         access_pattern = self.Export_MemoryAccess3D(write, with_k = False)
@@ -91,7 +91,7 @@ class Exporter:
                         output_memlets[name] = dace.Memlet.simple(name + "_S", access_pattern)
                         collected_output_mapping[name + "_S"] = name + "_t"
 
-                    if mem_acc.code:
+                    if stmt.code:
                         # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                         # the maps are ij-only
                         map_range = dict(j="halo_size:J-halo_size", i="halo_size:I-halo_size")
@@ -99,7 +99,7 @@ class Exporter:
                             "statement",
                             map_range,
                             input_memlets,
-                            mem_acc.code,
+                            stmt.code,
                             output_memlets,
                             external_edges = True
                         )
@@ -124,7 +124,7 @@ class Exporter:
                 read,
                 map_entry,
                 nested_sdfg,
-                memlet=dace.Memlet.simple(v, "0:J, k+{}:k+{}, 0:I".format(lower_k, upper_k)),
+                memlet=dace.Memlet.simple(v, "0:J, k+{}:k+{}, 0:I".format(lower_k, upper_k + 1)),
                 dst_conn=k,
             )
         # add the writes and the output memlet path : nsdfg - map_exit - write
@@ -160,7 +160,7 @@ class Exporter:
                     # the other ones
                     continue
 
-                for mem_acc in do_method.memory_accesses:
+                for stmt in do_method.statements:
                     # A State for every stmt makes sure they can be sequential
                     state = self.sdfg.add_state("state_{}".format(CreateUID()))
                     if first_interval_state is None:
@@ -172,7 +172,7 @@ class Exporter:
                     input_memlets = {}
                     output_memlets = {}
 
-                    for read in mem_acc.reads:
+                    for read in stmt.reads:
                         key = read.id
                         # since keys with negative ID's are *only* literals, we can skip those
                         if key < 0:
@@ -185,7 +185,7 @@ class Exporter:
 
                         input_memlets[name + "_input"] = dace.Memlet.simple(name + "_t", access_pattern)
 
-                    for write in mem_acc.writes:
+                    for write in stmt.writes:
                         key = write.id
                         name = self.get_name.FromAccessID(key)
                         access_pattern = self.Export_MemoryAccess3D(write)
@@ -195,14 +195,14 @@ class Exporter:
 
                         output_memlets[name] = dace.Memlet.simple(name + "_t", access_pattern)
 
-                    if mem_acc.code:
+                    if stmt.code:
                         # Since we're in a sequential loop, we only need a map in i and j
                         map_range = dict(j="halo_size:J-halo_size", i="halo_size:I-halo_size")
                         state.add_mapped_tasklet(
                             "statement",
                             map_range,
                             input_memlets,
-                            mem_acc.code,
+                            stmt.code,
                             output_memlets,
                             external_edges = True
                         )

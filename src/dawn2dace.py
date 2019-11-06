@@ -19,12 +19,63 @@ def FixNegativeIndices(stencils: list):
             if min < 0:
                 for stage in multi_stage.stages:
                     for do_method in stage.do_methods:
-                        for memory_access in do_method.memory_accesses:
-                            for read in memory_access.reads:
+                        for stmt in do_method.statements:
+                            for read in stmt.reads:
                                 read.offset(k = -min)
-                            for write in memory_access.writes:
+                            for write in stmt.writes:
                                 write.offset(k = -min)
 
+def IIR_str_to_SDFG(iir: str):
+    stencilInstantiation = IIR_pb2.StencilInstantiation()
+    stencilInstantiation.ParseFromString(iir)
+
+    sdfg = dace.SDFG("IIRToSDFG")
+
+    metadata = stencilInstantiation.metadata
+    name_resolver = NameResolver(
+        metadata.accessIDToName,
+        None, #metadata.exprIDToAccessID,
+        None #metadata.stmtIDToAccessID
+    )
+
+    for id in metadata.APIFieldIDs:
+        name = name_resolver.FromAccessID(id)
+        print("Add array: " + name + "_t")
+        print("Add array: c" + name + "_t")
+        sdfg.add_array(name + "_t", shape=[J, K, I], dtype=data_type)
+        sdfg.add_array("c" + name + "_t", shape=[J, K, I], dtype=data_type)
+
+    for id in metadata.temporaryFieldIDs:
+        name = name_resolver.FromAccessID(id)
+        print("Add transient: " + name + "_t")
+        sdfg.add_transient(name + "_t", shape=[J, K, I], dtype=data_type)
+
+    for id in metadata.globalVariableIDs:
+        name = name_resolver.FromAccessID(id)
+        print("Add scalar: " + name + "_t")
+        sdfg.add_scalar(name + "_t", data_type)
+
+    imp = Importer(name_resolver, metadata.globalVariableIDs)
+    stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
+
+
+    #RenameInput(stencils)
+    #FixNegativeIndices(stencils)
+    #UnparseCode(stencils)
+
+    exp = Exporter(name_resolver, sdfg)
+    exp.Export_Stencils(stencils)
+
+    sdfg.fill_scope_connectors()
+    return sdfg
+
+def IIR_file_to_SDFG_file(iir_file: str, sdfg_file: str):
+    with open(iir_file) as f:
+        iir = f.read()
+
+    sdfg = IIR_str_to_SDFG(iir)
+
+    sdfg.save(sdfg_file, use_pickle=False)
 
 if __name__ == "__main__":
     print("==== Program start ====")
@@ -36,66 +87,21 @@ if __name__ == "__main__":
     parser.add_argument("hirfile", type=argparse.FileType("rb"), help="google protobuf HIR file")
     args = vars(parser.parse_args())
 
-    stencilInstantiation = IIR_pb2.StencilInstantiation()
+    iir_str = args["hirfile"].read()
 
-    print("Parsing file `%s`" % args["hirfile"].name)
-
-    stencilInstantiation.ParseFromString(args["hirfile"].read())
-    args["hirfile"].close()
-
-    print("Parsing successful")
-
-    metadata = stencilInstantiation.metadata
-    IIR_stencils = stencilInstantiation.internalIR.stencils
-    print("original file was `%s`" % stencilInstantiation.filename)
-
-    print("Generate SDFG for `%s`" % metadata.stencilName)
-
-    name_resolver = NameResolver(
-        metadata.accessIDToName,
-        metadata.exprIDToAccessID,
-        metadata.stmtIDToAccessID
-        )
-
-    fields = {}
-    for a in metadata.APIFieldIDs:
-        fields[metadata.accessIDToName[a]] = dace.ndarray([J, K + 1, I], dtype=data_type)
-
-    sdfg = dace.SDFG("IIRToSDFG")
-
-    for id in metadata.APIFieldIDs:
-        name = name_resolver.FromAccessID(id)
-        sdfg.add_array(name + "_t", shape=[J, K + 1, I], dtype=data_type)
-        sdfg.add_array("c" + name + "_t", shape=[J, K + 1, I], dtype=data_type)
-
-    for id in metadata.temporaryFieldIDs:
-        name = name_resolver.FromAccessID(id)
-        sdfg.add_transient(name + "_t", shape=[J, K + 1, I], dtype=data_type)
-
-    for id in metadata.globalVariableIDs:
-        name = name_resolver.FromAccessID(id)
-        sdfg.add_scalar(name + "_t", data_type)
-
-    imp = Importer(name_resolver, metadata.globalVariableIDs)
-    exp = Exporter(name_resolver, sdfg)
-
-    stencils = imp.Import_Stencils(IIR_stencils)
-    FixNegativeIndices(stencils)
-    exp.Export_Stencils(stencils)
-
-    sdfg.fill_scope_connectors()
-
-    print("number of states generated: %d" % len(sdfg.nodes()))
+    sdfg = IIR_str_to_SDFG(iir_str)
 
     sdfg.save("untransformed.sdfg", use_pickle=False)
     print("SDFG generated.")
 
-    sdfg.apply_strict_transformations()
-    sdfg.save("transformed.sdfg", use_pickle=False)
-    print("SDFG transformed strictly.")
+    #sdfg.apply_strict_transformations()
+    #sdfg.save("transformed.sdfg", use_pickle=False)
+    #print("SDFG transformed strictly.")
 
     sdfg.validate()
     print("SDFG validated.")
 
-    sdfg.compile()
+    sdfg.compile(output_file="libmine.so")
     print("SDFG compiled.")
+
+    

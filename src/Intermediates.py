@@ -29,6 +29,9 @@ class K_Interval:
 
 
 class MemoryAccess1D:
+    """ Represents a relativ interval [begin, end] """
+    # TODO: Rename lower,upper = begin,end
+
     def __init__(self, begin:int, end:int):
         self.begin = begin
         self.end = end
@@ -50,8 +53,7 @@ class MemoryAccess3D:
         self.j.offset(j)
         self.k.offset(k)
 
-
-class CodeMemoryAccess:
+class Statement:
     def __init__(self, code:str, reads:list, writes:list):
         self.id = CreateUID()
         self.code = code
@@ -75,11 +77,10 @@ class CodeMemoryAccess:
 
 
 class DoMethod:
-    def __init__(self, name:str, k_interval:K_Interval, memory_accesses:list):
+    def __init__(self, k_interval:K_Interval, statements:list):
         self.uid = CreateUID()
-        self.name = name # for debugging purposes.
         self.k_interval = k_interval
-        self.memory_accesses = memory_accesses # List of CodeMemoryAccess
+        self.statements = statements # List of Statement
     
     def GetReadAccessIDs(self):
         ret = []
@@ -94,10 +95,10 @@ class DoMethod:
         return ret
 
     def GetMinReadInK(self):
-        return min((x.GetMinReadInK() for x in self.memory_accesses))
+        return min((x.GetMinReadInK() for x in self.statements))
 
     def GetMaxReadInK(self):
-        return max((x.GetMaxReadInK() for x in self.memory_accesses))
+        return max((x.GetMaxReadInK() for x in self.statements))
 
 
 class Stage:

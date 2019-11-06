@@ -1,9 +1,42 @@
 from NameResolver import NameResolver
 
+def DownCastStatement(stmt):
+    which = stmt.WhichOneof("stmt")
+    if which == "block_stmt":
+        return stmt.block_stmt
+    if which == "expr_stmt":
+        return stmt.expr_stmt
+    if which == "var_decl_stmt":
+        return stmt.var_decl_stmt
+    if which == "if_stmt":
+        return stmt.if_stmt
+    raise ValueError("Unexpected statement: " + which)
+
+def DownCastExpression(expr):
+    which = expr.WhichOneof("expr")
+    if which == "unary_operator":
+        return expr.unary_operator
+    if which == "binary_operator":
+        return expr.binary_operator
+    if which == "assignment_expr":
+        return expr.assignment_expr
+    if which == "ternary_operator":
+        return expr.ternary_operator
+    if which == "fun_call_expr":
+        return expr.fun_call_expr
+    if which == "var_access_expr":
+        return expr.var_access_expr
+    if which == "field_access_expr":
+        return expr.field_access_expr
+    if which == "literal_access_expr":
+        return expr.literal_access_expr
+    raise ValueError("Unexpected expression: " + which)
+
+
 class Unparser:
-    def __init__(self, name_resolver:NameResolver, access):
+    def __init__(self, name_resolver:NameResolver, readAccess):
         self.get_name = name_resolver
-        self.access = access
+        self.readAccess = readAccess
 
     def _unparse_unary_operator(self, expr) -> str:
         return "{} ({})".format(
@@ -39,14 +72,19 @@ class Unparser:
         return func.callee + "(" + ",".join(args) + ")"
 
     def _unparse_var_access_expr(self, expr) -> str:
-        return self.get_name.FromExpression(expr)
+        return expr.name
 
     def _unparse_field_access_expr(self, expr) -> str:
         # since we assume writes only to center, we only check out readAccess.
-        field_id = self.get_name.ExprToAccessID(expr)
+        field_id = expr.data.accessID.value
         access_pattern = ""
-        if field_id in self.access.readAccess:
-            i,j,k = self.access.readAccess[field_id].extents
+        if field_id in self.readAccess:
+            i = self.readAccess[field_id].cartesian_extent.i_extent
+            j = self.readAccess[field_id].cartesian_extent.j_extent
+            k = self.readAccess[field_id].vertical_extent
+            i_offset = expr.cartesian_offset.i_offset
+            j_offset = expr.cartesian_offset.j_offset
+            k_offset = expr.vertical_offset
             has_i = (i.plus > i.minus)
             has_j = (j.plus > j.minus)
             has_k = (k.plus > k.minus)
@@ -54,15 +92,15 @@ class Unparser:
             if has_extent:
                 access_pattern = "["
                 if has_j:
-                    access_pattern += str(expr.offset[1] - j.minus) + ","
+                    access_pattern += str(j_offset - j.minus) + ","
                 if has_k:
-                    access_pattern += str(expr.offset[2] - k.minus) + ","
+                    access_pattern += str(k_offset - k.minus) + ","
                 if has_i:
-                    access_pattern += str(expr.offset[0] - i.minus) + ","                    
+                    access_pattern += str(i_offset - i.minus) + ","                    
                 # removes the trailing ','
                 access_pattern = access_pattern[:-1]
                 access_pattern += "]"
-        return self.get_name.FromExpression(expr) + access_pattern
+        return expr.name + access_pattern
     
     @staticmethod
     def _unparse_literal_access_expr(expr) -> str:
@@ -99,7 +137,7 @@ class Unparser:
         if not var_decl.init_list:
             return ''
 
-        ret = self.get_name.FromStatement(var_decl)
+        ret = var_decl.name
         ret += var_decl.op
 
         for expr in var_decl.init_list:

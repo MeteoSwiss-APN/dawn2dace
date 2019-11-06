@@ -2,7 +2,7 @@ import ast
 import astunparse
 from Intermediates import *
 from NameResolver import NameResolver
-from Unparser import Unparser
+from Unparser import *
 
 class InputRenamer(ast.NodeTransformer):
     def visit_Name(self, node):
@@ -33,6 +33,7 @@ class Importer:
         elif interval.WhichOneof("LowerLevel") == "lower_level":
             begin = str(interval.lower_level)
             sort_key = interval.lower_level
+
         begin += "+" + str(interval.lower_offset)
         sort_key += interval.lower_offset
 
@@ -56,36 +57,33 @@ class Importer:
             if id < 0: # is a literal variable
                 continue # No need to process.
             if self.IsGlobalVariable(id):
-                ret.append(None)
+                ret.append(None) # TODO: Think about this.
             else:
-                i, j, k = acc.extents
+                i = acc.cartesian_extent.i_extent
+                j = acc.cartesian_extent.j_extent
+                k = acc.vertical_extent
                 i = MemoryAccess1D(i.minus, i.plus)
                 j = MemoryAccess1D(j.minus, j.plus)
                 k = MemoryAccess1D(k.minus, k.plus)
                 ret.append(MemoryAccess3D(id, i, j, k))
         return ret
 
-    def Import_Code(self, stmt_access_pair) -> str:
-        visitor = StatementVisitor(self.get_name, stmt_access_pair.accesses)
-        code = visitor.unparse_body_stmt(stmt_access_pair.ASTStmt)
+    def Import_Statement(self, stmt) -> Statement:
+        data = DownCastStatement(stmt).data
+        code = Unparser(self.get_name, data.accesses.readAccess).unparse_body_stmt(stmt)
         if code:
             tree = ast.parse(code)
             code = astunparse.unparse(InputRenamer().visit(tree))
-        return code
-
-    def Import_CodeMemoryAccess(self, stmt_acc_pair) -> CodeMemoryAccess:
-        return CodeMemoryAccess(
-            reads = self.Import_MemoryAccesses(stmt_acc_pair.accesses.readAccess),
-            writes = self.Import_MemoryAccesses(stmt_acc_pair.accesses.writeAccess),
-            code = self.Import_Code(stmt_acc_pair)
+        return Statement(
+            code = code,
+            reads = self.Import_MemoryAccesses(data.accesses.readAccess),
+            writes = self.Import_MemoryAccesses(data.accesses.writeAccess),
         )
 
     def Import_DoMethod(self, do_method) -> DoMethod:
-        k_interval = self.Import_Interval(do_method.interval)
         return DoMethod(
-            name = "DoMethod_{}({})".format(do_method.doMethodID, k_interval),
-            k_interval = k_interval,
-            memory_accesses = [self.Import_CodeMemoryAccess(pair) for pair in do_method.stmtaccesspairs]
+            k_interval = self.Import_Interval(do_method.interval),
+            statements = [self.Import_Statement(stmt) for stmt in do_method.ast.block_stmt.statements]
         )
 
     def Import_Stage(self, stage) -> Stage:
