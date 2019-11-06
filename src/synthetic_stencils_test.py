@@ -3,6 +3,7 @@ import numpy
 import sys
 import os
 
+# This is a workaround for a bug in vscode. Apparently it ignores PYTHONPATH. (6.Nov 2019)
 sys.path.append(os.path.relpath("build/gen/iir_specification/"))
 sys.path.append(os.path.relpath("../dace"))
 
@@ -18,77 +19,25 @@ def get_sdfg(file_name):
     iir = read_file(file_name)
     return dawn2dace.IIR_str_to_SDFG(iir)
 
-class File_Existance(unittest.TestCase):
+class LegalSDFG:
+    def test_file_exists(self):
+        self.assertIsNotNone(read_file(self.file_name))
 
-    def test_file_copy(self):
-        self.assertIsNotNone(read_file("copy.0.iir"))
-
-    def test_file_inout_variable(self):
-        self.assertIsNotNone(read_file("inout_variable.0.iir"))
-
-    def test_file_offsets(self):
-        self.assertIsNotNone(read_file("offsets.0.iir"))
-
-    def test_file_vertical_specification(self):
-        self.assertIsNotNone(read_file("vertical_specification.0.iir"))
-
-    def test_file_vertical_offsets(self):
-        self.assertIsNotNone(read_file("vertical_offsets.0.iir"))
-
-    def test_file_local_variables(self):
-        self.assertIsNotNone(read_file("local_variables.0.iir"))
-
-    def test_file_local_internal(self):
-        self.assertIsNotNone(read_file("local_internal.0.iir"))
-
-    def test_file_brackets(self):
-        self.assertIsNotNone(read_file("brackets.0.iir"))
-
-
-class SDFG_Validity(unittest.TestCase):
-
-    def test_sdfg_copy(self):
-        sdfg = get_sdfg("copy.0.iir")
+    def test_sdfg_is_valid(self):
+        sdfg = get_sdfg(self.file_name)
         self.assertTrue(sdfg.is_valid())
+        
 
-    def test_sdfg_inout_variable(self):
-        sdfg = get_sdfg("inout_variable.0.iir")
-        self.assertTrue(sdfg.is_valid())
+class copy(LegalSDFG, unittest.TestCase):
+    file_name = "copy.0.iir"
 
-    def test_sdfg_offsets(self):
-        sdfg = get_sdfg("offsets.0.iir")
-        self.assertTrue(sdfg.is_valid())
-
-    def test_sdfg_vertical_specification(self):
-        sdfg = get_sdfg("vertical_specification.0.iir")
-        self.assertTrue(sdfg.is_valid())
-
-    def test_sdfg_vertical_offsets(self):
-        sdfg = get_sdfg("vertical_offsets.0.iir")
-        self.assertTrue(sdfg.is_valid())
-
-    def test_sdfg_local_variables(self):
-        sdfg = get_sdfg("local_variables.0.iir")
-        self.assertTrue(sdfg.is_valid())
-
-    def test_sdfg_local_internal(self):
-        sdfg = get_sdfg("local_internal.0.iir")
-        self.assertTrue(sdfg.is_valid())
-
-    def test_sdfg_brackets(self):
-        sdfg = get_sdfg("brackets.0.iir")
-        self.assertTrue(sdfg.is_valid())
-
-
-class Numerical_Correctness(unittest.TestCase):
-
-    def test_num_copy(self):
+    def test_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
         input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
         output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
         
-        sdfg = get_sdfg("copy.0.iir")
+        sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -101,35 +50,17 @@ class Numerical_Correctness(unittest.TestCase):
 
         self.assertTrue((input == output).all(), "Expected:\n{}\nReceived:\n{}".format(input, output))
 
-    def test_num_copy_with_halo(self):
-        I,J,K = 3,3,3
-        halo_size = 1
-        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
 
-        expected = numpy.copy(output)
-        expected[halo_size:-halo_size, :, halo_size:-halo_size] = input[halo_size:-halo_size, :, halo_size:-halo_size]
-        
-        sdfg = get_sdfg("copy.0.iir")
-        sdfg = sdfg.compile(optimizer="")
+class inout_variable(LegalSDFG, unittest.TestCase):
+    file_name = "inout_variable.0.iir"
 
-        sdfg(
-            data_in_t = input,
-            data_out_t = output,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
-
-        self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
-
-    def test_num_inout_variable(self):
+    def test_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
         in_out = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
         expected = in_out + 7
         
-        sdfg = get_sdfg("inout_variable.0.iir")
+        sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -141,7 +72,11 @@ class Numerical_Correctness(unittest.TestCase):
 
         self.assertTrue((in_out == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, in_out))
 
-    def test_num_offsets(self):
+
+class offsets(LegalSDFG, unittest.TestCase):
+    file_name = "offsets.0.iir"
+
+    def test_numerically(self):
         I,J,K = 3,3,3
         halo_size = 1
         input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
@@ -152,7 +87,7 @@ class Numerical_Correctness(unittest.TestCase):
             expected[1, k, 1] = input[1-1, k, 1+1] + input[1, k, 1-1]
         
         # a = b[i + 1, j - 1] + b[i - 1];
-        sdfg = get_sdfg("offsets.0.iir")
+        sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -165,7 +100,11 @@ class Numerical_Correctness(unittest.TestCase):
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
-    def test_num_vertical_specification(self):
+
+class vertical_specification(LegalSDFG, unittest.TestCase):
+    file_name = "vertical_specification.0.iir"
+
+    def test_numerically(self):
         I,J,K = 4,4,4
         halo_size = 0
         input1 = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
@@ -176,7 +115,7 @@ class Numerical_Correctness(unittest.TestCase):
         for k in range(3, K):
             expected[:, k, :] = input1[:, k, :]
         
-        sdfg = get_sdfg("vertical_specification.0.iir")
+        sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -190,7 +129,11 @@ class Numerical_Correctness(unittest.TestCase):
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
-    def test_num_vertical_offsets(self):
+
+class vertical_offsets(LegalSDFG, unittest.TestCase):
+    file_name = "vertical_offsets.0.iir"
+
+    def test_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
         input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
@@ -205,7 +148,7 @@ class Numerical_Correctness(unittest.TestCase):
         for k in range(1, K):
             expected[:, k, :] = input[:, k-1, :]
         
-        sdfg = get_sdfg("vertical_offsets.0.iir")
+        sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -218,7 +161,11 @@ class Numerical_Correctness(unittest.TestCase):
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
-    def test_num_local_variables(self):
+
+class local_variables(LegalSDFG, unittest.TestCase):
+    file_name = "local_variables.0.iir"
+
+    def test_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
         input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
@@ -226,7 +173,7 @@ class Numerical_Correctness(unittest.TestCase):
 
         expected = input + 5
         
-        sdfg = get_sdfg("local_variables.0.iir")
+        sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -239,7 +186,11 @@ class Numerical_Correctness(unittest.TestCase):
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
-    def test_num_local_internal(self):
+
+class local_internal(LegalSDFG, unittest.TestCase):
+    file_name = "local_internal.0.iir"
+
+    def test_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
         input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
@@ -247,7 +198,7 @@ class Numerical_Correctness(unittest.TestCase):
 
         expected = input + 5
         
-        sdfg = get_sdfg("local_internal.0.iir")
+        sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -260,7 +211,11 @@ class Numerical_Correctness(unittest.TestCase):
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
-    def test_num_brackets(self):
+
+class brackets(LegalSDFG, unittest.TestCase):
+    file_name = "brackets.0.iir"
+
+    def test_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
         input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
@@ -269,7 +224,7 @@ class Numerical_Correctness(unittest.TestCase):
         # out_field = 0.25 * (in_field + 7);
         expected = 0.25 * (input + 7)
         
-        sdfg = get_sdfg("brackets.0.iir")
+        sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
