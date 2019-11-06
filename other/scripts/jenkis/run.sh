@@ -73,8 +73,8 @@ for ex in $FILES ; do
     rm -rf .dacecache/*
     python -O dawn2dace.py $STRIPPED_NAME.iir
     mv .dacecache/IIRToSDFG/src/cpu/IIRToSDFG.cpp ${STRIPPED_NAME}_dace.cpp
-    mv after.sdfg ${STRIPPED_NAME}.sdfg
-    rm before.sdfg
+    mv transformed.sdfg ${STRIPPED_NAME}.sdfg
+    rm untransformed.sdfg
 
     # move it into the generated folder
     mkdir -p ../integration_tests/generated/
