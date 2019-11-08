@@ -70,7 +70,7 @@ class Importer:
 
     def Import_Statement(self, stmt) -> Statement:
         data = DownCastStatement(stmt).data
-        code = Unparser(self.get_name, data.accesses.readAccess).unparse_body_stmt(stmt)
+        code = Unparser(data.accesses.readAccess).unparse_body_stmt(stmt)
         if code:
             tree = ast.parse(code)
             code = astunparse.unparse(InputRenamer().visit(tree))

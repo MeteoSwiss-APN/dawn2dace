@@ -34,6 +34,8 @@ def DownCastExpression(expr):
 
 
 class Unparser:
+    """Unparses IIR into Python."""
+
     def __init__(self, name_resolver:NameResolver, readAccess):
         self.get_name = name_resolver
         self.readAccess = readAccess
@@ -59,14 +61,15 @@ class Unparser:
         )
 
     def _unparse_ternary_operator(self, expr) -> str:
-        return "( ({}) ? ({}) : ({}) )".format(
-            self._unparse_expr(expr.cond),
+        return "( ({}) if ({}) else ({}) )".format(
             self._unparse_expr(expr.left),
+            self._unparse_expr(expr.cond),
             self._unparse_expr(expr.right)
         )
 
-    # calls to external function, like math::sqrt.
     def _unparse_fun_call_expr(self, expr) -> str:
+        """Unparses external function calls, like math::sqrt."""
+        
         func = expr.fun_call_expr
         args = (self._unparse_expr(arg) for arg in func.arguments)
         return func.callee + "(" + ",".join(args) + ")"
@@ -75,32 +78,17 @@ class Unparser:
         return expr.name
 
     def _unparse_field_access_expr(self, expr) -> str:
-        # since we assume writes only to center, we only check out readAccess.
-        field_id = expr.data.accessID.value
-        access_pattern = ""
-        if field_id in self.readAccess:
-            i = self.readAccess[field_id].cartesian_extent.i_extent
-            j = self.readAccess[field_id].cartesian_extent.j_extent
-            k = self.readAccess[field_id].vertical_extent
-            i_offset = expr.cartesian_offset.i_offset
-            j_offset = expr.cartesian_offset.j_offset
-            k_offset = expr.vertical_offset
-            has_i = (i.plus > i.minus)
-            has_j = (j.plus > j.minus)
-            has_k = (k.plus > k.minus)
-            has_extent = has_i or has_j or has_k
-            if has_extent:
-                access_pattern = "["
-                if has_j:
-                    access_pattern += str(j_offset - j.minus) + ","
-                if has_k:
-                    access_pattern += str(k_offset - k.minus) + ","
-                if has_i:
-                    access_pattern += str(i_offset - i.minus) + ","                    
-                # removes the trailing ','
-                access_pattern = access_pattern[:-1]
-                access_pattern += "]"
-        return expr.name + access_pattern
+        id = expr.data.accessID.value
+
+        # writes are assumed to happen only to [0,0,0], thus only readAccess is processed.
+        if id not in self.readAccess:
+            return expr.name
+
+        i_offset = expr.cartesian_offset.i_offset
+        j_offset = expr.cartesian_offset.j_offset
+        k_offset = expr.vertical_offset
+        # TODO: Use the offsets!
+        return expr.name
     
     @staticmethod
     def _unparse_literal_access_expr(expr) -> str:
@@ -148,17 +136,19 @@ class Unparser:
     def _unparse_if_stmt(self, stmt) -> str:
         if stmt.cond_part.WhichOneof("stmt") != "expr_stmt":
             raise ValueError("Not expected stmt")
-
-        ret = "if "
-        ret += "True"  # TODO: Replace with 'self._unparse_expr_stmt(stmt.cond_part)'.
-        ret += ":\n\t"
-        ret += self._unparse_body_stmt(stmt.then_part)
-        ret += "\nelse:\n\t"
-        ret += self._unparse_body_stmt(stmt.else_part)
-        return ret
+        
+        return (
+            'if ({}):\n'
+            '\t{}\n'
+            'else:\n'
+            '\t{}').format(
+               self._unparse_expr_stmt(stmt.cond_part), 
+               self._unparse_body_stmt(stmt.then_part),
+               self._unparse_body_stmt(stmt.else_part)
+            )
 
     def _unparse_block_stmt(self, stmt) -> str:
-        return ''.join(self._unparse_body_stmt(s) for s in stmt.statements)
+        return '\n'.join(self._unparse_body_stmt(s) for s in stmt.statements)
 
     def unparse_body_stmt(self, stmt) -> str:
         which = stmt.WhichOneof("stmt")
