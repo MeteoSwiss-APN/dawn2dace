@@ -37,9 +37,7 @@ def IIR_str_to_SDFG(iir: str):
     for id in metadata.APIFieldIDs:
         name = name_resolver.FromAccessID(id)
         print("Add array: " + name + "_t")
-        print("Add array: c" + name + "_t")
         sdfg.add_array(name + "_t", shape=[J, K, I], dtype=data_type)
-        sdfg.add_array("c" + name + "_t", shape=[J, K, I], dtype=data_type)
 
     for id in metadata.temporaryFieldIDs:
         name = name_resolver.FromAccessID(id)
