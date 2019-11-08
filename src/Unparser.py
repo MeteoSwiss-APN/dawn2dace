@@ -34,10 +34,9 @@ def DownCastExpression(expr):
 
 
 class Unparser:
-    """Unparses IIR into Python."""
+    """Unparses IIR's AST into Python."""
 
-    def __init__(self, name_resolver:NameResolver, readAccess):
-        self.get_name = name_resolver
+    def __init__(self, readAccess):
         self.readAccess = readAccess
 
     def _unparse_unary_operator(self, expr) -> str:
@@ -125,8 +124,7 @@ class Unparser:
         if not var_decl.init_list:
             return ''
 
-        ret = var_decl.name
-        ret += var_decl.op
+        ret = var_decl.name + var_decl.op
 
         for expr in var_decl.init_list:
             ret += self._unparse_expr(expr)
