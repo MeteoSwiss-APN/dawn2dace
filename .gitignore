@@ -1,3 +1,5 @@
+src/dycore_stencils/*
+gen/*
 build/*
 integration_tests/bin/*
 integration_tests/generated/*
