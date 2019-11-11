@@ -71,8 +71,9 @@ class Exporter:
                         access_pattern = self.Export_MemoryAccess3D(read, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
-                        try_add_array(self.sdfg, name + "_t")
                         input_memlets[name + "_input"] = dace.Memlet.simple(name + "_S", access_pattern)
+
+                        try_add_transient(self.sdfg, name + "_t")
                         collected_input_mapping[name + "_S"] = name + "_t"
 
                     for write in stmt.writes:
@@ -80,14 +81,15 @@ class Exporter:
                         access_pattern = self.Export_MemoryAccess3D(write, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
-                        try_add_array(self.sdfg, name + "_t")
                         output_memlets[name] = dace.Memlet.simple(name + "_S", access_pattern)
+
+                        try_add_transient(self.sdfg, name + "_t")
                         collected_output_mapping[name + "_S"] = name + "_t"
 
                     if stmt.code:
                         # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                         # the maps are ij-only
-                        map_range = dict(j="halo_size:J-halo_size", i="halo_size:I-halo_size")
+                        map_range = dict(i="halo_size:I-halo_size", j="halo_size:J-halo_size")
                         state.add_mapped_tasklet(
                             "statement",
                             map_range,
