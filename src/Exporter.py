@@ -67,6 +67,7 @@ class Exporter:
                         # Negative ID's are literals and can be skipped.
                         if read.id < 0:
                             continue
+                        
                         name = self.get_name.FromAccessID(read.id)
                         access_pattern = self.Export_MemoryAccess3D(read, with_k = False)
 
@@ -91,7 +92,7 @@ class Exporter:
                         # the maps are ij-only
                         map_range = dict(i="halo_size:I-halo_size", j="halo_size:J-halo_size")
                         state.add_mapped_tasklet(
-                            "statement",
+                            str(stmt),
                             map_range,
                             input_memlets,
                             stmt.code,
@@ -112,7 +113,7 @@ class Exporter:
 
         lower_k = multi_stage.GetMinReadInK()
         upper_k = multi_stage.GetMaxReadInK()
-        # add the reads and the input memlet path : read - map_entry - nsdfg
+        # add the reads and the input memlet path : read -> map_entry -> nsdfg
         for k, v in collected_input_mapping.items():
             read = multi_stage_state.add_read(v)
             multi_stage_state.add_memlet_path(
@@ -122,7 +123,7 @@ class Exporter:
                 memlet=dace.Memlet.simple(v, "0:J, k+{}:k+{}, 0:I".format(lower_k, upper_k + 1)),
                 dst_conn=k,
             )
-        # add the writes and the output memlet path : nsdfg - map_exit - write
+        # add the writes and the output memlet path : nsdfg -> map_exit -> write
         for k, v in collected_output_mapping.items():
             write = multi_stage_state.add_write(v)
             multi_stage_state.add_memlet_path(
@@ -185,9 +186,9 @@ class Exporter:
 
                     if stmt.code:
                         # Since we're in a sequential loop, we only need a map in i and j
-                        map_range = dict(j="halo_size:J-halo_size", i="halo_size:I-halo_size")
+                        map_range = dict(i="halo_size:I-halo_size", j="halo_size:J-halo_size")
                         state.add_mapped_tasklet(
-                            "statement",
+                            str(stmt),
                             map_range,
                             input_memlets,
                             stmt.code,

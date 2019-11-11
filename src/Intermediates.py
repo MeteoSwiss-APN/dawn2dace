@@ -61,7 +61,7 @@ class Statement:
         self.writes = writes # list of MemoryAccess3D
     
     def __str__(self):
-        return "CodeMemoryAccess_{}".format(self.id)
+        return "Statement_{}".format(self.id)
 
     def GetReadAccessIDs(self):
         return [read.id for read in self.reads]

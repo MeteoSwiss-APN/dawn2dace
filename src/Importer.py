@@ -57,7 +57,7 @@ class Importer:
             if id < 0: # is a literal variable
                 continue # No need to process.
             if self.IsGlobalVariable(id):
-                ret.append(None) # TODO: Think about this.
+                ret.append(None)
             else:
                 i = acc.cartesian_extent.i_extent
                 j = acc.cartesian_extent.j_extent
