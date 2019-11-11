@@ -44,12 +44,7 @@ class Exporter:
             mem_acc.i.begin, mem_acc.i.end + 1
         )
 
-    def Export_parallel(
-        self,
-        multi_stage: MultiStage,
-        interval: K_Interval
-        ):
-
+    def Export_parallel(self, multi_stage: MultiStage, interval: K_Interval):
         multi_stage_state = self.sdfg.add_state("state_{}".format(CreateUID()))
         sub_sdfg = dace.SDFG("ms_subsdfg{}".format(CreateUID()))
         last_state = None
@@ -69,11 +64,10 @@ class Exporter:
                     output_memlets = {}
 
                     for read in stmt.reads:
-                        key = read.id
-                        # since keys with negative ID's are *only* literals, we can skip those
-                        if key < 0:
+                        # Negative ID's are literals and can be skipped.
+                        if read.id < 0:
                             continue
-                        name = self.get_name.FromAccessID(key)
+                        name = self.get_name.FromAccessID(read.id)
                         access_pattern = self.Export_MemoryAccess3D(read, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
@@ -82,8 +76,7 @@ class Exporter:
                         collected_input_mapping[name + "_S"] = name + "_t"
 
                     for write in stmt.writes:
-                        key = write.id
-                        name = self.get_name.FromAccessID(key)
+                        name = self.get_name.FromAccessID(write.id)
                         access_pattern = self.Export_MemoryAccess3D(write, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
@@ -143,12 +136,7 @@ class Exporter:
 
         return multi_stage_state
 
-    def Export_loop(
-        self,
-        multi_stage: MultiStage,
-        interval: K_Interval,
-        execution_order: ExecutionOrder
-        ):
+    def Export_loop(self, multi_stage: MultiStage, interval: K_Interval, execution_order: ExecutionOrder):
 
         first_interval_state = None
         # This is the state previous to this ms
@@ -173,11 +161,10 @@ class Exporter:
                     output_memlets = {}
 
                     for read in stmt.reads:
-                        key = read.id
-                        # since keys with negative ID's are *only* literals, we can skip those
-                        if key < 0:
+                        # Negative ID's are literals and can be skipped.
+                        if read.id < 0:
                             continue
-                        name = self.get_name.FromAccessID(key)
+                        name = self.get_name.FromAccessID(read.id)
                         access_pattern = self.Export_MemoryAccess3D(read)
 
                         # we promote every local variable to a temporary:
@@ -186,8 +173,7 @@ class Exporter:
                         input_memlets[name + "_input"] = dace.Memlet.simple(name + "_t", access_pattern)
 
                     for write in stmt.writes:
-                        key = write.id
-                        name = self.get_name.FromAccessID(key)
+                        name = self.get_name.FromAccessID(write.id)
                         access_pattern = self.Export_MemoryAccess3D(write)
 
                         # we promote every local variable to a temporary:
