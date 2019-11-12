@@ -1,4 +1,4 @@
-from NameResolver import NameResolver
+from IdResolver import IdResolver
 
 def DownCastStatement(stmt):
     which = stmt.WhichOneof("stmt")

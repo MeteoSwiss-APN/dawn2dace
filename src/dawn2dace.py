@@ -9,7 +9,7 @@ import IIR_pb2
 from Intermediates import *
 from Importer import Importer
 from Exporter import *
-from NameResolver import NameResolver
+from IdResolver import IdResolver
 from Unparser import Unparser
 
 def FixNegativeIndices(stencils: list):
@@ -32,24 +32,21 @@ def IIR_str_to_SDFG(iir: str):
     sdfg = dace.SDFG("IIRToSDFG")
 
     metadata = stencilInstantiation.metadata
-    name_resolver = NameResolver(metadata.accessIDToName)
+    id_resolver = IdResolver(metadata.accessIDToName, metadata.APIFieldIDs, metadata.temporaryFieldIDs, metadata.globalVariableIDs)
 
     for id in metadata.APIFieldIDs:
-        name = name_resolver.FromAccessID(id)
-        print("Add array: " + name + "_t")
+        name = id_resolver.GetName(id)
         sdfg.add_array(name + "_t", shape=[J, K, I], dtype=data_type)
 
     for id in metadata.temporaryFieldIDs:
-        name = name_resolver.FromAccessID(id)
-        print("Add transient: " + name + "_t")
+        name = id_resolver.GetName(id)
         sdfg.add_transient(name + "_t", shape=[J, K, I], dtype=data_type)
 
     for id in metadata.globalVariableIDs:
-        name = name_resolver.FromAccessID(id)
-        print("Add scalar: " + name + "_t")
+        name = id_resolver.GetName(id)
         sdfg.add_scalar(name + "_t", data_type)
 
-    imp = Importer(name_resolver, metadata.globalVariableIDs)
+    imp = Importer(id_resolver, metadata.globalVariableIDs)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
 
@@ -57,7 +54,7 @@ def IIR_str_to_SDFG(iir: str):
     #FixNegativeIndices(stencils)
     #UnparseCode(stencils)
 
-    exp = Exporter(name_resolver, sdfg)
+    exp = Exporter(id_resolver, sdfg)
     exp.Export_Stencils(stencils)
 
     sdfg.fill_scope_connectors()

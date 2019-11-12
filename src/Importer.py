@@ -1,7 +1,7 @@
 import ast
 import astunparse
 from Intermediates import *
-from NameResolver import NameResolver
+from IdResolver import IdResolver
 from Unparser import *
 
 class InputRenamer(ast.NodeTransformer):
@@ -12,8 +12,8 @@ class InputRenamer(ast.NodeTransformer):
 
 
 class Importer:
-    def __init__(self, name_resolver:NameResolver, globalVariableIDs):
-        self.get_name = name_resolver
+    def __init__(self, id_resolver:IdResolver, globalVariableIDs):
+        self.id_resolver = id_resolver
         self.globalVariableIDs = globalVariableIDs # only used in 'IsGlobalVariable'.
 
     def IsGlobalVariable(self, id:int):

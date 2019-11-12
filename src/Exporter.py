@@ -1,6 +1,6 @@
 import dace
 from Intermediates import *
-from NameResolver import NameResolver
+from IdResolver import IdResolver
 
 I = dace.symbol("I")
 J = dace.symbol("J")
@@ -21,8 +21,8 @@ def try_add_transient(sdfg, name):
         pass
 
 class Exporter:
-    def __init__(self, name_resolver:NameResolver, sdfg):
-        self.get_name = name_resolver
+    def __init__(self, id_resolver:IdResolver, sdfg):
+        self.id_resolver = id_resolver
         self.sdfg = sdfg
         self.last_state_ = None
 
@@ -68,7 +68,7 @@ class Exporter:
                         if read.id < 0:
                             continue
                         
-                        name = self.get_name.FromAccessID(read.id)
+                        name = self.id_resolver.GetName(read.id)
                         access_pattern = self.Export_MemoryAccess3D(read, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
@@ -78,7 +78,7 @@ class Exporter:
                         collected_input_mapping[name + "_S"] = name + "_t"
 
                     for write in stmt.writes:
-                        name = self.get_name.FromAccessID(write.id)
+                        name = self.id_resolver.GetName(write.id)
                         access_pattern = self.Export_MemoryAccess3D(write, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
@@ -167,7 +167,7 @@ class Exporter:
                         # Negative ID's are literals and can be skipped.
                         if read.id < 0:
                             continue
-                        name = self.get_name.FromAccessID(read.id)
+                        name = self.id_resolver.GetName(read.id)
                         access_pattern = self.Export_MemoryAccess3D(read)
 
                         # we promote every local variable to a temporary:
@@ -176,7 +176,7 @@ class Exporter:
                         input_memlets[name + "_input"] = dace.Memlet.simple(name + "_t", access_pattern)
 
                     for write in stmt.writes:
-                        name = self.get_name.FromAccessID(write.id)
+                        name = self.id_resolver.GetName(write.id)
                         access_pattern = self.Export_MemoryAccess3D(write)
 
                         # we promote every local variable to a temporary:
