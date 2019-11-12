@@ -277,6 +277,33 @@ class brackets(LegalSDFG, unittest.TestCase):
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
+class scopes(LegalSDFG, unittest.TestCase):
+    file_name = "scopes.0.iir"
+
+    def test_4_numerically(self):
+        I,J,K = 3,3,3
+        halo_size = 1
+        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
+        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        
+        expected = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        # vertical_region(k_start, k_start) { output = input[i-1] + 3.14; }
+        for i in range(halo_size, I-halo_size):
+            expected[:, 0, i] = input[:, 0, i-1] + 3.14
+
+        sdfg = get_sdfg(self.file_name)
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            data_in = input,
+            data_out = output,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo_size = numpy.int32(halo_size))
+
+        self.assertTrue((input == output).all(), "Expected:\n{}\nReceived:\n{}".format(input, output))
+
 
 if __name__ == '__main__':
     unittest.main()
