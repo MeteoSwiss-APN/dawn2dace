@@ -14,12 +14,8 @@ class InputRenamer(ast.NodeTransformer):
 
 
 class Importer:
-    def __init__(self, id_resolver:IdResolver, globalVariableIDs):
+    def __init__(self, id_resolver:IdResolver):
         self.id_resolver = id_resolver
-        self.globalVariableIDs = globalVariableIDs # only used in 'IsGlobalVariable'.
-
-    def IsGlobalVariable(self, id:int):
-        return (id in self.globalVariableIDs)
 
     @staticmethod
     def Import_Interval(interval) -> K_Interval:
@@ -58,8 +54,6 @@ class Importer:
         for id, acc in access.items():
             if id < 0: # is a literal variable
                 continue # No need to process.
-            if self.IsGlobalVariable(id):
-                ret.append(None)
             else:
                 i = acc.cartesian_extent.i_extent
                 j = acc.cartesian_extent.j_extent

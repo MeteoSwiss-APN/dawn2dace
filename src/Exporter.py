@@ -64,8 +64,7 @@ class Exporter:
                     output_memlets = {}
 
                     for read in stmt.reads:
-                        # Negative ID's are literals and can be skipped.
-                        if read.id < 0:
+                        if self.id_resolver.IsALiteral(read.id):
                             continue
                         
                         name = self.id_resolver.GetName(read.id)

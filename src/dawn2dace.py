@@ -46,7 +46,7 @@ def IIR_str_to_SDFG(iir: str):
         name = id_resolver.GetName(id)
         sdfg.add_scalar(name, data_type)
 
-    imp = Importer(id_resolver, metadata.globalVariableIDs)
+    imp = Importer(id_resolver)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
 
