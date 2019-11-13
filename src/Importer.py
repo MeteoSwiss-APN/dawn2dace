@@ -4,15 +4,6 @@ from Intermediates import *
 from IdResolver import IdResolver
 from Unparser import *
 
-class InputRenamer(ast.NodeTransformer):
-    def visit_Name(self, node):
-        if isinstance(node.ctx, ast.Load):
-            node.id += "_in"
-        if isinstance(node.ctx, ast.Store):
-            node.id += "_out"
-        return node
-
-
 class Importer:
     def __init__(self, id_resolver:IdResolver):
         self.id_resolver = id_resolver
@@ -67,9 +58,6 @@ class Importer:
     def Import_Statement(self, stmt) -> Statement:
         data = DownCastStatement(stmt).data
         code = Unparser(data.accesses.readAccess).unparse_body_stmt(stmt)
-        if code:
-            tree = ast.parse(code)
-            code = astunparse.unparse(InputRenamer().visit(tree))
         return Statement(
             code = code,
             reads = self.Import_MemoryAccesses(data.accesses.readAccess),

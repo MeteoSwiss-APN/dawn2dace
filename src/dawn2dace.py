@@ -12,6 +12,25 @@ from Exporter import *
 from IdResolver import IdResolver
 from Unparser import Unparser
 
+
+class InputRenamer(ast.NodeTransformer):
+    def visit_Name(self, node):
+        if isinstance(node.ctx, ast.Load):
+            node.id += "_in"
+        if isinstance(node.ctx, ast.Store):
+            node.id += "_out"
+        return node
+
+def RenameInput(stencils: list):
+    for stencil in stencils:
+        for multi_stage in stencil.multi_stages:
+            for stage in multi_stage.stages:
+                for do_method in stage.do_methods:
+                    for stmt in do_method.statements:
+                        tree = ast.parse(stmt.code)
+                        stmt.code = astunparse.unparse(InputRenamer().visit(tree))
+
+
 def FixNegativeIndices(stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
@@ -50,7 +69,7 @@ def IIR_str_to_SDFG(iir: str):
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
 
-    #RenameInput(stencils)
+    RenameInput(stencils)
     #FixNegativeIndices(stencils)
     #UnparseCode(stencils)
 
