@@ -51,8 +51,8 @@ class copy(LegalSDFG, unittest.TestCase):
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            data_in_t = input,
-            data_out_t = output,
+            data_in = input,
+            data_out = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -76,8 +76,8 @@ class copy_with_halo(LegalSDFG, unittest.TestCase):
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            data_in_t = input,
-            data_out_t = output,
+            data_in = input,
+            data_out = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -99,7 +99,7 @@ class inout_variable(LegalSDFG, unittest.TestCase):
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            a_t = in_out,
+            a = in_out,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -128,8 +128,8 @@ class offsets(LegalSDFG, unittest.TestCase):
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            b_t = input,
-            a_t = output,
+            b = input,
+            a = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -159,9 +159,9 @@ class vertical_specification(LegalSDFG, unittest.TestCase):
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            data_in_1_t = input1,
-            data_in_2_t = input2,
-            data_out_t = output,
+            data_in_1 = input1,
+            data_in_2 = input2,
+            data_out = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -192,8 +192,8 @@ class vertical_offsets(LegalSDFG, unittest.TestCase):
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            in_field_t = input,
-            out_field_t = output,
+            in_field = input,
+            out_field = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -217,8 +217,8 @@ class local_variables(LegalSDFG, unittest.TestCase):
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            in_field_t = input,
-            out_field_t = output,
+            in_field = input,
+            out_field = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -242,8 +242,8 @@ class local_internal(LegalSDFG, unittest.TestCase):
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            in_field_t = input,
-            out_field_t = output,
+            in_field = input,
+            out_field = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -268,8 +268,8 @@ class brackets(LegalSDFG, unittest.TestCase):
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            in_field_t = input,
-            out_field_t = output,
+            in_field = input,
+            out_field = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),

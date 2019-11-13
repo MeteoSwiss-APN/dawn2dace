@@ -36,15 +36,15 @@ def IIR_str_to_SDFG(iir: str):
 
     for id in metadata.APIFieldIDs:
         name = id_resolver.GetName(id)
-        sdfg.add_array(name + "_t", shape=[J, K, I], dtype=data_type)
+        sdfg.add_array(name, shape=[J, K, I], dtype=data_type)
 
     for id in metadata.temporaryFieldIDs:
         name = id_resolver.GetName(id)
-        sdfg.add_transient(name + "_t", shape=[J, K, I], dtype=data_type)
+        sdfg.add_transient(name, shape=[J, K, I], dtype=data_type)
 
     for id in metadata.globalVariableIDs:
         name = id_resolver.GetName(id)
-        sdfg.add_scalar(name + "_t", data_type)
+        sdfg.add_scalar(name, data_type)
 
     imp = Importer(id_resolver, metadata.globalVariableIDs)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)

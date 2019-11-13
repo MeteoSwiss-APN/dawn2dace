@@ -72,20 +72,20 @@ class Exporter:
                         access_pattern = self.Export_MemoryAccess3D(read, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
-                        input_memlets[name + "_input"] = dace.Memlet.simple(name + "_S", access_pattern)
+                        input_memlets[name + "_in"] = dace.Memlet.simple(name + "_S", access_pattern)
 
-                        try_add_transient(self.sdfg, name + "_t")
-                        collected_input_mapping[name + "_S"] = name + "_t"
+                        try_add_transient(self.sdfg, name)
+                        collected_input_mapping[name + "_S"] = name
 
                     for write in stmt.writes:
                         name = self.id_resolver.GetName(write.id)
                         access_pattern = self.Export_MemoryAccess3D(write, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
-                        output_memlets[name] = dace.Memlet.simple(name + "_S", access_pattern)
+                        output_memlets[name + "_out"] = dace.Memlet.simple(name + "_S", access_pattern)
 
-                        try_add_transient(self.sdfg, name + "_t")
-                        collected_output_mapping[name + "_S"] = name + "_t"
+                        try_add_transient(self.sdfg, name)
+                        collected_output_mapping[name + "_S"] = name
 
                     if stmt.code:
                         # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
@@ -171,18 +171,18 @@ class Exporter:
                         access_pattern = self.Export_MemoryAccess3D(read)
 
                         # we promote every local variable to a temporary:
-                        try_add_transient(self.sdfg, name + "_t")
+                        try_add_transient(self.sdfg, name)
 
-                        input_memlets[name + "_input"] = dace.Memlet.simple(name + "_t", access_pattern)
+                        input_memlets[name + "_in"] = dace.Memlet.simple(name, access_pattern)
 
                     for write in stmt.writes:
                         name = self.id_resolver.GetName(write.id)
                         access_pattern = self.Export_MemoryAccess3D(write)
 
                         # we promote every local variable to a temporary:
-                        try_add_transient(self.sdfg, name + "_t")
+                        try_add_transient(self.sdfg, name)
 
-                        output_memlets[name] = dace.Memlet.simple(name + "_t", access_pattern)
+                        output_memlets[name + "_out"] = dace.Memlet.simple(name, access_pattern)
 
                     if stmt.code:
                         # Since we're in a sequential loop, we only need a map in i and j

@@ -7,7 +7,9 @@ from Unparser import *
 class InputRenamer(ast.NodeTransformer):
     def visit_Name(self, node):
         if isinstance(node.ctx, ast.Load):
-            node.id += "_input"
+            node.id += "_in"
+        if isinstance(node.ctx, ast.Store):
+            node.id += "_out"
         return node
 
 
