@@ -63,12 +63,6 @@ class Statement:
     def __str__(self):
         return "Statement_{}".format(self.id)
 
-    def GetReadAccessIDs(self):
-        return [read.id for read in self.reads]
-
-    def GetWriteAccessIDs(self):
-        return [write.id for write in self.writes]
-
     def GetMinReadInK(self):
         return min((read.k.begin for read in self.reads))
 
@@ -81,18 +75,6 @@ class DoMethod:
         self.uid = CreateUID()
         self.k_interval = k_interval
         self.statements = statements # List of Statement
-    
-    def GetReadAccessIDs(self):
-        ret = []
-        for ma in self.memory_accesses:
-            ret.extend(ma.GetReadAccessIDs())
-        return ret
-
-    def GetWriteAccessIDs(self):
-        ret = []
-        for ma in self.memory_accesses:
-            ret.extend(ma.GetWriteAccessIDs())
-        return ret
 
     def GetMinReadInK(self):
         return min((x.GetMinReadInK() for x in self.statements))
