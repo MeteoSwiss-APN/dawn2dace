@@ -10,7 +10,7 @@ class Importer:
 
     @staticmethod
     def Import_Interval(interval) -> K_Interval:
-        """ Converts a Dawn interval into a Dawn2Dice interval. """
+        """ Converts a Dawn interval into a Dawn2Dace interval. """
 
         if interval.WhichOneof("LowerLevel") == "special_lower_level":
             if interval.special_lower_level == 0:

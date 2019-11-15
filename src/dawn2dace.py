@@ -12,23 +12,47 @@ from Exporter import *
 from IdResolver import IdResolver
 from Unparser import Unparser
 
+class Renamer(ast.NodeTransformer):
+    def __init__(self):
+        self.storemode = False
 
-class InputRenamer(ast.NodeTransformer):
     def visit_Name(self, node):
-        if isinstance(node.ctx, ast.Load):
-            node.id += "_in"
-        if isinstance(node.ctx, ast.Store):
-            node.id += "_out"
+        if self.storemode or isinstance(node.ctx, ast.Store):
+            node.id += '_out'
+        elif isinstance(node.ctx, ast.Load):
+            node.id += '_in'
         return node
 
-def RenameInput(stencils: list):
+    def visit_Assign(self, node):
+        self.storemode = True
+        for target in node.targets:
+            self.visit(target)
+        self.storemode = False
+        self.visit(node.value)
+        return node
+
+    def visit_AnnAssign(self, node):
+        return self.visit_AugAssign(node)
+
+    def visit_AugAssign(self, node):
+        self.storemode = True
+        self.visit(node.target)
+        self.storemode = False
+        self.visit(node.value)
+        return node
+
+def RenameVariables(stencils: list):
+    """
+    Renames all variables that are read from by adding a suffix '_in'.
+    Renames all variables that are written to by adding a suffix '_out'.
+    """
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
                         tree = ast.parse(stmt.code)
-                        stmt.code = astunparse.unparse(InputRenamer().visit(tree))
+                        stmt.code = astunparse.unparse(Renamer().visit(tree))
 
 
 def FixNegativeIndices(stencils: list):
@@ -69,7 +93,7 @@ def IIR_str_to_SDFG(iir: str):
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
 
-    RenameInput(stencils)
+    RenameVariables(stencils)
     #FixNegativeIndices(stencils)
     #UnparseCode(stencils)
 
