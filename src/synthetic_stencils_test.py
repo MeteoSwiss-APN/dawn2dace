@@ -26,16 +26,6 @@ class LegalSDFG:
     def test_2_sdfg_is_valid(self):
         sdfg = get_sdfg(self.file_name)
         self.assertTrue(sdfg.is_valid())
-        
-    def test_3_sdfg_compiles(self):
-        sdfg = get_sdfg(self.file_name)
-        try:
-            sdfg.compile(optimizer="")
-        except:
-            compiled = False
-        else:
-            compiled = True
-        self.assertTrue(compiled)
 
 
 class copy(LegalSDFG, unittest.TestCase):
@@ -137,8 +127,8 @@ class offsets(LegalSDFG, unittest.TestCase):
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
 
-class vertical_specification(LegalSDFG, unittest.TestCase):
-    file_name = "vertical_specification.0.iir"
+class vertical_specification_1(LegalSDFG, unittest.TestCase):
+    file_name = "vertical_specification_1.0.iir"
 
     def test_4_numerically(self):
         I,J,K = 4,4,4
@@ -147,20 +137,56 @@ class vertical_specification(LegalSDFG, unittest.TestCase):
         input2 = numpy.arange(100, J*K*I+100).astype(dace.float64.type).reshape(J,K,I)
         output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
 
-        # vertical_region(k_start, k_end) { data_out = data_in_2; }
-        expected = numpy.copy(input2)
+        expected = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        # vertical_region(k_start, k_end-1) { output = input1; }
+        for k in range(0, K-1):
+            expected[:, k, :] = input1[:, k, :]
 
-        # vertical_region(k_start + 3, k_end) { data_out = data_in_1; }
-        for k in range(3, K):
+        # vertical_region(k_start+1, k_end) { output = input2; }
+        for k in range(1, K):
+            expected[:, k, :] = input2[:, k, :]
+        
+        sdfg = get_sdfg(self.file_name)
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input1 = input1,
+            input2 = input2,
+            output = output,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo_size = numpy.int32(halo_size))
+
+        self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
+
+
+class vertical_specification_2(LegalSDFG, unittest.TestCase):
+    file_name = "vertical_specification_2.0.iir"
+
+    def test_4_numerically(self):
+        I,J,K = 4,4,4
+        halo_size = 0
+        input1 = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
+        input2 = numpy.arange(100, J*K*I+100).astype(dace.float64.type).reshape(J,K,I)
+        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+
+        expected = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        # vertical_region(k_start+1, k_end) { output = input2; }
+        for k in range(1, K):
+            expected[:, k, :] = input2[:, k, :]
+
+        # vertical_region(k_start, k_end-1) { output = input1; }
+        for k in range(0, K-1):
             expected[:, k, :] = input1[:, k, :]
         
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            data_in_1 = input1,
-            data_in_2 = input2,
-            data_out = output,
+            input1 = input1,
+            input2 = input2,
+            output = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
