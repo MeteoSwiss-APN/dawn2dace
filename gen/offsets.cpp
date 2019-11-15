@@ -1,6 +1,6 @@
 // gtclang (0.0.1-03778b4-x86_64-linux-gnu-7.4.0)
 // based on LLVM/Clang (6.0.0), Dawn (0.0.1)
-// Generated on 2019-11-05  23:58:32
+// Generated on 2019-11-13  13:51:17
 
 #define GRIDTOOLS_CLANG_GENERATED 1
 #define GRIDTOOLS_CLANG_BACKEND_T GT
@@ -49,30 +49,33 @@ class test {
   using p_a = gridtools::arg<0, storage_ijk_t>;
   using p_b = gridtools::arg<1, storage_ijk_t>;
 
-  struct stencil_13 {
+  struct stencil_15 {
     // Intervals
     using interval_start__end_ = gridtools::interval<gridtools::level<0, 1, 3>, gridtools::level<1, -1, 3>>;
-    using axis_stencil_13 = gridtools::interval<gridtools::level<0, -1, 3>, gridtools::level<1, 1, 3>>;
-    using grid_stencil_13 = gridtools::grid<axis_stencil_13>;
+    using axis_stencil_15 = gridtools::interval<gridtools::level<0, -1, 3>, gridtools::level<1, 1, 3>>;
+    using grid_stencil_15 = gridtools::grid<axis_stencil_15>;
 
     struct stage_0_0 {
       using a = gridtools::accessor<0, gridtools::intent::inout, gridtools::extent<0, 0, 0, 0, 0, 0>>;
-      using b = gridtools::accessor<1, gridtools::intent::in, gridtools::extent<-1, 1, -1, 0, 0, 0>>;
+      using b = gridtools::accessor<1, gridtools::intent::in, gridtools::extent<-1, 1, -1, 1, 0, 0>>;
       using param_list = gridtools::make_param_list<a, b>;
 
       template <typename Evaluation>
       GT_FUNCTION static void apply(Evaluation& eval, interval_start__end_) {
-        eval(a(0, 0, 0)) = (eval(b(1, -1, 0)) + eval(b(-1, 0, 0)));
+        eval(a(0, 0, 0)) = ((eval(b(-1, 0, 0)) + eval(b(0, 1, 0))) + eval(b(1, -1, 0)));
       }
     };
 
-    stencil_13(const gridtools::clang::domain& dom) {
+    stencil_15(const gridtools::clang::domain& dom) {
       // Check if extents do not exceed the halos
       static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) >= 1) ||
                         (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
                     "Used extents exceed halo limits.");
       static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<0>()) <= -1) ||
                         (storage_ijk_t::storage_info_t::layout_t::template at<0>() == -1),
+                    "Used extents exceed halo limits.");
+      static_assert((static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) >= 1) ||
+                        (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
                     "Used extents exceed halo limits.");
       static_assert(((-1) * static_cast<int>(storage_ijk_t::storage_info_t::halo_t::template at<1>()) <= -1) ||
                         (storage_ijk_t::storage_info_t::layout_t::template at<1>() == -1),
@@ -83,7 +86,7 @@ class test {
                                        dom.isize()};
       gridtools::halo_descriptor dj = {dom.jminus(), dom.jminus(), dom.jplus(), dom.jsize() - 1 - dom.jplus(),
                                        dom.jsize()};
-      grid_stencil_13 grid_(di, dj, {dom.kminus(), dom.ksize() == 0 ? 0 : dom.ksize() - dom.kplus()});
+      grid_stencil_15 grid_(di, dj, {dom.kminus(), dom.ksize() == 0 ? 0 : dom.ksize() - dom.kplus()});
 
       // Computation
       m_stencil = gridtools::make_computation<backend_t>(
@@ -103,13 +106,13 @@ class test {
   static constexpr const char* s_name = "test";
 
   // Members representing all the stencils that are called
-  stencil_13 m_stencil_13;
+  stencil_15 m_stencil_15;
 
  public:
   test(const test&) = delete;
 
   test(const gridtools::clang::domain& dom, storage_ijk_t /*unused*/, storage_ijk_t /*unused*/)
-      : m_dom(dom), m_stencil_13(dom) {}
+      : m_dom(dom), m_stencil_15(dom) {}
 
   template <typename S>
   void sync_storages(S field) {
@@ -124,17 +127,17 @@ class test {
 
   void run(storage_ijk_t a, storage_ijk_t b) {
     sync_storages(a, b);
-    m_stencil_13.get_stencil()->run(p_a{} = a, p_b{} = b);
+    m_stencil_15.get_stencil()->run(p_a{} = a, p_b{} = b);
     sync_storages(a, b);
   }
 
   std::string get_name() const { return std::string(s_name); }
 
-  void reset_meters() { m_stencil_13.get_stencil()->reset_meter(); }
+  void reset_meters() { m_stencil_15.get_stencil()->reset_meter(); }
 
   double get_total_time() {
     double res = 0;
-    res += m_stencil_13.get_stencil()->get_time();
+    res += m_stencil_15.get_stencil()->get_time();
     return res;
   }
 };

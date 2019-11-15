@@ -120,9 +120,8 @@ class offsets(LegalSDFG, unittest.TestCase):
         expected = numpy.copy(output)
         for i in range(halo_size, I-halo_size):
             for j in range(halo_size, J-halo_size):
-                for k in range(0, K):
-                    # a = b[i + 1, j - 1] + b[i - 1];
-                    expected[j, k, i] = input[j-1, k, i+1] + input[j, k, i-1]
+                    # a = b[i-1] + b[j+1] + b[i+1, j-1];
+                    expected[j, :, i] = input[j, :, i-1] + input[j+1, :, i] + input[j-1, :, i+1]
         
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
