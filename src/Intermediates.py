@@ -42,8 +42,7 @@ class MemoryAccess1D:
 
 
 class MemoryAccess3D:
-    def __init__(self, id:int, i:MemoryAccess1D, j:MemoryAccess1D, k:MemoryAccess1D):
-        self.id = id
+    def __init__(self, i:MemoryAccess1D, j:MemoryAccess1D, k:MemoryAccess1D):
         self.i = i
         self.j = j
         self.k = k
@@ -54,20 +53,20 @@ class MemoryAccess3D:
         self.k.offset(k)
 
 class Statement:
-    def __init__(self, code:str, reads:list, writes:list):
+    def __init__(self, code:str, reads:dict, writes:dict):
         self.id = CreateUID()
         self.code = code
-        self.reads = reads # list of MemoryAccess3D
-        self.writes = writes # list of MemoryAccess3D
+        self.reads = reads # dict of MemoryAccess3D
+        self.writes = writes # dict of MemoryAccess3D
     
     def __str__(self):
         return "Statement_{}".format(self.id)
 
     def GetMinReadInK(self):
-        return min((read.k.begin for read in self.reads))
+        return min((read.k.begin for _, read in self.reads.items()))
 
     def GetMaxReadInK(self):
-        return max((read.k.end for read in self.reads))
+        return max((read.k.end for _, read in self.reads.items()))
 
 
 class DoMethod:

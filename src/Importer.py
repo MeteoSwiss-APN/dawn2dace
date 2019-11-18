@@ -41,18 +41,18 @@ class Importer:
         return K_Interval(begin, end, sort_key)
 
     def Import_MemoryAccesses(self, access: dict) -> list:
-        ret = []
+        ret = {}
         for id, acc in access.items():
-            if id < 0: # is a literal variable
-                continue # No need to process.
-            else:
-                i = acc.cartesian_extent.i_extent
-                j = acc.cartesian_extent.j_extent
-                k = acc.vertical_extent
-                i = MemoryAccess1D(i.minus, i.plus)
-                j = MemoryAccess1D(j.minus, j.plus)
-                k = MemoryAccess1D(k.minus, k.plus)
-                ret.append(MemoryAccess3D(id, i, j, k))
+            if self.id_resolver.IsALiteral(id):
+                continue # Literals don't need processing.
+
+            i_extent = acc.cartesian_extent.i_extent
+            j_extent = acc.cartesian_extent.j_extent
+            k_extent = acc.vertical_extent
+            i = MemoryAccess1D(i_extent.minus, i_extent.plus)
+            j = MemoryAccess1D(j_extent.minus, j_extent.plus)
+            k = MemoryAccess1D(k_extent.minus, k_extent.plus)
+            ret[id] = MemoryAccess3D(i, j, k)
         return ret
 
     def Import_Statement(self, stmt) -> Statement:

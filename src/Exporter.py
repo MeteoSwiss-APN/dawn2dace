@@ -63,11 +63,11 @@ class Exporter:
                     input_memlets = {}
                     output_memlets = {}
 
-                    for read in stmt.reads:
-                        if self.id_resolver.IsALiteral(read.id):
+                    for id, read in stmt.reads.items():
+                        if self.id_resolver.IsALiteral(id):
                             continue
                         
-                        name = self.id_resolver.GetName(read.id)
+                        name = self.id_resolver.GetName(id)
                         access_pattern = self.Export_MemoryAccess3D(read, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
@@ -76,8 +76,8 @@ class Exporter:
                         try_add_transient(self.sdfg, name)
                         collected_input_mapping[name + "_S"] = name
 
-                    for write in stmt.writes:
-                        name = self.id_resolver.GetName(write.id)
+                    for id, write in stmt.writes.items():
+                        name = self.id_resolver.GetName(id)
                         access_pattern = self.Export_MemoryAccess3D(write, with_k = False)
 
                         try_add_array(sub_sdfg, name + "_S")
