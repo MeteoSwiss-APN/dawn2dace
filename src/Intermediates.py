@@ -68,6 +68,12 @@ class Statement:
     def GetMaxReadInK(self):
         return max((read.k.end for _, read in self.reads.items()))
 
+    def GetMinWriteInK(self):
+        return min((write.k.begin for _, write in self.writes.items()))
+
+    def GetMaxWriteInK(self):
+        return max((write.k.begin for _, write in self.writes.items()))
+
 
 class DoMethod:
     def __init__(self, k_interval:K_Interval, statements:list):
@@ -81,6 +87,12 @@ class DoMethod:
     def GetMaxReadInK(self):
         return max((x.GetMaxReadInK() for x in self.statements))
 
+    def GetMinWriteInK(self):
+        return min((x.GetMinWriteInK() for x in self.statements))
+
+    def GetMaxWriteInK(self):
+        return max((x.GetMaxWriteInK() for x in self.statements))
+
 
 class Stage:
     def __init__(self, do_methods:list):
@@ -92,6 +104,12 @@ class Stage:
 
     def GetMaxReadInK(self) -> int:
         return max((x.GetMaxReadInK() for x in self.do_methods))
+
+    def GetMinWriteInK(self) -> int:
+        return min((x.GetMinWriteInK() for x in self.do_methods))
+
+    def GetMaxWriteInK(self) -> int:
+        return max((x.GetMaxWriteInK() for x in self.do_methods))
 
 
 class ExecutionOrder(Enum):
@@ -114,6 +132,12 @@ class MultiStage:
 
     def GetMaxReadInK(self) -> int:
         return max((x.GetMaxReadInK() for x in self.stages))
+
+    def GetMinWriteInK(self) -> int:
+        return min((x.GetMinWriteInK() for x in self.stages))
+
+    def GetMaxWriteInK(self) -> int:
+        return max((x.GetMaxWriteInK() for x in self.stages))
 
 
 class Stencil:
