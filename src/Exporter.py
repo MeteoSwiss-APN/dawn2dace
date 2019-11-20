@@ -110,8 +110,8 @@ class Exporter:
         output_set = collected_output_mapping.keys()
         nested_sdfg = multi_stage_state.add_nested_sdfg(sub_sdfg, self.sdfg, input_set, output_set)
 
-        lower_k = multi_stage.GetMinReadInK()
-        upper_k = multi_stage.GetMaxReadInK()
+        lower_k = multi_stage.lower_k
+        upper_k = multi_stage.upper_k
         # add the reads and the input memlet path : read -> map_entry -> nsdfg
         for k, v in collected_input_mapping.items():
             read = multi_stage_state.add_read(v)

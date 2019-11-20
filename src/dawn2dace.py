@@ -11,35 +11,19 @@ from Importer import Importer
 from Exporter import *
 from IdResolver import IdResolver
 from Unparser import Unparser
+from IIR_AST import *
 
-class Renamer(ast.NodeTransformer):
-    def __init__(self):
-        self.storemode = False
+class Renamer(IIR_Transformer):
+    def __init__(self, ids:dict, suffix:str):
+        self.ids = ids
+        self.suffix = suffix
 
-    def visit_Name(self, node):
-        if self.storemode or isinstance(node.ctx, ast.Store):
-            node.id += '_out'
-        elif isinstance(node.ctx, ast.Load):
-            node.id += '_in'
-        return node
+    #@visitor(IIR_pb2.SIR_dot_statements__pb2.FieldAccessExpr)
+    def visit_FieldAccessExpr(self, expr):
+        if expr.data.accessID.value in self.ids:
+            expr.name += self.suffix
+        return expr
 
-    def visit_Assign(self, node):
-        self.storemode = True
-        for target in node.targets:
-            self.visit(target)
-        self.storemode = False
-        self.visit(node.value)
-        return node
-
-    def visit_AnnAssign(self, node):
-        return self.visit_AugAssign(node)
-
-    def visit_AugAssign(self, node):
-        self.storemode = True
-        self.visit(node.target)
-        self.storemode = False
-        self.visit(node.value)
-        return node
 
 def RenameVariables(stencils: list):
     """
@@ -51,22 +35,93 @@ def RenameVariables(stencils: list):
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        tree = ast.parse(stmt.code)
-                        stmt.code = astunparse.unparse(Renamer().visit(tree))
+                        Renamer(stmt.reads, '_in').visit(stmt.code)
+                        Renamer(stmt.writes, '_out').visit(stmt.code)
 
 
-def FixNegativeIndices(stencils: list):
+class IJ_Mapper(IIR_Transformer):
+    def __init__(self, transfer:dict):
+        self.transfer = transfer
+
+    def visit_FieldAccessExpr(self, expr):
+        id = expr.data.accessID.value
+        if id in self.transfer:
+            if self.transfer[id].i.begin != self.transfer[id].i.end:
+                expr.cartesian_offset.i_offset -= self.transfer[id].i.begin
+            if self.transfer[id].j.begin != self.transfer[id].j.end:
+                expr.cartesian_offset.j_offset -= self.transfer[id].j.begin
+        return expr
+
+def AccountForIJMap(stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
-            min = multi_stage.GetMinReadInK()
-            if min < 0:
+            for stage in multi_stage.stages:
+                for do_method in stage.do_methods:
+                    for stmt in do_method.statements:
+                        stmt.code = IJ_Mapper(stmt.reads).visit(stmt.code)
+
+
+class K_Mapper(IIR_Transformer):
+    def __init__(self, k_offset:int):
+        self.k_offset = k_offset
+
+    def visit_FieldAccessExpr(self, expr):
+        expr.vertical_offset += self.k_offset
+        return expr
+
+def AccountForKMap(stencils: list):
+    for stencil in stencils:
+        for multi_stage in stencil.multi_stages:
+            k_min = min(multi_stage.GetMinReadInK(), multi_stage.GetMinWriteInK())
+            k_max = max(multi_stage.GetMaxReadInK(), multi_stage.GetMaxWriteInK())
+            multi_stage.lower_k = k_min
+            multi_stage.upper_k = k_max
+            if k_min:
                 for stage in multi_stage.stages:
                     for do_method in stage.do_methods:
                         for stmt in do_method.statements:
-                            for read in stmt.reads:
-                                read.offset(k = -min)
-                            for write in stmt.writes:
-                                write.offset(k = -min)
+                            for _, read in stmt.reads.items():
+                                read.offset(k = -k_min)
+                            for _, write in stmt.writes.items():
+                                write.offset(k = -k_min)
+                            stmt.code = K_Mapper(-k_min).visit(stmt.code)
+
+
+class DimensionalReducer(IIR_Transformer):
+    def __init__(self, transfer:dict, remove_k:bool):
+        self.transfer = transfer
+        self.remove_k = remove_k
+
+    def visit_FieldAccessExpr(self, expr):
+        id = expr.data.accessID.value
+        if id in self.transfer:
+            if self.transfer[id].i.begin == self.transfer[id].i.end:
+                expr.cartesian_offset.i_offset = -1
+            if self.transfer[id].j.begin == self.transfer[id].j.end:
+                expr.cartesian_offset.j_offset = -1
+            if self.remove_k:
+                 expr.vertical_offset = -1
+        return expr
+
+def RemoveUnusedDimensions(stencils: list):
+    for stencil in stencils:
+        for multi_stage in stencil.multi_stages:
+            remove_k = (multi_stage.lower_k == multi_stage.upper_k)
+            for stage in multi_stage.stages:
+                for do_method in stage.do_methods:
+                    for stmt in do_method.statements:
+                        DimensionalReducer(stmt.reads, remove_k).visit(stmt.code)
+                        DimensionalReducer(stmt.writes, remove_k).visit(stmt.code)
+
+
+def UnparseCode(stencils: list):
+    for stencil in stencils:
+        for multi_stage in stencil.multi_stages:
+            for stage in multi_stage.stages:
+                for do_method in stage.do_methods:
+                    for stmt in do_method.statements:
+                        stmt.code = Unparser().unparse_body_stmt(stmt.code)
+                        print(stmt.code)
 
 def IIR_str_to_SDFG(iir: str):
     stencilInstantiation = IIR_pb2.StencilInstantiation()
@@ -94,8 +149,10 @@ def IIR_str_to_SDFG(iir: str):
 
 
     RenameVariables(stencils)
-    #FixNegativeIndices(stencils)
-    #UnparseCode(stencils)
+    AccountForIJMap(stencils)
+    AccountForKMap(stencils)
+    RemoveUnusedDimensions(stencils)
+    UnparseCode(stencils)
 
     exp = Exporter(id_resolver, sdfg)
     exp.Export_Stencils(stencils)

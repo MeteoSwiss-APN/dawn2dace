@@ -1,4 +1,5 @@
 from IdResolver import IdResolver
+import IIR_pb2
 
 def DownCastStatement(stmt):
     which = stmt.WhichOneof("stmt")
@@ -35,9 +36,6 @@ def DownCastExpression(expr):
 
 class Unparser:
     """Unparses IIR's AST into Python."""
-
-    def __init__(self, readAccess):
-        self.readAccess = readAccess
 
     def _unparse_unary_operator(self, expr) -> str:
         return "{} ({})".format(
@@ -77,38 +75,16 @@ class Unparser:
         return expr.name
 
     def _unparse_field_access_expr(self, expr) -> str:
-        id = expr.data.accessID.value
+        indices = [
+            expr.cartesian_offset.i_offset,
+            expr.cartesian_offset.j_offset,
+            expr.vertical_offset
+        ]
+        indices = [str(i) for i in indices if i != -1]
 
-        # writes are assumed to happen only to [0,0,0], thus only readAccess needs processing.
-        if id not in self.readAccess:
-            return expr.name
-
-        i_extent = self.readAccess[id].cartesian_extent.i_extent
-        j_extent = self.readAccess[id].cartesian_extent.j_extent
-        k_extent = self.readAccess[id].vertical_extent
-
-        i_offset = expr.cartesian_offset.i_offset
-        j_offset = expr.cartesian_offset.j_offset
-        k_offset = expr.vertical_offset
-        
-        i = i_offset - i_extent.minus
-        j = j_offset - j_extent.minus
-        k = k_offset - k_extent.minus
-
-        # Dimensions with no extent will be mapped away by DaCe's map.
-        # Thus these dimensions shouldn't appear in the index list.
-        indices = []
-        if j_extent.minus or j_extent.plus:
-            indices.append(j_offset - j_extent.minus)
-        if k_extent.minus or k_extent.plus:
-            indices.append(k_offset - k_extent.minus)
-        if i_extent.minus or i_extent.plus:
-            indices.append(i_offset - i_extent.minus)
-
-        if not indices:
-            return expr.name
-        
-        return expr.name + "[{}]".format(','.join(str(i) for i in indices))
+        if indices:
+            return expr.name + "[{}]".format(','.join(indices))
+        return expr.name
     
     @staticmethod
     def _unparse_literal_access_expr(expr) -> str:

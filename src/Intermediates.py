@@ -53,7 +53,7 @@ class MemoryAccess3D:
         self.k.offset(k)
 
 class Statement:
-    def __init__(self, code:str, reads:dict, writes:dict):
+    def __init__(self, code, reads:dict, writes:dict):
         self.id = CreateUID()
         self.code = code
         self.reads = reads # dict of MemoryAccess3D
@@ -123,6 +123,8 @@ class MultiStage:
         self.uid = CreateUID()
         self.execution_order = execution_order
         self.stages = stages
+        self.lower_k = None
+        self.upper_k = None
 
     def __str__(self):
         return "state_{}".format(self.uid)

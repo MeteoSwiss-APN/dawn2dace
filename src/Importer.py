@@ -49,17 +49,18 @@ class Importer:
             i_extent = acc.cartesian_extent.i_extent
             j_extent = acc.cartesian_extent.j_extent
             k_extent = acc.vertical_extent
+
             i = MemoryAccess1D(i_extent.minus, i_extent.plus)
             j = MemoryAccess1D(j_extent.minus, j_extent.plus)
             k = MemoryAccess1D(k_extent.minus, k_extent.plus)
+
             ret[id] = MemoryAccess3D(i, j, k)
         return ret
 
     def Import_Statement(self, stmt) -> Statement:
         data = DownCastStatement(stmt).data
-        code = Unparser(data.accesses.readAccess).unparse_body_stmt(stmt)
         return Statement(
-            code = code,
+            code = stmt,
             reads = self.Import_MemoryAccesses(data.accesses.readAccess),
             writes = self.Import_MemoryAccesses(data.accesses.writeAccess),
         )
