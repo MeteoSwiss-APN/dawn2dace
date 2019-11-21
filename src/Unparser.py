@@ -80,7 +80,7 @@ class Unparser:
             expr.cartesian_offset.j_offset,
             expr.vertical_offset
         ]
-        indices = [str(i) for i in indices if i != -1]
+        indices = [str(i) for i in indices if i != -1000]
 
         if indices:
             return expr.name + "[{}]".format(','.join(indices))

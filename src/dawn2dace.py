@@ -18,12 +18,10 @@ class Renamer(IIR_Transformer):
         self.ids = ids
         self.suffix = suffix
 
-    #@visitor(IIR_pb2.SIR_dot_statements__pb2.FieldAccessExpr)
     def visit_FieldAccessExpr(self, expr):
         if expr.data.accessID.value in self.ids:
             expr.name += self.suffix
         return expr
-
 
 def RenameVariables(stencils: list):
     """
@@ -35,8 +33,8 @@ def RenameVariables(stencils: list):
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        Renamer(stmt.reads, '_in').visit(stmt.code)
-                        Renamer(stmt.writes, '_out').visit(stmt.code)
+                        stmt.code = Renamer(stmt.reads, '_in').visit(stmt.code)
+                        stmt.code = Renamer(stmt.writes, '_out').visit(stmt.code)
 
 
 class IJ_Mapper(IIR_Transformer):
@@ -62,56 +60,55 @@ def AccountForIJMap(stencils: list):
 
 
 class K_Mapper(IIR_Transformer):
-    def __init__(self, k_offset:int):
+    def __init__(self, k_offset:int, transfer:dict):
         self.k_offset = k_offset
+        self.transfer = transfer
 
     def visit_FieldAccessExpr(self, expr):
-        expr.vertical_offset += self.k_offset
+        id = expr.data.accessID.value
+        if id in self.transfer:
+            expr.vertical_offset += self.k_offset
         return expr
 
 def AccountForKMap(stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
-            k_min = min(multi_stage.GetMinReadInK(), multi_stage.GetMinWriteInK())
-            k_max = max(multi_stage.GetMaxReadInK(), multi_stage.GetMaxWriteInK())
+            k_min = multi_stage.GetMinReadInK()
+            k_max = multi_stage.GetMaxReadInK()
             multi_stage.lower_k = k_min
             multi_stage.upper_k = k_max
-            if k_min:
+            if k_min != 0:
                 for stage in multi_stage.stages:
                     for do_method in stage.do_methods:
                         for stmt in do_method.statements:
                             for _, read in stmt.reads.items():
                                 read.offset(k = -k_min)
-                            for _, write in stmt.writes.items():
-                                write.offset(k = -k_min)
-                            stmt.code = K_Mapper(-k_min).visit(stmt.code)
+                            stmt.code = K_Mapper(-k_min, stmt.reads).visit(stmt.code)
 
 
 class DimensionalReducer(IIR_Transformer):
-    def __init__(self, transfer:dict, remove_k:bool):
+    def __init__(self, transfer:dict):
         self.transfer = transfer
-        self.remove_k = remove_k
 
     def visit_FieldAccessExpr(self, expr):
         id = expr.data.accessID.value
         if id in self.transfer:
             if self.transfer[id].i.begin == self.transfer[id].i.end:
-                expr.cartesian_offset.i_offset = -1
+                expr.cartesian_offset.i_offset = -1000
             if self.transfer[id].j.begin == self.transfer[id].j.end:
-                expr.cartesian_offset.j_offset = -1
-            if self.remove_k:
-                 expr.vertical_offset = -1
+                expr.cartesian_offset.j_offset = -1000
+            if self.transfer[id].k.begin == self.transfer[id].k.end:
+                 expr.vertical_offset = -1000
         return expr
 
 def RemoveUnusedDimensions(stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
-            remove_k = (multi_stage.lower_k == multi_stage.upper_k)
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        DimensionalReducer(stmt.reads, remove_k).visit(stmt.code)
-                        DimensionalReducer(stmt.writes, remove_k).visit(stmt.code)
+                        DimensionalReducer(stmt.reads).visit(stmt.code)
+                        DimensionalReducer(stmt.writes).visit(stmt.code)
 
 
 def UnparseCode(stencils: list):
