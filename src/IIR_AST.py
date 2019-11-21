@@ -140,7 +140,7 @@ class IIR_Transformer(IIR_Visitor):
             stmt.var_decl_stmt.CopyFrom(self.visit(stmt.var_decl_stmt))
         elif which == "if_stmt":
             stmt.if_stmt.CopyFrom(self.visit(stmt.if_stmt))
-        else:
+        elif which is not None:
             raise ValueError("Unexpected stmt: " + which)
         return stmt
 
@@ -162,7 +162,7 @@ class IIR_Transformer(IIR_Visitor):
             expr.field_access_expr.CopyFrom(self.visit(expr.field_access_expr))
         elif which == "literal_access_expr":
             expr.literal_access_expr.CopyFrom(self.visit(expr.literal_access_expr))
-        else:
+        elif which is not None:
             raise ValueError("Unexpected expr: " + which)
         return expr
 
