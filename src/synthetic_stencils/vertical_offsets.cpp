@@ -6,12 +6,10 @@ stencil test {
   storage in_field, out_field;
   Do {
     vertical_region(k_start, k_start) {
-      // initialize bottom
-      out_field = in_field;
+      out_field = in_field[k+1];
     }
-    vertical_region(k_start + 1, k_end) {
-      // shift up
-      out_field = in_field[k - 1];
+    vertical_region(k_start+1, k_end) {
+      out_field = in_field[k-1];
     }
   }
 };

@@ -206,10 +206,10 @@ class vertical_offsets(LegalSDFG, unittest.TestCase):
 
         expected = numpy.copy(output)
 
-        # vertical_region(k_start, k_start) { out_field = in_field }
-        expected[:, 0, :] = input[:, 0, :]
+        # vertical_region(k_start, k_start) { out_field = in_field[k+1] }
+        expected[:, 0, :] = input[:, 1, :]
 
-        # vertical_region(k_start + 1, k_end) { out_field = in_field[k - 1]; }
+        # vertical_region(k_start + 1, k_end) { out_field = in_field[k-1]; }
         for k in range(1, K):
             expected[:, k, :] = input[:, k-1, :]
         
