@@ -76,9 +76,9 @@ class Unparser:
 
     def _unparse_field_access_expr(self, expr) -> str:
         indices = [
-            expr.cartesian_offset.i_offset,
             expr.cartesian_offset.j_offset,
-            expr.vertical_offset
+            expr.vertical_offset,
+            expr.cartesian_offset.i_offset,
         ]
         indices = [str(i) for i in indices if i != -1000]
 
