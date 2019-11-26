@@ -34,8 +34,8 @@ class copy(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
-        original = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        copy = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
@@ -56,11 +56,11 @@ class copy_with_halo(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 1
-        original = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        copy = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
         expected = numpy.copy(copy)
-        expected[halo_size:J-halo_size,:,halo_size:I-halo_size] = original[halo_size:J-halo_size,:,halo_size:I-halo_size]
+        expected[halo_size:I-halo_size, halo_size:J-halo_size, :] = original[halo_size:I-halo_size, halo_size:J-halo_size, :]
 
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
@@ -82,7 +82,7 @@ class inout_variable(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
-        a = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        a = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         expected = a + 7
         
         sdfg = get_sdfg(self.file_name)
@@ -104,14 +104,14 @@ class offsets(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 1
-        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
         expected = numpy.copy(output)
         for i in range(halo_size, I-halo_size):
             for j in range(halo_size, J-halo_size):
                     # a = b[i-1] + b[j+1] + b[i+1, j-1];
-                    expected[j, :, i] = input[j, :, i-1] + input[j+1, :, i] + input[j-1, :, i+1]
+                    expected[i, j, :] = input[i-1, j, :] + input[i, j+1, :] + input[i+1, j-1, :]
         
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
@@ -133,18 +133,18 @@ class vertical_specification_1(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 4,4,4
         halo_size = 0
-        input1 = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        input2 = numpy.arange(100, J*K*I+100).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        input1 = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        input2 = numpy.arange(100, I*J*K+100).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
-        expected = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        expected = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         # vertical_region(k_start, k_end-1) { output = input1; }
         for k in range(0, K-1):
-            expected[:, k, :] = input1[:, k, :]
+            expected[:, :, k] = input1[:, :, k]
 
         # vertical_region(k_start+1, k_end) { output = input2; }
         for k in range(1, K):
-            expected[:, k, :] = input2[:, k, :]
+            expected[:, :, k] = input2[:, :, k]
         
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
@@ -167,18 +167,18 @@ class vertical_specification_2(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 4,4,4
         halo_size = 0
-        input1 = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        input2 = numpy.arange(100, J*K*I+100).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        input1 = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        input2 = numpy.arange(100, I*J*K+100).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
-        expected = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        expected = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         # vertical_region(k_start+1, k_end) { output = input2; }
         for k in range(1, K):
-            expected[:, k, :] = input2[:, k, :]
+            expected[:, :, k] = input2[:, :, k]
 
         # vertical_region(k_start, k_end-1) { output = input1; }
         for k in range(0, K-1):
-            expected[:, k, :] = input1[:, k, :]
+            expected[:, :, k] = input1[:, :, k]
         
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
@@ -201,17 +201,17 @@ class vertical_offsets(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
-        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
         expected = numpy.copy(output)
 
         # vertical_region(k_start, k_start) { out_field = in_field[k+1] }
-        expected[:, 0, :] = input[:, 1, :]
+        expected[:, :, 0] = input[:, :, 1]
 
         # vertical_region(k_start + 1, k_end) { out_field = in_field[k-1]; }
         for k in range(1, K):
-            expected[:, k, :] = input[:, k-1, :]
+            expected[:, :, k] = input[:, :, k-1]
         
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
@@ -233,8 +233,8 @@ class local_variables(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
-        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
         expected = input + 5
         
@@ -258,8 +258,8 @@ class local_internal(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
-        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
         expected = input + 5
         
@@ -283,8 +283,8 @@ class brackets(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
-        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
         # out_field = 0.25 * (in_field + 7);
         expected = 0.25 * (input + 7)
@@ -308,13 +308,13 @@ class scopes(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 1
-        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         
-        expected = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        expected = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         # vertical_region(k_start, k_start) { output = input[i-1] + 3.14; }
         for i in range(halo_size, I-halo_size):
-            expected[:, 0, i] = input[:, 0, i-1] + 3.14
+            expected[i, :, 0] = input[i-1, :, 0] + 3.14
 
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")

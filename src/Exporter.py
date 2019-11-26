@@ -31,12 +31,12 @@ class Exporter:
     def GetShape(self, id:int):
         dim = self.id_resolver.GetDimensions(id)
         ret = []
+        if dim[0]:
+            ret.append(I)
         if dim[1]:
             ret.append(J)
         if dim[2]:
             ret.append(K)
-        if dim[0]:
-            ret.append(I)
         if ret:
             return ret
         return [1]
@@ -49,14 +49,14 @@ class Exporter:
             return "0"
 
         if with_k:
-            template = "j+{}:j+{}, k+{}:k+{}, i+{}:i+{}"
+            template = "i+{}:i+{}, j+{}:j+{}, k+{}:k+{}"
         else:
-            template = "j+{}:j+{}, {}:{}, i+{}:i+{}"
+            template = " i+{}:i+{}, j+{}:j+{}, {}:{}"
 
         return template.format(
+            mem_acc.i.lower, mem_acc.i.upper + 1,
             mem_acc.j.lower, mem_acc.j.upper + 1,
             mem_acc.k.lower, mem_acc.k.upper + 1,
-            mem_acc.i.lower, mem_acc.i.upper + 1
         )
 
     def Export_parallel(self, multi_stage: MultiStage, interval: K_Interval):
@@ -154,7 +154,7 @@ class Exporter:
                 read,
                 map_entry,
                 nested_sdfg,
-                memlet=dace.Memlet.simple(v, "0:J, k+{}:k+{}, 0:I".format(lower_k, upper_k + 1)),
+                memlet=dace.Memlet.simple(v, "0:I, 0:J, k+{}:k+{}".format(lower_k, upper_k + 1)),
                 dst_conn=sub_sdfg_name,
             )
         # add the writes and the output memlet path : nsdfg -> map_exit -> write
@@ -164,7 +164,7 @@ class Exporter:
                 nested_sdfg,
                 map_exit,
                 write,
-                memlet=dace.Memlet.simple(v, "0:J, k, 0:I"),
+                memlet=dace.Memlet.simple(v, "0:I, 0:J, k"),
                 src_conn=sub_sdfg_name,
             )
 

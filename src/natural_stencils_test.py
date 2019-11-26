@@ -44,21 +44,21 @@ class coriolis(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 1
-        u = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        v = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        fc = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
+        u = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        v = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        fc = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
 
-        u_tens = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
-        v_tens = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        u_tens = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        v_tens = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         expected_u = numpy.copy(u_tens)
         expected_v = numpy.copy(v_tens)
 
         for i in range(halo_size, I-halo_size):
             for j in range(halo_size, J-halo_size):
                     # u_tens += 0.25 * (fc * (v + v[i+1]) + fc[j-1] * (v[j-1] + v[i+1,j-1]));
-                    expected_u[j,:,i] += 0.25 * (fc[j,:,i] * (v[j,:,i] + v[j,:,i+1]) + fc[j-1,:,i] * (v[j-1,:,i] + v[j-1,:,i+1]))
+                    expected_u[i,j,:] += 0.25 * (fc[i,j,:] * (v[i,j,:] + v[i+1,j,:]) + fc[i,j-1,:] * (v[i,j-1,:] + v[i+1,j-1,:]))
                     # v_tens -= 0.25 * (fc * (u + u[j+1]) + fc[i-1] * (u[i-1] + u[i-1,j+1]));
-                    expected_v[j,:,i] -= 0.25 * (fc[j,:,i] * (u[j,:,i] + u[j+1,:,i]) + fc[j,:,i-1] * (u[j,:,i-1] + u[j+1,:,i-1]))
+                    expected_v[i,j,:] -= 0.25 * (fc[i,j,:] * (u[i,j,:] + u[i,j+1,:]) + fc[i-1,j,:] * (u[i-1,j,:] + u[i-1,j+1,:]))
 
         sdfg = get_sdfg(self.file_name)
         sdfg.save("test.sdfg")
@@ -81,6 +81,15 @@ class coriolis(LegalSDFG, unittest.TestCase):
 
 class thomas(LegalSDFG, unittest.TestCase):
     file_name = "thomas.0.iir"
+
+    def test_4_numerically(self):
+        I,J,K = 3,3,3
+        halo_size = 0
+        acol = np.array()
+        bcol = np.array()
+        ccol = np.array()
+        dcol = np.array()
+        datacol = numpy.zeros(shape=(3))
 
 if __name__ == '__main__':
     unittest.main()
