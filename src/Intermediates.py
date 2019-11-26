@@ -29,16 +29,23 @@ class K_Interval:
 
 
 class MemoryAccess1D:
-    """ Represents a relativ interval [begin, end] """
-    # TODO: Rename lower,upper = begin,end
+    """ Represents a relativ interval [lower, upper] """
 
-    def __init__(self, begin:int, end:int):
-        self.begin = begin
-        self.end = end
+    def __init__(self, lower:int, upper:int):
+        self.lower = lower
+        self.upper = upper
+        
+    @classmethod
+    def GetSpan(cls, mem_accs):
+        ma = list(mem_accs)
+        return cls(
+            min((m.lower for m in ma)),
+            max((m.upper for m in ma))
+        )
 
     def offset(self, value:int):
-        self.begin += value
-        self.end += value
+        self.lower += value
+        self.upper += value
 
 
 class MemoryAccess3D:
@@ -47,10 +54,20 @@ class MemoryAccess3D:
         self.j = j
         self.k = k
 
+    @classmethod
+    def GetSpan(cls, mem_accs):
+        ma = list(mem_accs)
+        return cls(
+            MemoryAccess1D.GetSpan((m.i for m in ma)),
+            MemoryAccess1D.GetSpan((m.j for m in ma)),
+            MemoryAccess1D.GetSpan((m.k for m in ma))
+        )
+
     def offset(self, i:int = 0, j:int = 0, k:int = 0):
         self.i.offset(i)
         self.j.offset(j)
         self.k.offset(k)
+
 
 class Statement:
     def __init__(self, code, reads:dict, writes:dict):
@@ -62,18 +79,16 @@ class Statement:
     def __str__(self):
         return "Statement_{}".format(self.id)
 
-    def GetMinReadInK(self):
-        return min((read.k.begin for _, read in self.reads.items()))
+    @staticmethod
+    def __GetSpan(transaction):
+        return MemoryAccess3D.GetSpan((x for _, x in transaction.items()))
 
-    def GetMaxReadInK(self):
-        return max((read.k.end for _, read in self.reads.items()))
+    def GetReadSpan(self):
+        return self.__GetSpan(self.reads)
 
-    def GetMinWriteInK(self):
-        return min((write.k.begin for _, write in self.writes.items()))
-
-    def GetMaxWriteInK(self):
-        return max((write.k.begin for _, write in self.writes.items()))
-
+    def GetWriteSpan(self):
+        return self.__GetSpan(self.writes)
+        
 
 class DoMethod:
     def __init__(self, k_interval:K_Interval, statements:list):
@@ -81,17 +96,11 @@ class DoMethod:
         self.k_interval = k_interval
         self.statements = statements # List of Statement
 
-    def GetMinReadInK(self):
-        return min((x.GetMinReadInK() for x in self.statements))
+    def GetReadSpan(self):
+        return MemoryAccess3D.GetSpan((x.GetReadSpan() for x in self.statements))
 
-    def GetMaxReadInK(self):
-        return max((x.GetMaxReadInK() for x in self.statements))
-
-    def GetMinWriteInK(self):
-        return min((x.GetMinWriteInK() for x in self.statements))
-
-    def GetMaxWriteInK(self):
-        return max((x.GetMaxWriteInK() for x in self.statements))
+    def GetWriteSpan(self):
+        return MemoryAccess3D.GetSpan((x.GetWriteSpan() for x in self.statements))
 
 
 class Stage:
@@ -99,17 +108,11 @@ class Stage:
         self.uid = CreateUID()
         self.do_methods = do_methods
 
-    def GetMinReadInK(self) -> int:
-        return min((x.GetMinReadInK() for x in self.do_methods))
+    def GetReadSpan(self):
+        return MemoryAccess3D.GetSpan((x.GetReadSpan() for x in self.do_methods))
 
-    def GetMaxReadInK(self) -> int:
-        return max((x.GetMaxReadInK() for x in self.do_methods))
-
-    def GetMinWriteInK(self) -> int:
-        return min((x.GetMinWriteInK() for x in self.do_methods))
-
-    def GetMaxWriteInK(self) -> int:
-        return max((x.GetMaxWriteInK() for x in self.do_methods))
+    def GetWriteSpan(self):
+        return MemoryAccess3D.GetSpan((x.GetWriteSpan() for x in self.do_methods))
 
 
 class ExecutionOrder(Enum):
@@ -129,17 +132,11 @@ class MultiStage:
     def __str__(self):
         return "state_{}".format(self.uid)
 
-    def GetMinReadInK(self) -> int:
-        return min((x.GetMinReadInK() for x in self.stages))
+    def GetReadSpan(self):
+        return MemoryAccess3D.GetSpan((x.GetReadSpan() for x in self.stages))
 
-    def GetMaxReadInK(self) -> int:
-        return max((x.GetMaxReadInK() for x in self.stages))
-
-    def GetMinWriteInK(self) -> int:
-        return min((x.GetMinWriteInK() for x in self.stages))
-
-    def GetMaxWriteInK(self) -> int:
-        return max((x.GetMaxWriteInK() for x in self.stages))
+    def GetWriteSpan(self):
+        return MemoryAccess3D.GetSpan((x.GetWriteSpan() for x in self.stages))
 
 
 class Stencil:

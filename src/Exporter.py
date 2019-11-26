@@ -8,15 +8,17 @@ K = dace.symbol("K")
 halo_size = dace.symbol("haloSize")
 data_type = dace.float64
 
-def try_add_array(sdfg, name):
+def try_add_array(sdfg, name, shape):
+    print("Try add array: {} of size [{}]".format(name, ','.join(str(shape))))
     try:
-        sdfg.add_array(name, shape=[J, K, I], dtype=data_type)
+        sdfg.add_array(name, shape, dtype=data_type)
     except:
         pass
 
-def try_add_transient(sdfg, name):
+def try_add_transient(sdfg, name, shape):
+    print("Try add transient: {} of size [{}]".format(name, ','.join(str(shape))))
     try:
-        sdfg.add_transient(name, shape=[J, K, I], dtype=data_type)
+        sdfg.add_transient(name, shape, dtype=data_type)
     except:
         pass
 
@@ -25,6 +27,19 @@ class Exporter:
         self.id_resolver = id_resolver
         self.sdfg = sdfg
         self.last_state_ = None
+
+    def GetShape(self, id:int):
+        dim = self.id_resolver.GetDimensions(id)
+        ret = []
+        if dim[1]:
+            ret.append(J)
+        if dim[2]:
+            ret.append(K)
+        if dim[0]:
+            ret.append(I)
+        if ret:
+            return ret
+        return [1]
 
     def Export_MemoryAccess3D(self, mem_acc:MemoryAccess3D, with_k = True) -> str:
         if not isinstance(mem_acc, MemoryAccess3D):
@@ -39,9 +54,9 @@ class Exporter:
             template = "j+{}:j+{}, {}:{}, i+{}:i+{}"
 
         return template.format(
-            mem_acc.j.begin, mem_acc.j.end + 1,
-            mem_acc.k.begin, mem_acc.k.end + 1,
-            mem_acc.i.begin, mem_acc.i.end + 1
+            mem_acc.j.lower, mem_acc.j.upper + 1,
+            mem_acc.k.lower, mem_acc.k.upper + 1,
+            mem_acc.i.lower, mem_acc.i.upper + 1
         )
 
     def Export_parallel(self, multi_stage: MultiStage, interval: K_Interval):
@@ -64,26 +79,46 @@ class Exporter:
                     output_memlets = {}
 
                     for id, read in stmt.reads.items():
+                        name = self.id_resolver.GetName(id)
+                        shape = self.GetShape(id)
+
                         if self.id_resolver.IsALiteral(id):
                             continue
-                        
-                        name = self.id_resolver.GetName(id)
-                        access_pattern = self.Export_MemoryAccess3D(read, with_k = False)
+                        elif self.id_resolver.IsATemporary(id):
+                            access_pattern = "0"
+                        elif self.id_resolver.IsGlobal(id):
+                            continue
+                        elif self.id_resolver.IsLocal(id):
+                            name = name[8:-3]
+                        else:
+                            access_pattern = self.Export_MemoryAccess3D(read, with_k = False)
 
-                        try_add_array(sub_sdfg, name + "_S")
-                        input_memlets[name + "_in"] = dace.Memlet.simple(name + "_S", access_pattern)
+                        try_add_array(sub_sdfg, name + "_S", shape)
 
-                        try_add_transient(self.sdfg, name)
+                        input_memlets[name + '_in'] = dace.Memlet.simple(name + "_S", access_pattern)
+
+                        try_add_transient(self.sdfg, name, shape)
                         collected_input_mapping[name + "_S"] = name
 
                     for id, write in stmt.writes.items():
                         name = self.id_resolver.GetName(id)
-                        access_pattern = self.Export_MemoryAccess3D(write, with_k = False)
+                        shape = self.GetShape(id)
 
-                        try_add_array(sub_sdfg, name + "_S")
-                        output_memlets[name + "_out"] = dace.Memlet.simple(name + "_S", access_pattern)
+                        if self.id_resolver.IsALiteral(id):
+                            continue
+                        elif self.id_resolver.IsATemporary(id):
+                            access_pattern = "0"
+                        elif self.id_resolver.IsGlobal(id):
+                            continue
+                        elif self.id_resolver.IsLocal(id):
+                            name = name[8:-3]
+                        else:
+                            access_pattern = self.Export_MemoryAccess3D(write, with_k = False)
 
-                        try_add_transient(self.sdfg, name)
+                        try_add_array(sub_sdfg, name + "_S", shape)
+                        output_memlets[name + '_out'] = dace.Memlet.simple(name + "_S", access_pattern)
+
+                        try_add_transient(self.sdfg, name, shape)
                         collected_output_mapping[name + "_S"] = name
 
                     if stmt.code:
@@ -99,7 +134,7 @@ class Exporter:
                             external_edges = True
                         )
 
-                    # set the state  to be the last one to connect them
+                    # set the state to be the last one to connect them
                     if last_state is not None:
                         sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                     last_state = state
@@ -113,24 +148,24 @@ class Exporter:
         lower_k = multi_stage.lower_k
         upper_k = multi_stage.upper_k
         # add the reads and the input memlet path : read -> map_entry -> nsdfg
-        for k, v in collected_input_mapping.items():
+        for sub_sdfg_name, v in collected_input_mapping.items():
             read = multi_stage_state.add_read(v)
             multi_stage_state.add_memlet_path(
                 read,
                 map_entry,
                 nested_sdfg,
                 memlet=dace.Memlet.simple(v, "0:J, k+{}:k+{}, 0:I".format(lower_k, upper_k + 1)),
-                dst_conn=k,
+                dst_conn=sub_sdfg_name,
             )
         # add the writes and the output memlet path : nsdfg -> map_exit -> write
-        for k, v in collected_output_mapping.items():
+        for sub_sdfg_name, v in collected_output_mapping.items():
             write = multi_stage_state.add_write(v)
             multi_stage_state.add_memlet_path(
                 nested_sdfg,
                 map_exit,
                 write,
                 memlet=dace.Memlet.simple(v, "0:J, k, 0:I"),
-                src_conn=k,
+                src_conn=sub_sdfg_name,
             )
 
         if self.last_state_ is not None:

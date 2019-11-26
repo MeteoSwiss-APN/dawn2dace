@@ -44,32 +44,32 @@ class coriolis(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 1
-        u = numpy.ones(shape=(J,K,I), dtype=dace.float64.type) #numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        v = numpy.ones(shape=(J,K,I), dtype=dace.float64.type) #numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        fc = numpy.ones(shape=(J,I), dtype=dace.float64.type) #numpy.arange(J*I).astype(dace.float64.type).reshape(J,I)
+        u = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
+        v = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
+        fc = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
 
         u_tens = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
         v_tens = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
-        expected_u = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
-        expected_v = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        expected_u = numpy.copy(u_tens)
+        expected_v = numpy.copy(v_tens)
 
         for i in range(halo_size, I-halo_size):
             for j in range(halo_size, J-halo_size):
-                for k in range(0, K):
-                    # u_tens += 0.25 * (fc * (v + v[i + 1]) + fc[j - 1] * (v[j - 1] + v[i + 1, j - 1]));
-                    expected_u[j,k,i] += 0.25 * (fc[j,i] * (v[j,k,i] + v[j,k,i+1]) + fc[j-1,i] * (v[j-1,k,i] + v[j-1,k,i+1]))
-                    # v_tens -= 0.25 * (fc * (u + u[j + 1]) + fc[i - 1] * (u[i - 1] + u[i - 1, j + 1]));
-                    expected_v[j,k,i] -= 0.25 * (fc[j,i] * (u[j,k,i] + u[j+1,k,i]) + fc[j,i-1] * (u[j,k,i-1] + u[j+1,k,i-1]))
+                    # u_tens += 0.25 * (fc * (v + v[i+1]) + fc[j-1] * (v[j-1] + v[i+1,j-1]));
+                    expected_u[j,:,i] += 0.25 * (fc[j,:,i] * (v[j,:,i] + v[j,:,i+1]) + fc[j-1,:,i] * (v[j-1,:,i] + v[j-1,:,i+1]))
+                    # v_tens -= 0.25 * (fc * (u + u[j+1]) + fc[i-1] * (u[i-1] + u[i-1,j+1]));
+                    expected_v[j,:,i] -= 0.25 * (fc[j,:,i] * (u[j,:,i] + u[j+1,:,i]) + fc[j,:,i-1] * (u[j,:,i-1] + u[j+1,:,i-1]))
 
         sdfg = get_sdfg(self.file_name)
+        sdfg.save("test.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            u_tens_t = u_tens,
-            v_tens_t = v_tens,
-            u_t = u,
-            v_t = v,
-            fc_t = fc,
+            u_tens = u_tens,
+            v_tens = v_tens,
+            u = u,
+            v = v,
+            fc = fc,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),

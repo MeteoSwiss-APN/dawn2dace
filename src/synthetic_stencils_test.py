@@ -34,21 +34,21 @@ class copy(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
-        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        original = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
+        copy = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
         
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            data_in = input,
-            data_out = output,
+            original = original,
+            copy = copy,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
             halo_size = numpy.int32(halo_size))
 
-        self.assertTrue((input == output).all(), "Expected:\n{}\nReceived:\n{}".format(input, output))
+        self.assertTrue((copy == original).all(), "Expected:\n{}\nReceived:\n{}".format(original, copy))
 
 class copy_with_halo(LegalSDFG, unittest.TestCase):
     file_name = "copy.0.iir"
@@ -56,24 +56,24 @@ class copy_with_halo(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 1
-        input = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
-        output = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        original = numpy.arange(J*K*I).astype(dace.float64.type).reshape(J,K,I)
+        copy = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
 
-        expected = numpy.copy(output)
-        expected[halo_size:J-halo_size,:,halo_size:I-halo_size] = input[halo_size:J-halo_size,:,halo_size:I-halo_size]
+        expected = numpy.copy(copy)
+        expected[halo_size:J-halo_size,:,halo_size:I-halo_size] = original[halo_size:J-halo_size,:,halo_size:I-halo_size]
 
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            data_in = input,
-            data_out = output,
+            original = original,
+            copy = copy,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
             halo_size = numpy.int32(halo_size))
 
-        self.assertTrue((expected == output).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
+        self.assertTrue((copy == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, copy))
 
 
 class inout_variable(LegalSDFG, unittest.TestCase):
@@ -82,20 +82,20 @@ class inout_variable(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
-        in_out = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
-        expected = in_out + 7
+        a = numpy.zeros(shape=(J,K,I), dtype=dace.float64.type)
+        expected = a + 7
         
         sdfg = get_sdfg(self.file_name)
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            a = in_out,
+            a = a,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
             halo_size = numpy.int32(halo_size))
 
-        self.assertTrue((in_out == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, in_out))
+        self.assertTrue((a == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, a))
 
 
 class offsets(LegalSDFG, unittest.TestCase):

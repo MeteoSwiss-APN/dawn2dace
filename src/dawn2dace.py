@@ -13,17 +13,36 @@ from IdResolver import IdResolver
 from Unparser import Unparser
 from IIR_AST import *
 
-class Renamer(IIR_Transformer):
-    def __init__(self, ids:dict, suffix:str):
-        self.ids = ids
-        self.suffix = suffix
+class Renamer(ast.NodeTransformer):
+    def __init__(self):
+        self.storemode = False
 
-    def visit_FieldAccessExpr(self, expr):
-        if expr.data.accessID.value in self.ids:
-            expr.name += self.suffix
-        return expr
+    def visit_Name(self, node):
+        if self.storemode or isinstance(node.ctx, ast.Store):
+            node.id += '_out'
+        elif isinstance(node.ctx, ast.Load):
+            node.id += '_in'
+        return node
 
-def RenameVariables(stencils: list):
+    def visit_Assign(self, node):
+        self.storemode = True
+        for target in node.targets:
+            self.visit(target)
+        self.storemode = False
+        self.visit(node.value)
+        return node
+
+    def visit_AnnAssign(self, node):
+        return self.visit_AugAssign(node)
+
+    def visit_AugAssign(self, node):
+        self.storemode = True
+        self.visit(node.target)
+        self.storemode = False
+        self.visit(node.value)
+        return node
+
+def RenameVariables(stencils: list, id_resolver):
     """
     Renames all variables that are read from by adding a suffix '_in'.
     Renames all variables that are written to by adding a suffix '_out'.
@@ -33,9 +52,10 @@ def RenameVariables(stencils: list):
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        stmt.code = Renamer(stmt.reads, '_in').visit(stmt.code)
-                        stmt.code = Renamer(stmt.writes, '_out').visit(stmt.code)
+                        tree = ast.parse(stmt.code)
+                        stmt.code = astunparse.unparse(Renamer().visit(tree))
 
+                        print(stmt.code)
 
 class IJ_Mapper(IIR_Transformer):
     def __init__(self, transfer:dict):
@@ -44,10 +64,11 @@ class IJ_Mapper(IIR_Transformer):
     def visit_FieldAccessExpr(self, expr):
         id = expr.data.accessID.value
         if id in self.transfer:
-            if self.transfer[id].i.begin != self.transfer[id].i.end:
-                expr.cartesian_offset.i_offset -= self.transfer[id].i.begin
-            if self.transfer[id].j.begin != self.transfer[id].j.end:
-                expr.cartesian_offset.j_offset -= self.transfer[id].j.begin
+            mem_acc = self.transfer[id]
+            if mem_acc.i.lower != mem_acc.i.upper:
+                expr.cartesian_offset.i_offset -= mem_acc.i.lower
+            if mem_acc.j.lower != mem_acc.j.upper:
+                expr.cartesian_offset.j_offset -= mem_acc.j.lower
         return expr
 
 def AccountForIJMap(stencils: list):
@@ -73,8 +94,9 @@ class K_Mapper(IIR_Transformer):
 def AccountForKMap(stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
-            k_min = multi_stage.GetMinReadInK()
-            k_max = multi_stage.GetMaxReadInK()
+            span = multi_stage.GetReadSpan()
+            k_min = span.k.lower
+            k_max = span.k.upper
             multi_stage.lower_k = k_min
             multi_stage.upper_k = k_max
             if k_min != 0:
@@ -87,28 +109,33 @@ def AccountForKMap(stencils: list):
 
 
 class DimensionalReducer(IIR_Transformer):
-    def __init__(self, transfer:dict):
+    def __init__(self, id_resolver:IdResolver, transfer:dict):
+        self.id_resolver = id_resolver
         self.transfer = transfer
 
     def visit_FieldAccessExpr(self, expr):
         id = expr.data.accessID.value
         if id in self.transfer:
-            if self.transfer[id].i.begin == self.transfer[id].i.end:
+            name = self.id_resolver.GetName(id)
+            dims = self.id_resolver.GetDimensions(id)
+            mem_acc = self.transfer[id]
+
+            if (mem_acc.i.lower == mem_acc.i.upper) or not dims[0]:
                 expr.cartesian_offset.i_offset = -1000
-            if self.transfer[id].j.begin == self.transfer[id].j.end:
+            if (mem_acc.j.lower == mem_acc.j.upper) or not dims[1]:
                 expr.cartesian_offset.j_offset = -1000
-            if self.transfer[id].k.begin == self.transfer[id].k.end:
+            if (mem_acc.k.lower == mem_acc.k.upper) or not dims[2]:
                  expr.vertical_offset = -1000
         return expr
 
-def RemoveUnusedDimensions(stencils: list):
+def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        DimensionalReducer(stmt.reads).visit(stmt.code)
-                        DimensionalReducer(stmt.writes).visit(stmt.code)
+                        DimensionalReducer(id_resolver, stmt.reads).visit(stmt.code)
+                        DimensionalReducer(id_resolver, stmt.writes).visit(stmt.code)
 
 
 def UnparseCode(stencils: list):
@@ -118,7 +145,6 @@ def UnparseCode(stencils: list):
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
                         stmt.code = Unparser().unparse_body_stmt(stmt.code)
-                        print(stmt.code)
 
 def IIR_str_to_SDFG(iir: str):
     stencilInstantiation = IIR_pb2.StencilInstantiation()
@@ -127,31 +153,43 @@ def IIR_str_to_SDFG(iir: str):
     sdfg = dace.SDFG("IIRToSDFG")
 
     metadata = stencilInstantiation.metadata
-    id_resolver = IdResolver(metadata.accessIDToName, metadata.APIFieldIDs, metadata.temporaryFieldIDs, metadata.globalVariableIDs)
-
-    for id in metadata.APIFieldIDs:
-        name = id_resolver.GetName(id)
-        sdfg.add_array(name, shape=[J, K, I], dtype=data_type)
-
-    for id in metadata.temporaryFieldIDs:
-        name = id_resolver.GetName(id)
-        sdfg.add_transient(name, shape=[J, K, I], dtype=data_type)
-
-    for id in metadata.globalVariableIDs:
-        name = id_resolver.GetName(id)
-        sdfg.add_scalar(name, data_type)
+    id_resolver = IdResolver(
+        metadata.accessIDToName,
+        metadata.APIFieldIDs,
+        metadata.temporaryFieldIDs,
+        metadata.globalVariableIDs,
+        metadata.fieldIDtoLegalDimensions
+        )
 
     imp = Importer(id_resolver)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
 
-    RenameVariables(stencils)
     AccountForIJMap(stencils)
     AccountForKMap(stencils)
-    RemoveUnusedDimensions(stencils)
+    RemoveUnusedDimensions(id_resolver, stencils)
     UnparseCode(stencils)
+    RenameVariables(stencils, id_resolver)
 
     exp = Exporter(id_resolver, sdfg)
+
+    for id in metadata.APIFieldIDs:
+        name = id_resolver.GetName(id)
+        shape = exp.GetShape(id)
+        print("Add array: {} of size {}".format(name, shape))
+        sdfg.add_array(name, shape, dtype=data_type)
+
+    for id in metadata.temporaryFieldIDs:
+        name = id_resolver.GetName(id)
+        shape = exp.GetShape(id)
+        print("Add transient: {} of size {}".format(name, shape))
+        sdfg.add_transient(name, shape, dtype=data_type)
+
+    for id in metadata.globalVariableIDs:
+        name = id_resolver.GetName(id)
+        print("Add scalar: {}".format(name))
+        sdfg.add_scalar(name, data_type)
+
     exp.Export_Stencils(stencils)
 
     sdfg.fill_scope_connectors()
