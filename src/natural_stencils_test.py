@@ -55,10 +55,10 @@ class coriolis(LegalSDFG, unittest.TestCase):
 
         for i in range(halo_size, I-halo_size):
             for j in range(halo_size, J-halo_size):
-                    # u_tens += 0.25 * (fc * (v + v[i+1]) + fc[j-1] * (v[j-1] + v[i+1,j-1]));
-                    expected_u[i,j,:] += 0.25 * (fc[i,j] * (v[i,j,:] + v[i+1,j,:]) + fc[i,j-1] * (v[i,j-1,:] + v[i+1,j-1,:]))
-                    # v_tens -= 0.25 * (fc * (u + u[j+1]) + fc[i-1] * (u[i-1] + u[i-1,j+1]));
-                    expected_v[i,j,:] -= 0.25 * (fc[i,j] * (u[i,j,:] + u[i,j+1,:]) + fc[i-1,j] * (u[i-1,j,:] + u[i-1,j+1,:]))
+                # u_tens += 0.25 * (fc * (v + v[i+1]) + fc[j-1] * (v[j-1] + v[i+1,j-1]));
+                expected_u[i,j,:] += 0.25 * (fc[i,j] * (v[i,j,:] + v[i+1,j,:]) + fc[i,j-1] * (v[i,j-1,:] + v[i+1,j-1,:]))
+                # v_tens -= 0.25 * (fc * (u + u[j+1]) + fc[i-1] * (u[i-1] + u[i-1,j+1]));
+                expected_v[i,j,:] -= 0.25 * (fc[i,j] * (u[i,j,:] + u[i,j+1,:]) + fc[i-1,j] * (u[i-1,j,:] + u[i-1,j+1,:]))
 
         sdfg = get_sdfg(self.file_name)
         sdfg.save("test.sdfg")

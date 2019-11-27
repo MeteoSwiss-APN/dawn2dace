@@ -5,7 +5,7 @@ using namespace gridtools::clang;
 stencil coriolis_stencil {
   storage u_tens, v_tens;
   storage u, v;
-  storage fc;
+  storage_ij fc;
 
   Do() {
     vertical_region(k_start, k_end) {
