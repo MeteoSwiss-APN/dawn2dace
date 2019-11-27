@@ -174,16 +174,10 @@ def IIR_str_to_SDFG(iir: str):
     exp = Exporter(id_resolver, sdfg)
 
     for id in metadata.APIFieldIDs:
-        name = id_resolver.GetName(id)
-        shape = exp.GetShape(id)
-        print("Add array: {} of size {}".format(name, shape))
-        sdfg.add_array(name, shape, dtype=data_type)
+        exp.try_add_array(sdfg, id_resolver.GetName(id), exp.GetShape(id))
 
     for id in metadata.temporaryFieldIDs:
-        name = id_resolver.GetName(id)
-        shape = exp.GetShape(id)
-        print("Add transient: {} of size {}".format(name, shape))
-        sdfg.add_transient(name, shape, dtype=data_type)
+        exp.try_add_array(sdfg, id_resolver.GetName(id), exp.GetShape(id))
 
     for id in metadata.globalVariableIDs:
         name = id_resolver.GetName(id)

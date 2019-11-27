@@ -8,27 +8,27 @@ K = dace.symbol("K")
 halo_size = dace.symbol("haloSize")
 data_type = dace.float64
 
-def try_add_array(sdfg, name, shape):
-    print("Try add array: {} of size [{}]".format(name, ','.join(str(shape))))
-    try:
-        sdfg.add_array(name, shape, dtype=data_type)
-    except:
-        pass
-
-def try_add_transient(sdfg, name, shape):
-    print("Try add transient: {} of size [{}]".format(name, ','.join(str(shape))))
-    try:
-        sdfg.add_transient(name, shape, dtype=data_type)
-    except:
-        pass
-
 class Exporter:
     def __init__(self, id_resolver:IdResolver, sdfg):
         self.id_resolver = id_resolver
         self.sdfg = sdfg
         self.last_state_ = None
 
-    def GetShape(self, id:int):
+    def try_add_array(self, sdfg, name, shape):
+        print("Try add array: {} of size [{}]".format(name, ','.join(str(shape))))
+        try:
+            sdfg.add_array(name, shape, dtype=data_type)
+        except:
+            pass
+
+    def try_add_transient(self, sdfg, name, shape):
+        print("Try add transient: {} of size [{}]".format(name, ','.join(str(shape))))
+        try:
+            sdfg.add_transient(name, shape, dtype=data_type)
+        except:
+            pass
+
+    def GetShape(self, id:int) -> list:
         dim = self.id_resolver.GetDimensions(id)
         ret = []
         if dim[0]:
@@ -41,18 +41,28 @@ class Exporter:
             return ret
         return [1]
 
-    def Export_MemoryAccess3D(self, mem_acc:MemoryAccess3D, with_k = True) -> str:
+    def Export_MemoryAccess3D(self, id:int, mem_acc:MemoryAccess3D, relative_to_k = True) -> str:
         if not isinstance(mem_acc, MemoryAccess3D):
             raise TypeError("Expected MemoryAccess3D, got: {}".format(type(mem_acc).__name__))
+        
+        dim = self.id_resolver.GetDimensions(id)
 
-        if mem_acc is None:
+        dimensional_templates = []
+        if dim[0]:
+            dimensional_templates.append("i+{}:i+{}")
+        if dim[1]:
+            dimensional_templates.append("j+{}:j+{}")
+        if dim[2]:
+            if relative_to_k:
+                dimensional_templates.append("k+{}:k+{}")
+            else:
+                dimensional_templates.append("{}:{}")
+
+        if not dimensional_templates:
             return "0"
-
-        if with_k:
-            template = "i+{}:i+{}, j+{}:j+{}, k+{}:k+{}"
-        else:
-            template = " i+{}:i+{}, j+{}:j+{}, {}:{}"
-
+        
+        template = ', '.join(dimensional_templates)
+    
         return template.format(
             mem_acc.i.lower, mem_acc.i.upper + 1,
             mem_acc.j.lower, mem_acc.j.upper + 1,
@@ -82,57 +92,44 @@ class Exporter:
                         name = self.id_resolver.GetName(id)
                         shape = self.GetShape(id)
 
-                        if self.id_resolver.IsALiteral(id):
+                        if self.id_resolver.IsALiteral(id) or self.id_resolver.IsGlobal(id):
                             continue
-                        elif self.id_resolver.IsATemporary(id):
-                            access_pattern = "0"
-                        elif self.id_resolver.IsGlobal(id):
-                            continue
-                        elif self.id_resolver.IsLocal(id):
-                            name = name[8:-3]
-                        else:
-                            access_pattern = self.Export_MemoryAccess3D(read, with_k = False)
+                        
+                        self.try_add_array(sub_sdfg, name + "_S", shape)                        
+                        input_memlets[name + '_in'] = dace.Memlet.simple(
+                            name + "_S",
+                            self.Export_MemoryAccess3D(id, read, relative_to_k = False)
+                        )
 
-                        try_add_array(sub_sdfg, name + "_S", shape)
-
-                        input_memlets[name + '_in'] = dace.Memlet.simple(name + "_S", access_pattern)
-
-                        try_add_transient(self.sdfg, name, shape)
+                        self.try_add_transient(self.sdfg, name, shape)
                         collected_input_mapping[name + "_S"] = name
 
                     for id, write in stmt.writes.items():
                         name = self.id_resolver.GetName(id)
                         shape = self.GetShape(id)
 
-                        if self.id_resolver.IsALiteral(id):
+                        if self.id_resolver.IsALiteral(id) or self.id_resolver.IsGlobal(id):
                             continue
-                        elif self.id_resolver.IsATemporary(id):
-                            access_pattern = "0"
-                        elif self.id_resolver.IsGlobal(id):
-                            continue
-                        elif self.id_resolver.IsLocal(id):
-                            name = name[8:-3]
-                        else:
-                            access_pattern = self.Export_MemoryAccess3D(write, with_k = False)
+                        
+                        self.try_add_array(sub_sdfg, name + "_S", shape)
+                        output_memlets[name + '_out'] = dace.Memlet.simple(
+                            name + "_S",
+                            self.Export_MemoryAccess3D(id, write, relative_to_k = False)
+                        )
 
-                        try_add_array(sub_sdfg, name + "_S", shape)
-                        output_memlets[name + '_out'] = dace.Memlet.simple(name + "_S", access_pattern)
-
-                        try_add_transient(self.sdfg, name, shape)
+                        self.try_add_transient(self.sdfg, name, shape)
                         collected_output_mapping[name + "_S"] = name
 
-                    if stmt.code:
-                        # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
-                        # the maps are ij-only
-                        map_range = dict(i="halo_size:I-halo_size", j="halo_size:J-halo_size")
-                        state.add_mapped_tasklet(
-                            str(stmt),
-                            map_range,
-                            input_memlets,
-                            stmt.code,
-                            output_memlets,
-                            external_edges = True
-                        )
+                    # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
+                    # the maps are ij-only
+                    state.add_mapped_tasklet(
+                        str(stmt),
+                        dict(i="halo_size:I-halo_size", j="halo_size:J-halo_size"),
+                        input_memlets,
+                        stmt.code,
+                        output_memlets,
+                        external_edges = True
+                    )
 
                     # set the state to be the last one to connect them
                     if last_state is not None:
@@ -150,23 +147,41 @@ class Exporter:
         # add the reads and the input memlet path : read -> map_entry -> nsdfg
         for sub_sdfg_name, v in collected_input_mapping.items():
             read = multi_stage_state.add_read(v)
-            multi_stage_state.add_memlet_path(
-                read,
-                map_entry,
-                nested_sdfg,
-                memlet=dace.Memlet.simple(v, "0:I, 0:J, k+{}:k+{}".format(lower_k, upper_k + 1)),
-                dst_conn=sub_sdfg_name,
-            )
+            if v == "fc":
+                multi_stage_state.add_memlet_path(
+                    read,
+                    map_entry,
+                    nested_sdfg,
+                    memlet=dace.Memlet.simple(v, "0:I, 0:J"),
+                    dst_conn=sub_sdfg_name,
+                )
+            else:
+                multi_stage_state.add_memlet_path(
+                    read,
+                    map_entry,
+                    nested_sdfg,
+                    memlet=dace.Memlet.simple(v, "0:I, 0:J, k+{}:k+{}".format(lower_k, upper_k + 1)),
+                    dst_conn=sub_sdfg_name,
+                )
         # add the writes and the output memlet path : nsdfg -> map_exit -> write
         for sub_sdfg_name, v in collected_output_mapping.items():
             write = multi_stage_state.add_write(v)
-            multi_stage_state.add_memlet_path(
-                nested_sdfg,
-                map_exit,
-                write,
-                memlet=dace.Memlet.simple(v, "0:I, 0:J, k"),
-                src_conn=sub_sdfg_name,
-            )
+            if v == "fc":
+                multi_stage_state.add_memlet_path(
+                    nested_sdfg,
+                    map_exit,
+                    write,
+                    memlet=dace.Memlet.simple(v, "0:I, 0:J"),
+                    src_conn=sub_sdfg_name,
+                )
+            else:
+                multi_stage_state.add_memlet_path(
+                    nested_sdfg,
+                    map_exit,
+                    write,
+                    memlet=dace.Memlet.simple(v, "0:I, 0:J, k"),
+                    src_conn=sub_sdfg_name,
+                )
 
         if self.last_state_ is not None:
             self.sdfg.add_edge(self.last_state_, multi_stage_state, dace.InterstateEdge())
@@ -201,53 +216,37 @@ class Exporter:
                         name = self.id_resolver.GetName(id)
                         shape = self.GetShape(id)
 
-                        if self.id_resolver.IsALiteral(id):
+                        if self.id_resolver.IsALiteral(id) or self.id_resolver.IsLocal(id):
                             continue
-                        elif self.id_resolver.IsATemporary(id):
-                            access_pattern = "0"
-                        elif self.id_resolver.IsGlobal(id):
-                            continue
-                        elif self.id_resolver.IsLocal(id):
-                            name = name[8:-3]
-                        else:
-                            access_pattern = self.Export_MemoryAccess3D(read, with_k = True)
 
-                        # we promote every local variable to a temporary:
-                        try_add_transient(self.sdfg, name, shape)
-
-                        input_memlets[name + '_in'] = dace.Memlet.simple(name, access_pattern)
+                        self.try_add_transient(self.sdfg, name, shape)
+                        input_memlets[name + '_in'] = dace.Memlet.simple(
+                            name,
+                            self.Export_MemoryAccess3D(id, read, relative_to_k = True)
+                        )
 
                     for id, write in stmt.writes.items():
                         name = self.id_resolver.GetName(id)
                         shape = self.GetShape(id)
 
-                        if self.id_resolver.IsALiteral(id):
+                        if self.id_resolver.IsALiteral(id) or self.id_resolver.IsLocal(id):
                             continue
-                        elif self.id_resolver.IsATemporary(id):
-                            access_pattern = "0"
-                        elif self.id_resolver.IsGlobal(id):
-                            continue
-                        elif self.id_resolver.IsLocal(id):
-                            name = name[8:-3]
-                        else:
-                            access_pattern = self.Export_MemoryAccess3D(write, with_k = True)
 
-                        # we promote every local variable to a temporary:
-                        try_add_transient(self.sdfg, name, shape)
-
-                        output_memlets[name + '_out'] = dace.Memlet.simple(name, access_pattern)
-
-                    if stmt.code:
-                        # Since we're in a sequential loop, we only need a map in i and j
-                        map_range = dict(i="halo_size:I-halo_size", j="halo_size:J-halo_size")
-                        state.add_mapped_tasklet(
-                            str(stmt),
-                            map_range,
-                            input_memlets,
-                            stmt.code,
-                            output_memlets,
-                            external_edges = True
+                        self.try_add_transient(self.sdfg, name, shape)
+                        output_memlets[name + '_out'] = dace.Memlet.simple(
+                            name,
+                            self.Export_MemoryAccess3D(id, write, relative_to_k = True)
                         )
+
+                    # Since we're in a sequential loop, we only need a map in i and j
+                    state.add_mapped_tasklet(
+                        str(stmt),
+                        dict(i="halo_size:I-halo_size", j="halo_size:J-halo_size"),
+                        input_memlets,
+                        stmt.code,
+                        output_memlets,
+                        external_edges = True
+                    )
 
                     # set the state to be the last one to connect to it
                     self.last_state_ = state
