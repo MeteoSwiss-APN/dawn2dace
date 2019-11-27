@@ -95,14 +95,14 @@ class Exporter:
                         if self.id_resolver.IsALiteral(id) or self.id_resolver.IsGlobal(id):
                             continue
                         
-                        self.try_add_array(sub_sdfg, name + "_S", shape)                        
+                        self.try_add_array(sub_sdfg, name, shape)                        
                         input_memlets[name + '_in'] = dace.Memlet.simple(
-                            name + "_S",
+                            name,
                             self.Export_MemoryAccess3D(id, read, relative_to_k = False)
                         )
 
                         self.try_add_transient(self.sdfg, name, shape)
-                        collected_input_mapping[name + "_S"] = name
+                        collected_input_mapping[name] = name
 
                     for id, write in stmt.writes.items():
                         name = self.id_resolver.GetName(id)
@@ -111,14 +111,14 @@ class Exporter:
                         if self.id_resolver.IsALiteral(id) or self.id_resolver.IsGlobal(id):
                             continue
                         
-                        self.try_add_array(sub_sdfg, name + "_S", shape)
+                        self.try_add_array(sub_sdfg, name, shape)
                         output_memlets[name + '_out'] = dace.Memlet.simple(
-                            name + "_S",
+                            name,
                             self.Export_MemoryAccess3D(id, write, relative_to_k = False)
                         )
 
                         self.try_add_transient(self.sdfg, name, shape)
-                        collected_output_mapping[name + "_S"] = name
+                        collected_output_mapping[name] = name
 
                     # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                     # the maps are ij-only
