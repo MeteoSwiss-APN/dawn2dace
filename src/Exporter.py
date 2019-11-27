@@ -197,26 +197,45 @@ class Exporter:
                     input_memlets = {}
                     output_memlets = {}
 
-                    for read in stmt.reads:
-                        # Negative ID's are literals and can be skipped.
-                        if read.id < 0:
+                    for id, read in stmt.reads.items():
+                        name = self.id_resolver.GetName(id)
+                        shape = self.GetShape(id)
+
+                        if self.id_resolver.IsALiteral(id):
                             continue
-                        name = self.id_resolver.GetName(read.id)
-                        access_pattern = self.Export_MemoryAccess3D(read)
+                        elif self.id_resolver.IsATemporary(id):
+                            access_pattern = "0"
+                        elif self.id_resolver.IsGlobal(id):
+                            continue
+                        elif self.id_resolver.IsLocal(id):
+                            name = name[8:-3]
+                        else:
+                            access_pattern = self.Export_MemoryAccess3D(read, with_k = True)
 
                         # we promote every local variable to a temporary:
-                        try_add_transient(self.sdfg, name)
+                        try_add_transient(self.sdfg, name, shape)
 
-                        input_memlets[name + "_in"] = dace.Memlet.simple(name, access_pattern)
+                        input_memlets[name + '_in'] = dace.Memlet.simple(name, access_pattern)
 
-                    for write in stmt.writes:
-                        name = self.id_resolver.GetName(write.id)
-                        access_pattern = self.Export_MemoryAccess3D(write)
+                    for id, write in stmt.writes.items():
+                        name = self.id_resolver.GetName(id)
+                        shape = self.GetShape(id)
+
+                        if self.id_resolver.IsALiteral(id):
+                            continue
+                        elif self.id_resolver.IsATemporary(id):
+                            access_pattern = "0"
+                        elif self.id_resolver.IsGlobal(id):
+                            continue
+                        elif self.id_resolver.IsLocal(id):
+                            name = name[8:-3]
+                        else:
+                            access_pattern = self.Export_MemoryAccess3D(write, with_k = True)
 
                         # we promote every local variable to a temporary:
-                        try_add_transient(self.sdfg, name)
+                        try_add_transient(self.sdfg, name, shape)
 
-                        output_memlets[name + "_out"] = dace.Memlet.simple(name, access_pattern)
+                        output_memlets[name + '_out'] = dace.Memlet.simple(name, access_pattern)
 
                     if stmt.code:
                         # Since we're in a sequential loop, we only need a map in i and j

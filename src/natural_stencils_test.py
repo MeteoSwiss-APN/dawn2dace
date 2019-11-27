@@ -85,11 +85,28 @@ class thomas(LegalSDFG, unittest.TestCase):
     def test_4_numerically(self):
         I,J,K = 3,3,3
         halo_size = 0
-        acol = np.array()
-        bcol = np.array()
-        ccol = np.array()
-        dcol = np.array()
-        datacol = numpy.zeros(shape=(3))
+        acol = numpy.random.rand(I,J,K).astype(dace.float64.type)
+        bcol = numpy.random.rand(I,J,K).astype(dace.float64.type)
+        ccol = numpy.random.rand(I,J,K).astype(dace.float64.type)
+        dcol = numpy.random.rand(I,J,K).astype(dace.float64.type)
+        datacol = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+
+        sdfg = get_sdfg(self.file_name)
+        sdfg.save("test.sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            acol = acol,
+            bcol = bcol,
+            ccol = ccol,
+            dcol = dcol,
+            datacol = datacol,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo_size = numpy.int32(halo_size))
+
+        print(str(datacol))
 
 if __name__ == '__main__':
     unittest.main()
