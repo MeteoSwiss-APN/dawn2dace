@@ -342,6 +342,34 @@ class brackets(LegalSDFG, unittest.TestCase):
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
 
+class tridiagonal_solve(LegalSDFG, unittest.TestCase):
+    file_name = "tridiagonal_solve"
+
+    def test_4_numerically(self):
+        I,J,K = 3,3,3
+        halo_size = 0
+        a = numpy.random.rand(I,J,K).astype(dace.float64.type)
+        b = numpy.random.rand(I,J,K).astype(dace.float64.type)
+        c = numpy.random.rand(I,J,K).astype(dace.float64.type)
+        d = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            a = a,
+            b = b,
+            c = c,
+            d = d,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo_size = numpy.int32(halo_size))
+
+        # self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
+
+
 if __name__ == '__main__':
     unittest.main()
     
