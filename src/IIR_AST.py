@@ -168,24 +168,23 @@ class IIR_Transformer(IIR_Visitor):
 
     def generic_visit(self, node):
         for field, old_value in iter_fields(node):
-            if field.startswith('__weakref__'):
+            if field.startswith('__'):
                 continue
-            if isinstance(old_value, list):
-                new_values = []
-                for value in old_value:
-                    if isinstance(value, IIR_Classes):
-                        value = self.visit(value)
-                        if value is None:
-                            continue
-                        elif not isinstance(value, IIR_Classes):
-                            new_values.extend(value)
-                            continue
-                    new_values.append(value)
-                old_value[:] = new_values
             elif isinstance(old_value, IIR_Classes):
                 new_node = self.visit(old_value)
                 if new_node is None:
                     delattr(node, field)
                 else:
                     old_value.CopyFrom(new_node)
+            else:
+                try:
+                    for o in old_value:
+                        if isinstance(o, IIR_Classes):
+                            new_node = self.visit(o)
+                            if new_node is None:
+                                delattr(node, field)
+                            else:
+                                old_value.CopyFrom(new_node)
+                except:
+                    pass
         return node
