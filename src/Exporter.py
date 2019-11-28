@@ -25,7 +25,7 @@ class Exporter:
             name = self.id_resolver.GetName(id)
             shape = self.GetShape(id)
 
-            if self.id_resolver.IsALiteral(id) or self.id_resolver.IsGlobal(id):
+            if self.id_resolver.IsALiteral(id):
                 continue
 
             print("Try add array: {} of size {}".format(name, shape))
@@ -43,7 +43,7 @@ class Exporter:
             name = self.id_resolver.GetName(id)
             shape = self.GetShape(id)
 
-            if self.id_resolver.IsALiteral(id) or self.id_resolver.IsGlobal(id):
+            if self.id_resolver.IsALiteral(id):
                 continue
 
             print("Try add transient: {} of size {}".format(name, shape))
@@ -82,7 +82,7 @@ class Exporter:
         for id, mem_acc in transactions:
             name = self.id_resolver.GetName(id)
 
-            if self.id_resolver.IsALiteral(id) or self.id_resolver.IsGlobal(id):
+            if self.id_resolver.IsALiteral(id):
                 continue
 
             memlets[name + suffix] = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k))
@@ -147,6 +147,8 @@ class Exporter:
 
             read = multi_stage_state.add_read(name)
             subset_str = ', '.join(filter2(dims, ["0:I", "0:J", "k+{}:k+{}".format(lower_k, upper_k + 1)]))
+            if not subset_str:
+                subset_str = "0"
 
             # add the reads and the input memlet path : read -> map_entry -> nested_sdfg
             multi_stage_state.add_memlet_path(
@@ -162,6 +164,8 @@ class Exporter:
 
             write = multi_stage_state.add_write(name)
             subset_str = ', '.join(filter2(dims, ["0:I", "0:J", "k"]))
+            if not subset_str:
+                subset_str = "0"
             
             # add the writes and the output memlet path : nested_sdfg -> map_exit -> write
             multi_stage_state.add_memlet_path(
