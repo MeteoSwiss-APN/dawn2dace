@@ -134,8 +134,8 @@ def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        DimensionalReducer(id_resolver, stmt.reads).visit(stmt.code)
-                        DimensionalReducer(id_resolver, stmt.writes).visit(stmt.code)
+                        stmt.code = DimensionalReducer(id_resolver, stmt.reads).visit(stmt.code)
+                        stmt.code = DimensionalReducer(id_resolver, stmt.writes).visit(stmt.code)
 
 
 def UnparseCode(stencils: list):
