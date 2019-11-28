@@ -2,11 +2,12 @@
 
 using namespace gridtools::clang;
 
-stencil test {
+stencil inout {
   storage a;
+  
   void Do() {
     vertical_region(k_start, k_end) {
-      // no offset doublebuffer not needed
+      // no offset, thus doublebuffer not needed.
       a = a + 7;
     }
   }

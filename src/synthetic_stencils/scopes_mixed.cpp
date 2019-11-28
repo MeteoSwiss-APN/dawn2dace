@@ -7,7 +7,7 @@ globals
   double global_var = 3.14;
 };
 
-stencil scopes
+stencil scopes_mixed
 {
   storage input, output;
   var stencil_var;

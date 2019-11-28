@@ -2,7 +2,7 @@
 
 using namespace gridtools::clang;
 
-stencil vertical_spec_stencil {
+stencil vertical_specification_2 {
   storage input1, input2, output;
 
   Do {

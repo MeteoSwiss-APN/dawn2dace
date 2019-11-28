@@ -2,13 +2,11 @@
 
 using namespace gridtools::clang;
 
-stencil test {
-  storage in_field, out_field;
-  var ee;
+stencil horizontal_offsets {
+  storage a, b;
   Do {
     vertical_region(k_start, k_end) {
-      ee = in_field + 5;
-      out_field = ee;
+      a = b[i-1] + b[j+1] + b[i+1, j-1];
     }
   }
 };

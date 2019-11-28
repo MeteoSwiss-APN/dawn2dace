@@ -21,15 +21,15 @@ def get_sdfg(file_name):
 
 class LegalSDFG:
     def test_1_file_exists(self):
-        self.assertIsNotNone(read_file(self.file_name))
+        self.assertIsNotNone(read_file(self.file_name + ".0.iir"))
 
     def test_2_sdfg_is_valid(self):
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
         self.assertTrue(sdfg.is_valid())
 
 
 class copy(LegalSDFG, unittest.TestCase):
-    file_name = "copy.0.iir"
+    file_name = "copy"
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
@@ -37,7 +37,8 @@ class copy(LegalSDFG, unittest.TestCase):
         original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -51,7 +52,7 @@ class copy(LegalSDFG, unittest.TestCase):
         self.assertTrue((copy == original).all(), "Expected:\n{}\nReceived:\n{}".format(original, copy))
 
 class copy_with_halo(LegalSDFG, unittest.TestCase):
-    file_name = "copy.0.iir"
+    file_name = "copy"
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
@@ -62,7 +63,8 @@ class copy_with_halo(LegalSDFG, unittest.TestCase):
         expected = numpy.copy(copy)
         expected[halo_size:I-halo_size, halo_size:J-halo_size, :] = original[halo_size:I-halo_size, halo_size:J-halo_size, :]
 
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -77,7 +79,7 @@ class copy_with_halo(LegalSDFG, unittest.TestCase):
 
 
 class inout_variable(LegalSDFG, unittest.TestCase):
-    file_name = "inout_variable.0.iir"
+    file_name = "inout_variable"
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
@@ -85,7 +87,8 @@ class inout_variable(LegalSDFG, unittest.TestCase):
         a = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         expected = a + 7
         
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -98,8 +101,8 @@ class inout_variable(LegalSDFG, unittest.TestCase):
         self.assertTrue((a == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, a))
 
 
-class offsets(LegalSDFG, unittest.TestCase):
-    file_name = "offsets.0.iir"
+class horizontal_offsets(LegalSDFG, unittest.TestCase):
+    file_name = "horizontal_offsets"
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
@@ -113,7 +116,8 @@ class offsets(LegalSDFG, unittest.TestCase):
                     # a = b[i-1] + b[j+1] + b[i+1, j-1];
                     expected[i, j, :] = input[i-1, j, :] + input[i, j+1, :] + input[i+1, j-1, :]
         
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -127,8 +131,41 @@ class offsets(LegalSDFG, unittest.TestCase):
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
 
+
+class vertical_offsets(LegalSDFG, unittest.TestCase):
+    file_name = "vertical_offsets"
+
+    def test_4_numerically(self):
+        I,J,K = 3,3,3
+        halo_size = 0
+        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+
+        expected = numpy.copy(output)
+
+        # vertical_region(k_start, k_start) { output = input[k+1] }
+        expected[:, :, 0] = input[:, :, 1]
+
+        # vertical_region(k_start + 1, k_end) { output = input[k-1]; }
+        for k in range(1, K):
+            expected[:, :, k] = input[:, :, k-1]
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input = input,
+            output = output,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo_size = numpy.int32(halo_size))
+
+        self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
+
 class vertical_specification_1(LegalSDFG, unittest.TestCase):
-    file_name = "vertical_specification_1.0.iir"
+    file_name = "vertical_specification_1"
 
     def test_4_numerically(self):
         I,J,K = 4,4,4
@@ -146,7 +183,8 @@ class vertical_specification_1(LegalSDFG, unittest.TestCase):
         for k in range(1, K):
             expected[:, :, k] = input2[:, :, k]
         
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -162,7 +200,7 @@ class vertical_specification_1(LegalSDFG, unittest.TestCase):
 
 
 class vertical_specification_2(LegalSDFG, unittest.TestCase):
-    file_name = "vertical_specification_2.0.iir"
+    file_name = "vertical_specification_2"
 
     def test_4_numerically(self):
         I,J,K = 4,4,4
@@ -180,7 +218,8 @@ class vertical_specification_2(LegalSDFG, unittest.TestCase):
         for k in range(0, K-1):
             expected[:, :, k] = input1[:, :, k]
         
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -195,40 +234,8 @@ class vertical_specification_2(LegalSDFG, unittest.TestCase):
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
 
-class vertical_offsets(LegalSDFG, unittest.TestCase):
-    file_name = "vertical_offsets.0.iir"
-
-    def test_4_numerically(self):
-        I,J,K = 3,3,3
-        halo_size = 0
-        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
-
-        expected = numpy.copy(output)
-
-        # vertical_region(k_start, k_start) { out_field = in_field[k+1] }
-        expected[:, :, 0] = input[:, :, 1]
-
-        # vertical_region(k_start + 1, k_end) { out_field = in_field[k-1]; }
-        for k in range(1, K):
-            expected[:, :, k] = input[:, :, k-1]
-        
-        sdfg = get_sdfg(self.file_name)
-        sdfg = sdfg.compile(optimizer="")
-
-        sdfg(
-            in_field = input,
-            out_field = output,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
-
-        self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
-
-
-class local_variables(LegalSDFG, unittest.TestCase):
-    file_name = "local_variables.0.iir"
+class scope_in_region(LegalSDFG, unittest.TestCase):
+    file_name = "scope_in_region"
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
@@ -238,12 +245,13 @@ class local_variables(LegalSDFG, unittest.TestCase):
 
         expected = input + 5
         
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            in_field = input,
-            out_field = output,
+            input = input,
+            output = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -252,8 +260,8 @@ class local_variables(LegalSDFG, unittest.TestCase):
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
 
-class local_internal(LegalSDFG, unittest.TestCase):
-    file_name = "local_internal.0.iir"
+class scope_in_stencil(LegalSDFG, unittest.TestCase):
+    file_name = "scope_in_stencil"
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
@@ -263,12 +271,13 @@ class local_internal(LegalSDFG, unittest.TestCase):
 
         expected = input + 5
         
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            in_field = input,
-            out_field = output,
+            input = input,
+            output = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
@@ -277,33 +286,8 @@ class local_internal(LegalSDFG, unittest.TestCase):
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
 
-class brackets(LegalSDFG, unittest.TestCase):
-    file_name = "brackets.0.iir"
-
-    def test_4_numerically(self):
-        I,J,K = 3,3,3
-        halo_size = 0
-        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
-
-        # out_field = 0.25 * (in_field + 7);
-        expected = 0.25 * (input + 7)
-        
-        sdfg = get_sdfg(self.file_name)
-        sdfg = sdfg.compile(optimizer="")
-
-        sdfg(
-            in_field = input,
-            out_field = output,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
-
-        self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
-
-class scopes(LegalSDFG, unittest.TestCase):
-    file_name = "scopes.0.iir"
+class scopes_mixed(LegalSDFG, unittest.TestCase):
+    file_name = "scopes_mixed"
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
@@ -316,7 +300,8 @@ class scopes(LegalSDFG, unittest.TestCase):
         for i in range(halo_size, I-halo_size):
             expected[i, :, 0] = input[i-1, :, 0] + 3.14
 
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -328,6 +313,33 @@ class scopes(LegalSDFG, unittest.TestCase):
             halo_size = numpy.int32(halo_size))
 
         self.assertTrue((input == output).all(), "Expected:\n{}\nReceived:\n{}".format(input, output))
+
+
+class brackets(LegalSDFG, unittest.TestCase):
+    file_name = "brackets"
+
+    def test_4_numerically(self):
+        I,J,K = 3,3,3
+        halo_size = 0
+        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+
+        # output = 0.25 * (input + 7);
+        expected = 0.25 * (input + 7)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input = input,
+            output = output,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo_size = numpy.int32(halo_size))
+
+        self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
 
 if __name__ == '__main__':

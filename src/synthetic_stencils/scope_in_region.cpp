@@ -2,11 +2,13 @@
 
 using namespace gridtools::clang;
 
-stencil test {
-  storage a, b;
+stencil scope_in_region {
+  storage input, output;
+  
   Do {
     vertical_region(k_start, k_end) {
-      a = b[i-1] + b[j+1] + b[i+1, j-1];
+      double tmp = input + 5;
+      output = tmp;
     }
   }
 };
