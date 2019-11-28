@@ -21,14 +21,14 @@ def get_sdfg(file_name):
 
 class LegalSDFG:
     def test_1_file_exists(self):
-        self.assertIsNotNone(read_file(self.file_name))
+        self.assertIsNotNone(read_file(self.file_name + ".0.iir"))
 
     def test_2_sdfg_is_valid(self):
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
         self.assertTrue(sdfg.is_valid())
         
     def test_3_sdfg_compiles(self):
-        sdfg = get_sdfg(self.file_name)
+        sdfg = get_sdfg(self.file_name + ".0.iir")
         try:
             sdfg.compile(optimizer="")
         except:
@@ -39,7 +39,7 @@ class LegalSDFG:
         
 
 class coriolis(LegalSDFG, unittest.TestCase):
-    file_name = "coriolis.0.iir"
+    file_name = "coriolis"
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
@@ -60,8 +60,8 @@ class coriolis(LegalSDFG, unittest.TestCase):
                 # v_tens -= 0.25 * (fc * (u + u[j+1]) + fc[i-1] * (u[i-1] + u[i-1,j+1]));
                 expected_v[i,j,:] -= 0.25 * (fc[i,j] * (u[i,j,:] + u[i,j+1,:]) + fc[i-1,j] * (u[i-1,j,:] + u[i-1,j+1,:]))
 
-        sdfg = get_sdfg(self.file_name)
-        sdfg.save("test.sdfg")
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -80,7 +80,7 @@ class coriolis(LegalSDFG, unittest.TestCase):
         
 
 class thomas(LegalSDFG, unittest.TestCase):
-    file_name = "thomas.0.iir"
+    file_name = "thomas"
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
@@ -91,8 +91,8 @@ class thomas(LegalSDFG, unittest.TestCase):
         dcol = numpy.random.rand(I,J,K).astype(dace.float64.type)
         datacol = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
-        sdfg = get_sdfg(self.file_name)
-        sdfg.save("test.sdfg")
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
