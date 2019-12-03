@@ -7,5 +7,5 @@ for fullfile in src/*_stencils/*.cpp
 do
 	echo "Processing $fullfile ..."
 	filename="${fullfile##*/}"
-	$GTCLANG $fullfile -fwrite-iir -iir-format=byte -fdebug -fpartition-intervals -o gen/$filename.cpp
+	$GTCLANG $fullfile -fwrite-iir -iir-format=byte -fdebug -fpartition-intervals -o gen/$filename
 done
