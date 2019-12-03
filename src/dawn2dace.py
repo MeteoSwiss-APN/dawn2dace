@@ -57,6 +57,30 @@ def RenameVariables(stencils: list, id_resolver):
 
                         print(stmt.code)
 
+class AssignmentExpander(IIR_Transformer):
+    """ Makes dataflow explicit by expanding 'a (op)= b' into 'a = a (op) b'. """
+    def visit_AssignmentExpr(self, expr):
+        if expr.op == '=':
+            return expr
+        
+        novum = IIR_pb2.SIR_dot_statements__pb2.BinaryOperator()
+        novum.left.CopyFrom(expr.left)
+        novum.op = expr.op[0]
+        novum.right.CopyFrom(expr.right)
+
+        expr.right.Clear()
+        expr.right.binary_operator.CopyFrom(novum)
+        return expr
+
+def ExpandAssignment(stencils: list):
+    for stencil in stencils:
+        for multi_stage in stencil.multi_stages:
+            for stage in multi_stage.stages:
+                for do_method in stage.do_methods:
+                    for stmt in do_method.statements:
+                        stmt.code = AssignmentExpander().visit(stmt.code)
+
+
 class IJ_Mapper(IIR_Transformer):
     def __init__(self, transfer:dict):
         self.transfer = transfer
@@ -164,7 +188,7 @@ def IIR_str_to_SDFG(iir: str):
     imp = Importer(id_resolver)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
-
+    ExpandAssignment(stencils)
     AccountForIJMap(stencils)
     AccountForKMap(stencils)
     RemoveUnusedDimensions(id_resolver, stencils)
