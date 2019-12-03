@@ -14,8 +14,8 @@ class IdResolver:
 
     def GetDimensions(self, id:int) -> list:
         """ Returns a list containing dimensional information """
-        if self.IsATemporary(id):
-            return [1,1,0]
+        if self.IsLocal(id):
+            return [1,1,1]
         array = self.__fieldIDtoLegalDimensions[id]
         return [array.int1, array.int2, array.int3]
     
