@@ -222,89 +222,59 @@ class Exporter:
         return multi_stage_state
 
     def Export_loop(self, multi_stage: MultiStage, interval: K_Interval, execution_order: ExecutionOrder):
-
-        first_interval_state = None
+        last_state = None
+        first_state = None
         # This is the state previous to this ms
-        prev_state = self.last_state_
+
         for stage in multi_stage.stages:
             for do_method in stage.do_methods:
                 if do_method.k_interval != interval:
-                    # since we only want to generate stmts for the Do-Methods that are matching the interval, we're ignoring
-                    # the other ones
                     continue
 
                 for stmt in do_method.statements:
-                    # A State for every stmt makes sure they can be sequential
-                    state = self.sdfg.add_state("state_{}".format(CreateUID()))
-                    if first_interval_state is None:
-                        first_interval_state = state
-                    else:
-                        self.sdfg.add_edge(self.last_state_, state, dace.InterstateEdge())
-
-                    # Creation of the Memlet in the state
-                    input_memlets = {}
-                    output_memlets = {}
-
                     self.try_add_transient(self.sdfg, stmt.reads.keys())
                     self.try_add_transient(self.sdfg, stmt.writes.keys())
 
-                    for id, read in stmt.reads.items():
-                        name = self.id_resolver.GetName(id)
-
-                        if self.id_resolver.IsALiteral(id) or self.id_resolver.IsLocal(id):
-                            continue
-
-                        input_memlets[name + '_in'] = dace.Memlet.simple(
-                            name,
-                            self.Export_MemoryAccess3D(id, read, relative_to_k = True)
-                        )
-
-                    for id, write in stmt.writes.items():
-                        name = self.id_resolver.GetName(id)
-
-                        if self.id_resolver.IsALiteral(id) or self.id_resolver.IsLocal(id):
-                            continue
-
-                        output_memlets[name + '_out'] = dace.Memlet.simple(
-                            name,
-                            self.Export_MemoryAccess3D(id, write, relative_to_k = True)
-                        )
+                    self.try_add_scalar(self.sdfg, (id for id in stmt.reads.keys() if self.id_resolver.IsGlobal(id)))
 
                     # Since we're in a sequential loop, we only need a map in i and j
+                    state = self.sdfg.add_state("state_{}".format(CreateUID()))
                     state.add_mapped_tasklet(
                         str(stmt),
-                        dict(i="halo_size:I-halo_size", j="halo_size:J-halo_size"),
-                        input_memlets,
-                        stmt.code,
-                        output_memlets,
+                        dict(i="halo:I-halo", j="halo:J-halo"),
+                        inputs = self.CreateMemlets(stmt.reads.items(), '_in', relative_to_k = False),
+                        code = stmt.code,
+                        outputs = self.CreateMemlets(stmt.writes.items(), '_out', relative_to_k = False),
                         external_edges = True
                     )
 
-                    # set the state to be the last one to connect to it
-                    self.last_state_ = state
+                    if first_state is None:
+                        first_state = state
 
-        if __debug__:
-            print("loop order is: %s" % execution_order)
+                    if last_state is not None:
+                        self.sdfg.add_edge(last_state, state, dace.InterstateEdge())
+                    last_state = state
 
         if execution_order == ExecutionOrder.Forward_Loop.value:
-            condition_expr = "k < %s" % interval.end
+            initialize_expr = interval.begin
+            condition_expr = "k < {}".format(interval.end)
             increment_expr = "k + 1"
-        elif execution_order == ExecutionOrder.Backward_Loop.value:
-            condition_expr = "k > %s" % interval.end
-            increment_expr = "k - 1"
         else:
-            assert "wrong usage"
-        
-        _, _, last_state = self.sdfg.add_loop(
-                prev_state,
-                first_interval_state,
-                None,
-                "k",
-                interval.begin,
-                condition_expr,
-                increment_expr,
-                self.last_state_,
-            )
+            initialize_expr = interval.end + "-1"
+            condition_expr = "k >= {}".format(interval.begin)
+            increment_expr = "k - 1"
+
+        _, _, last_state  = self.sdfg.add_loop(
+            before_state = self.last_state_,
+            loop_state = first_state,
+            loop_end_state = last_state,
+            after_state = None,
+            loop_var = "k",
+            initialize_expr = initialize_expr,
+            condition_expr = condition_expr,
+            increment_expr = increment_expr
+        )
+        return last_state
 
     
     def Export_MultiStage(self, multi_stage: MultiStage):
