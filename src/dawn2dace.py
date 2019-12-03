@@ -152,14 +152,30 @@ class DimensionalReducer(IIR_Transformer):
                  expr.vertical_offset = -1000
         return expr
 
+class DimensionalReducerRead(DimensionalReducer):
+    def __init__(self, id_resolver:IdResolver, reads:dict):
+        super().__init__(id_resolver, reads)
+
+    def visit_AssignmentExpr(self, expr):
+        expr.right.CopyFrom(self.visit(expr.right))
+        return expr
+
+class DimensionalReducerWrite(DimensionalReducer):
+    def __init__(self, id_resolver:IdResolver, writes:dict):
+        super().__init__(id_resolver, writes)
+
+    def visit_AssignmentExpr(self, expr):
+        expr.left.CopyFrom(self.visit(expr.left))
+        return expr
+
 def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        stmt.code = DimensionalReducer(id_resolver, stmt.reads).visit(stmt.code)
-                        stmt.code = DimensionalReducer(id_resolver, stmt.writes).visit(stmt.code)
+                        stmt.code = DimensionalReducerRead(id_resolver, stmt.reads).visit(stmt.code)
+                        stmt.code = DimensionalReducerWrite(id_resolver, stmt.writes).visit(stmt.code)
 
 
 def UnparseCode(stencils: list):
