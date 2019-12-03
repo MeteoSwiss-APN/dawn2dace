@@ -174,13 +174,9 @@ def IIR_str_to_SDFG(iir: str):
     exp = Exporter(id_resolver, sdfg)
 
     exp.try_add_array(sdfg, metadata.APIFieldIDs)
-    exp.try_add_array(sdfg, metadata.temporaryFieldIDs)
-
-    for id in metadata.globalVariableIDs:
-        name = id_resolver.GetName(id)
-        print("Add scalar: {}".format(name))
-        sdfg.add_scalar(name, data_type)
-
+    exp.try_add_transient(sdfg, metadata.temporaryFieldIDs)
+    
+    exp.Export_Globals({ id : stencilInstantiation.internalIR.globalVariableToValue[id_resolver.GetName(id)].value for id in metadata.globalVariableIDs })
     exp.Export_Stencils(stencils)
 
     sdfg.fill_scope_connectors()

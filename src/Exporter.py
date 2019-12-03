@@ -17,6 +17,23 @@ class Exporter:
         self.sdfg = sdfg
         self.last_state_ = None
 
+    def try_add_scalar(self, sdfg, ids):
+        if not isinstance(ids, list):
+            ids = list(ids)
+        
+        for id in ids:
+            name = self.id_resolver.GetName(id)
+
+            if self.id_resolver.IsALiteral(id):
+                continue
+
+            print("Try add scalar: {}".format(name))
+
+            try:
+                sdfg.add_scalar(name, dtype=data_type)
+            except:
+                pass
+
     def try_add_array(self, sdfg, ids):
         if not isinstance(ids, list):
             ids = list(ids)
@@ -53,6 +70,27 @@ class Exporter:
             except:
                 pass
 
+    def Export_Globals(self, id_value:dict):
+        if id_value:
+            init_state = self.sdfg.add_state("GlobalInit")
+
+        for id, value in id_value.items():
+            name = self.id_resolver.GetName(id)
+            self.sdfg.add_scalar(name, dtype=data_type, transient=True)
+
+            op2 = init_state.add_write(name)
+            tasklet = init_state.add_tasklet(name,
+                inputs=None,
+                outputs={name},
+                code="{} = {}".format(name, value)
+            )
+            out_memlet = dace.Memlet.simple(name, '0')
+            init_state.add_edge(tasklet, name, op2, None, out_memlet)
+
+            if self.last_state_ is not None:
+                self.sdfg.add_edge(self.last_state_, init_state, dace.InterstateEdge())
+            self.last_state_ = init_state
+
     def GetShape(self, id:int) -> list:
         ret = filter2(self.id_resolver.GetDimensions(id), [I,J,K])
         if ret:
@@ -64,10 +102,10 @@ class Exporter:
             raise TypeError("Expected MemoryAccess3D, got: {}".format(type(mem_acc).__name__))
         
         dims = self.id_resolver.GetDimensions(id)
+        if all(d == 0 for d in dims):
+            return "0"
 
         dimensional_templates = filter2(dims, ["i+{}:i+{}", "j+{}:j+{}", ("k+{}:k+{}" if relative_to_k else "{}:{}")])
-        if not dimensional_templates:
-            return "0"
         
         template = ', '.join(dimensional_templates)
     
@@ -107,8 +145,10 @@ class Exporter:
                     self.try_add_transient(self.sdfg, stmt.reads.keys())
                     self.try_add_transient(self.sdfg, stmt.writes.keys())
 
-                    collected_input_ids.extend((id for id in stmt.reads.keys() if not self.id_resolver.IsALiteral(id) and not self.id_resolver.IsGlobal(id)))
-                    collected_output_ids.extend((id for id in stmt.writes.keys() if not self.id_resolver.IsALiteral(id) and not self.id_resolver.IsGlobal(id)))
+                    self.try_add_scalar(self.sdfg, (id for id in stmt.reads.keys() if self.id_resolver.IsGlobal(id)))
+
+                    collected_input_ids.extend((id for id in stmt.reads.keys() if not self.id_resolver.IsALiteral(id)))
+                    collected_output_ids.extend((id for id in stmt.writes.keys() if not self.id_resolver.IsALiteral(id)))
 
                     # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                     # the maps are ij-only
