@@ -67,9 +67,8 @@ class Unparser:
     def _unparse_fun_call_expr(self, expr) -> str:
         """Unparses external function calls, like math::sqrt."""
         
-        func = expr.fun_call_expr
-        args = (self._unparse_expr(arg) for arg in func.arguments)
-        return func.callee + "(" + ",".join(args) + ")"
+        args = (self._unparse_expr(arg) for arg in expr.arguments)
+        return expr.callee + "(" + ",".join(args) + ")"
 
     def _unparse_var_access_expr(self, expr) -> str:
         return expr.name
