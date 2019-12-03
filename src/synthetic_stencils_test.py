@@ -33,7 +33,7 @@ class copy(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 0
+        halo = 0
         original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         
@@ -47,7 +47,7 @@ class copy(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
         self.assertTrue((copy == original).all(), "Expected:\n{}\nReceived:\n{}".format(original, copy))
 
@@ -56,12 +56,12 @@ class copy_with_halo(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 1
+        halo = 1
         original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
         expected = numpy.copy(copy)
-        expected[halo_size:I-halo_size, halo_size:J-halo_size, :] = original[halo_size:I-halo_size, halo_size:J-halo_size, :]
+        expected[halo:I-halo, halo:J-halo, :] = original[halo:I-halo, halo:J-halo, :]
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -73,7 +73,7 @@ class copy_with_halo(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
         self.assertTrue((copy == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, copy))
 
@@ -83,7 +83,7 @@ class inout_variable(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 0
+        halo = 0
         a = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         expected = a + 7
         
@@ -96,7 +96,7 @@ class inout_variable(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
         self.assertTrue((a == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, a))
 
@@ -106,29 +106,33 @@ class horizontal_offsets(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 1
-        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        halo = 1
+        a = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        b = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        c = numpy.arange(100,100+I*J*K).astype(dace.float64.type).reshape(I,J,K)
 
-        expected = numpy.copy(output)
-        for i in range(halo_size, I-halo_size):
-            for j in range(halo_size, J-halo_size):
-                    # a = b[i-1] + b[j+1] + b[i+1, j-1];
-                    expected[i, j, :] = input[i-1, j, :] + input[i, j+1, :] + input[i+1, j-1, :]
+        # vertical_region(k_start, k_end) { a = b[i-1] + b[j+1] + b[i+1, j-1] + c[i-1]; }
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                    a[i, j, :] = b[i-1, j, :] + b[i, j+1, :] + b[i+1, j-1, :] + c[i-1, j, :]
+
+        expected = numpy.copy(a)
+        a = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            b = input,
-            a = output,
+            a = a,
+            b = b,
+            c = c,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
-        self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
+        self.assertTrue((a == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, a))
 
 
 
@@ -137,7 +141,7 @@ class vertical_offsets(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 0
+        halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
@@ -160,7 +164,7 @@ class vertical_offsets(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
@@ -169,7 +173,7 @@ class vertical_specification_1(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 4,4,4
-        halo_size = 0
+        halo = 0
         input1 = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         input2 = numpy.arange(100, I*J*K+100).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -194,7 +198,7 @@ class vertical_specification_1(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
@@ -204,7 +208,7 @@ class vertical_specification_2(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 4,4,4
-        halo_size = 0
+        halo = 0
         input1 = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         input2 = numpy.arange(100, I*J*K+100).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -229,7 +233,7 @@ class vertical_specification_2(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
@@ -239,7 +243,7 @@ class scope_in_region(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 0
+        halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
@@ -255,7 +259,7 @@ class scope_in_region(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
@@ -265,7 +269,7 @@ class scope_in_stencil(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 0
+        halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
@@ -281,7 +285,33 @@ class scope_in_stencil(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
+
+        self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
+
+
+class scope_in_global(LegalSDFG, unittest.TestCase):
+    file_name = "scope_in_global"
+
+    def test_4_numerically(self):
+        I,J,K = 3,3,3
+        halo = 0
+        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+
+        expected = input + 3.14
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input = input,
+            output = output,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
@@ -291,28 +321,30 @@ class scopes_mixed(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 1
+        halo = 1
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        output = numpy.ones(shape=(I,J,K), dtype=dace.float64.type)
         
-        expected = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
-        # vertical_region(k_start, k_start) { output = input[i-1] + 3.14; }
-        for i in range(halo_size, I-halo_size):
-            expected[i, :, 0] = input[i-1, :, 0] + 3.14
+        expected = numpy.ones(shape=(I,J,K), dtype=dace.float64.type)
+        # vertical_region(k_start, k_end) { output = input[i-1] + 3.14; }
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    expected[i, j, k] = input[i-1, j, k] + 3.14
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
-            data_in = input,
-            data_out = output,
+            input = input,
+            output = output,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
-        self.assertTrue((input == output).all(), "Expected:\n{}\nReceived:\n{}".format(input, output))
+        self.assertTrue((expected == output).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
 
 class brackets(LegalSDFG, unittest.TestCase):
@@ -320,7 +352,7 @@ class brackets(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 0
+        halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
@@ -337,7 +369,7 @@ class brackets(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
@@ -347,12 +379,45 @@ class tridiagonal_solve(LegalSDFG, unittest.TestCase):
 
     def test_4_numerically(self):
         I,J,K = 3,3,3
-        halo_size = 0
-        a = numpy.random.rand(I,J,K).astype(dace.float64.type)
-        b = numpy.random.rand(I,J,K).astype(dace.float64.type)
-        c = numpy.random.rand(I,J,K).astype(dace.float64.type)
+        halo = 0
+        a = numpy.arange(0,0+I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        b = numpy.arange(1,1+I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        c = numpy.arange(5,5+I*J*K).astype(dace.float64.type).reshape(I,J,K)
         d = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         
+        # vertical_region(k_start, k_start) {
+        #     c = c / b;
+        #     d = d / b;
+        # }
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    c[i,j,k] = c[i,j,k] / b[i,j,k]
+                    d[i,j,k] = d[i,j,k] / b[i,j,k]
+
+        # vertical_region(k_start + 1, k_end) {
+        #     double m = 1.0 / (b - a * c[k - 1]);
+        #     c = c * m;
+        #     d = (d - a * d[k - 1]) * m;
+        # }
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(1, K):
+                    m = 1.0 / (b[i,j,k] - a[i,j,k] * c[i,j,k-1])
+                    c[i,j,k] = c[i,j,k] * m
+                    d[i,j,k] = (d[i,j,k] - a[i,j,k] * d[i,j,k-1]) * m
+
+        # vertical_region(k_end - 1, k_start) {
+        #     d -= c * d[k + 1];
+        # }
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in reversed(range(0, K-1)):
+                    d[i,j,k] -= c[i,j,k] * d[i,j,k+1]
+
+        expected = numpy.copy(d)
+        d = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
@@ -365,9 +430,9 @@ class tridiagonal_solve(LegalSDFG, unittest.TestCase):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo_size = numpy.int32(halo_size))
+            halo = numpy.int32(halo))
 
-        # self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
+        self.assertTrue((expected == d).all(), "Expected:\n{}\nReceived:\n{}".format(expected, d))
 
 
 if __name__ == '__main__':

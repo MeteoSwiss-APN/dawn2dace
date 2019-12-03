@@ -45,6 +45,10 @@ stencil thomas {
       tridiagonal_forward(acol, bcol, ccol, dcol);
     }
     
+    vertical_region(k_end , k_end) {
+      tridiagonal_forward(acol, bcol, ccol, dcol);
+    }
+    
     vertical_region(k_end, k_end) {
       tridiagonal_backward(ccol, dcol, datacol);
     }

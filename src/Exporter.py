@@ -5,7 +5,7 @@ from IdResolver import IdResolver
 I = dace.symbol("I")
 J = dace.symbol("J")
 K = dace.symbol("K")
-halo_size = dace.symbol("haloSize")
+halo = dace.symbol("haloSize")
 data_type = dace.float64
 
 def filter2(conditionals:list, elements:list) -> list:
@@ -155,7 +155,7 @@ class Exporter:
                     state = sub_sdfg.add_state("state_{}".format(CreateUID()))
                     state.add_mapped_tasklet(
                         str(stmt),
-                        dict(i="halo_size:I-halo_size", j="halo_size:J-halo_size"),
+                        dict(i="halo:I-halo", j="halo:J-halo"),
                         inputs = self.CreateMemlets(stmt.reads.items(), '_in', relative_to_k = False),
                         code = stmt.code,
                         outputs = self.CreateMemlets(stmt.writes.items(), '_out', relative_to_k = False),
