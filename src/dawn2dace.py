@@ -118,6 +118,8 @@ class K_Mapper(IIR_Transformer):
 def AccountForKMap(stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
+            if multi_stage.execution_order != 2:
+                continue
             span = multi_stage.GetReadSpan()
             k_min = span.k.lower
             k_max = span.k.upper
