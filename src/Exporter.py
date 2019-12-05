@@ -97,7 +97,7 @@ class Exporter:
             return ret
         return [1]
 
-    def Export_MemoryAccess3D(self, id:int, mem_acc:MemoryAccess3D, relative_to_k = True) -> str:
+    def Export_MemoryAccess3D(self, id:int, mem_acc:MemoryAccess3D, relative_to_k) -> str:
         if not isinstance(mem_acc, MemoryAccess3D):
             raise TypeError("Expected MemoryAccess3D, got: {}".format(type(mem_acc).__name__))
         
@@ -115,7 +115,7 @@ class Exporter:
             mem_acc.k.lower, mem_acc.k.upper + 1,
         )
 
-    def CreateMemlets(self, transactions, suffix:str, relative_to_k:bool = True) -> dict:
+    def CreateMemlets(self, transactions, suffix:str, relative_to_k:bool) -> dict:
         memlets = {}
         for id, mem_acc in transactions:
             name = self.id_resolver.GetName(id)
@@ -242,9 +242,9 @@ class Exporter:
                     state.add_mapped_tasklet(
                         str(stmt),
                         dict(i="halo:I-halo", j="halo:J-halo"),
-                        inputs = self.CreateMemlets(stmt.reads.items(), '_in', relative_to_k = False),
+                        inputs = self.CreateMemlets(stmt.reads.items(), '_in', relative_to_k = True),
                         code = stmt.code,
-                        outputs = self.CreateMemlets(stmt.writes.items(), '_out', relative_to_k = False),
+                        outputs = self.CreateMemlets(stmt.writes.items(), '_out', relative_to_k = True),
                         external_edges = True
                     )
 
