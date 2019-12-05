@@ -344,7 +344,7 @@ class scopes_mixed(LegalSDFG, unittest.TestCase):
             K = numpy.int32(K),
             halo = numpy.int32(halo))
 
-        self.assertTrue((expected == output).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
+        self.assertTrue((expected[1:,:,:] == output[1:,:,:]).all(), "Expected:\n{}\nReceived:\n{}".format(expected[1:,:,:], output[1:,:,:]))
 
 
 class brackets(LegalSDFG, unittest.TestCase):
