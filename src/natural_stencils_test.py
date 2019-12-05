@@ -123,7 +123,7 @@ class thomas(LegalSDFG, unittest.TestCase):
             for j in range(halo, J-halo):
                 for k in range(K-1, K):
                     divided = 1.0 / (b[i,j,k] - (c[i,j,k-1] * a[i,j,k]))
-                    d[i,j,k] = d[i,j,k] - (d[i,j,k-1] * a[i,j,k]) * divided
+                    d[i,j,k] = (d[i,j,k] - (d[i,j,k-1] * a[i,j,k])) * divided
 
         # Do(k_from = k_end, k_to = k_end) { data = d; }
         for i in range(halo, I-halo):
