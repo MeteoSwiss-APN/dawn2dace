@@ -54,8 +54,8 @@ def RenameVariables(stencils: list, id_resolver):
                     for stmt in do_method.statements:
                         tree = ast.parse(stmt.code)
                         stmt.code = astunparse.unparse(Renamer().visit(tree))
-
                         print(stmt.code)
+
 
 class AssignmentExpander(IIR_Transformer):
     """ Makes dataflow explicit by expanding 'a (op)= b' into 'a = a (op) b'. """
@@ -69,6 +69,7 @@ class AssignmentExpander(IIR_Transformer):
         novum.right.CopyFrom(expr.right)
 
         expr.right.Clear()
+        expr.op = '='
         expr.right.binary_operator.CopyFrom(novum)
         return expr
 
