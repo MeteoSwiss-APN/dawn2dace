@@ -374,6 +374,35 @@ class brackets(LegalSDFG, unittest.TestCase):
         self.assertTrue((output == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, output))
 
 
+class loop(LegalSDFG, unittest.TestCase):
+    file_name = "loop"
+
+    def test_4_numerically(self):
+        I,J,K = 3,3,3
+        halo = 0
+        a = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+
+        # vertical_region(k_start+1, k_end) { a = a[k-1]; }
+        for k in range(1, K):
+            a[:,:,k] += a[:,:,k-1]
+
+        expected = numpy.copy(a)
+        a = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            a = a,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertTrue((a == expected).all(), "Expected:\n{}\nReceived:\n{}".format(expected, a))
+
+
 class tridiagonal_solve(LegalSDFG, unittest.TestCase):
     file_name = "tridiagonal_solve"
 
