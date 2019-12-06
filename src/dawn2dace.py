@@ -13,6 +13,27 @@ from IdResolver import IdResolver
 from Unparser import Unparser
 from IIR_AST import *
 
+RESERVED_PYTHON_KEYWORDS = {"False", "class", "finally", "is", "return", "None", "continue", "for", "lambda", "try", "True", "def", "from", "nonlocal", "while", "and", "del", "global", "not", "with", "as", "elif", "if", "or", "yield", "assert", "else", "import", "pass", "break", "except", "in", "raise"}
+
+class KeywordReplacer(IIR_Transformer):
+    def visit_VarAccessExpr(self, expr):
+        if expr.name in RESERVED_PYTHON_KEYWORDS:
+            expr.name += '_'
+        return expr
+
+    def visit_FieldAccessExpr(self, expr):
+        if expr.name in RESERVED_PYTHON_KEYWORDS:
+            expr.name += '_'
+        return expr
+
+def ReplaceKeywords(stencils: list):
+    for stencil in stencils:
+        for multi_stage in stencil.multi_stages:
+            for stage in multi_stage.stages:
+                for do_method in stage.do_methods:
+                    for stmt in do_method.statements:
+                        stmt.code = KeywordReplacer().visit(stmt.code)
+
 class Renamer(ast.NodeTransformer):
     def __init__(self):
         self.storemode = False
@@ -207,6 +228,7 @@ def IIR_str_to_SDFG(iir: str):
     imp = Importer(id_resolver)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
+    ReplaceKeywords(stencils)
     ExpandAssignment(stencils)
     AccountForIJMap(stencils)
     AccountForKMap(stencils)
