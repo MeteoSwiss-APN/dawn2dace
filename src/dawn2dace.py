@@ -140,8 +140,6 @@ class K_Mapper(IIR_Transformer):
 def AccountForKMap(stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
-            if multi_stage.execution_order != 2:
-                continue
             span = multi_stage.GetReadSpan()
             k_min = span.k.lower
             k_max = span.k.upper
@@ -151,9 +149,10 @@ def AccountForKMap(stencils: list):
                 for stage in multi_stage.stages:
                     for do_method in stage.do_methods:
                         for stmt in do_method.statements:
-                            for _, read in stmt.reads.items():
-                                read.offset(k = -k_min)
                             stmt.code = K_Mapper(-k_min, stmt.reads).visit(stmt.code)
+                            if multi_stage.execution_order == 2: # parallel
+                                for _, read in stmt.reads.items():
+                                    read.offset(k = -k_min)
 
 
 class DimensionalReducer(IIR_Transformer):
