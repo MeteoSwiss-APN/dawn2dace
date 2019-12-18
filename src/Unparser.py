@@ -150,15 +150,14 @@ class Unparser:
     def _unparse_if_stmt(self, stmt) -> str:
         if stmt.cond_part.WhichOneof("stmt") != "expr_stmt":
             raise ValueError("Not expected stmt")
-        
         return (
             'if ({}):\n'
             '\t{}\n'
             'else:\n'
             '\t{}').format(
                self._unparse_expr_stmt(stmt.cond_part.expr_stmt), 
-               self.unparse_body_stmt(stmt.then_part),
-               self.unparse_body_stmt(stmt.else_part)
+               self.unparse_body_stmt(stmt.then_part).replace('\n', '\n\t'),
+               self.unparse_body_stmt(stmt.else_part).replace('\n', '\n\t')
             )
 
     def _unparse_block_stmt(self, stmt) -> str:
