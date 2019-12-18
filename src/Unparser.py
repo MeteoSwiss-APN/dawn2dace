@@ -90,7 +90,17 @@ class Unparser:
     
     @staticmethod
     def _unparse_literal_access_expr(expr) -> str:
-        return expr.value
+        if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Invalid:
+            raise ValueError(expr.type.type_id + " not supported")
+        if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Auto:
+            raise ValueError(expr.type.type_id + " not supported")
+        if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Boolean:
+            return "true" if expr.value else "false"
+        if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Integer:
+            return expr.value
+        if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Float:
+            return '{:f}'.format(float(expr.value))
+        raise ValueError(expr.type.type_id + " not supported")
 
     def _unparse_expr(self, expr) -> str:
         which = expr.WhichOneof("expr")
