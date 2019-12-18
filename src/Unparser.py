@@ -144,8 +144,8 @@ class Unparser:
         if len(var_decl.init_list) == 1:
             return '{} {} {}'.format(name, var_decl.op, self._unparse_expr(var_decl.init_list[0]))
 
-        # array initialization. e.g. "a = {0, 1, 2}"
-        return '{} {} {{}}'.format(name, var_decl.op, ', '.join(self._unparse_expr(expr) for expr in var_decl.init_list))
+        # array initialization. e.g. "a = (0, 1, 2)"
+        return '{} {} ({})'.format(name, var_decl.op, ', '.join(self._unparse_expr(expr) for expr in var_decl.init_list))
 
     def _unparse_if_stmt(self, stmt) -> str:
         if stmt.cond_part.WhichOneof("stmt") != "expr_stmt":
