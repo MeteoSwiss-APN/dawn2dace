@@ -71,8 +71,10 @@ class Exporter:
                 pass
 
     def Export_Globals(self, id_value:dict):
-        if id_value:
-            init_state = self.sdfg.add_state("GlobalInit")
+        if not id_value:
+            return
+
+        init_state = self.sdfg.add_state("GlobalInit")
 
         for id, value in id_value.items():
             name = self.id_resolver.GetName(id)
@@ -87,9 +89,9 @@ class Exporter:
             out_memlet = dace.Memlet.simple(name, '0')
             init_state.add_edge(tasklet, name, op2, None, out_memlet)
 
-            if self.last_state_ is not None:
-                self.sdfg.add_edge(self.last_state_, init_state, dace.InterstateEdge())
-            self.last_state_ = init_state
+        if self.last_state_ is not None:
+            self.sdfg.add_edge(self.last_state_, init_state, dace.InterstateEdge())
+        self.last_state_ = init_state
 
     def GetShape(self, id:int) -> list:
         ret = filter2(self.id_resolver.GetDimensions(id), [I,J,K])
