@@ -69,8 +69,13 @@ class Unparser:
     def _unparse_fun_call_expr(self, expr) -> str:
         """Unparses external function calls, like math::sqrt."""
         
+        if expr.callee.startswith('gridtools::dawn::math::'):
+            callee = expr.callee[len('gridtools::dawn::math::'):]
+        else:
+            callee = expr.callee
+
         args = (self._unparse_expr(arg) for arg in expr.arguments)
-        return expr.callee + "(" + ",".join(args) + ")"
+        return callee + "(" + ",".join(args) + ")"
 
     def _unparse_var_access_expr(self, expr) -> str:
         return self.id_resolver.GetName(expr.data.accessID.value)

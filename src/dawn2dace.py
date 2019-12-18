@@ -41,7 +41,7 @@ class Renamer(ast.NodeTransformer):
     def visit_Name(self, node):
         if self.storemode or isinstance(node.ctx, ast.Store):
             node.id += '_out'
-        elif isinstance(node.ctx, ast.Load):
+        elif isinstance(node.ctx, ast.Load) and node.id not in ['min', 'max', 'sqrt', 'fabs']:
             node.id += '_in'
         return node
 
