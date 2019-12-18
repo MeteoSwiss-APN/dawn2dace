@@ -38,6 +38,8 @@ class MemoryAccess1D:
     @classmethod
     def GetSpan(cls, mem_accs):
         ma = list(mem_accs)
+        if not ma:
+            raise TypeError("mem_accs should not be empty")
         return cls(
             min((m.lower for m in ma)),
             max((m.upper for m in ma))
@@ -97,10 +99,10 @@ class DoMethod:
         self.statements = statements # List of Statement
 
     def GetReadSpan(self):
-        return MemoryAccess3D.GetSpan((x.GetReadSpan() for x in self.statements))
+        return MemoryAccess3D.GetSpan((x.GetReadSpan() for x in self.statements if x.reads))
 
     def GetWriteSpan(self):
-        return MemoryAccess3D.GetSpan((x.GetWriteSpan() for x in self.statements))
+        return MemoryAccess3D.GetSpan((x.GetWriteSpan() for x in self.statements if x.writes))
 
 
 class Stage:
