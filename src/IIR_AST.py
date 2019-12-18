@@ -168,7 +168,7 @@ class IIR_Transformer(IIR_Visitor):
 
     def generic_visit(self, node):
         for field, old_value in iter_fields(node):
-            if field.startswith('__'):
+            if field.startswith('_'):
                 continue
             elif isinstance(old_value, IIR_Classes):
                 new_node = self.visit(old_value)
@@ -184,7 +184,7 @@ class IIR_Transformer(IIR_Visitor):
                             if new_node is None:
                                 delattr(node, field)
                             else:
-                                old_value.CopyFrom(new_node)
+                                o.CopyFrom(new_node)
                 except:
                     pass
         return node
