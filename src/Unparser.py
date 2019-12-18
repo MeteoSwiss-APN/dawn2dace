@@ -167,7 +167,7 @@ class Unparser:
     def unparse_body_stmt(self, stmt) -> str:
         which = stmt.WhichOneof("stmt")
         if which is None:
-            return ''
+            return 'pass'
         if which == "expr_stmt":
             return self._unparse_expr_stmt(stmt.expr_stmt)
         if which == "var_decl_stmt":
