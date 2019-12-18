@@ -213,8 +213,6 @@ def IIR_str_to_SDFG(iir: str):
     stencilInstantiation = IIR_pb2.StencilInstantiation()
     stencilInstantiation.ParseFromString(iir)
 
-    sdfg = dace.SDFG("IIRToSDFG")
-
     metadata = stencilInstantiation.metadata
     id_resolver = IdResolver(
         metadata.accessIDToName,
@@ -223,6 +221,8 @@ def IIR_str_to_SDFG(iir: str):
         metadata.globalVariableIDs,
         metadata.fieldIDtoLegalDimensions
         )
+
+    sdfg = dace.SDFG(metadata.stencilName)
 
     imp = Importer(id_resolver)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
