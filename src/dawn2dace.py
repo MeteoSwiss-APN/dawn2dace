@@ -41,7 +41,7 @@ class Renamer(ast.NodeTransformer):
     def visit_Name(self, node):
         if self.storemode or isinstance(node.ctx, ast.Store):
             node.id += '_out'
-        elif isinstance(node.ctx, ast.Load) and node.id not in ['min', 'max', 'sqrt', 'fabs']:
+        elif isinstance(node.ctx, ast.Load):
             node.id += '_in'
         return node
 
@@ -61,6 +61,11 @@ class Renamer(ast.NodeTransformer):
         self.visit(node.target)
         self.storemode = False
         self.visit(node.value)
+        return node
+
+    def visit_Call(self, node):
+        for arg in node.args:
+            self.visit(arg)
         return node
 
 def RenameVariables(stencils: list):
