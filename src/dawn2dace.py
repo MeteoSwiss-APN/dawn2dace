@@ -63,7 +63,7 @@ class Renamer(ast.NodeTransformer):
         self.visit(node.value)
         return node
 
-def RenameVariables(stencils: list, id_resolver):
+def RenameVariables(stencils: list):
     """
     Renames all variables that are read from by adding a suffix '_in'.
     Renames all variables that are written to by adding a suffix '_out'.
@@ -201,13 +201,13 @@ def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
                         stmt.code = DimensionalReducerWrite(id_resolver, stmt.writes).visit(stmt.code)
 
 
-def UnparseCode(stencils: list):
+def UnparseCode(stencils: list, id_resolver:IdResolver):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        stmt.code = Unparser().unparse_body_stmt(stmt.code)
+                        stmt.code = Unparser(id_resolver).unparse_body_stmt(stmt.code)
 
 def IIR_str_to_SDFG(iir: str):
     stencilInstantiation = IIR_pb2.StencilInstantiation()
@@ -232,8 +232,8 @@ def IIR_str_to_SDFG(iir: str):
     AccountForIJMap(stencils)
     AccountForKMap(stencils)
     RemoveUnusedDimensions(id_resolver, stencils)
-    UnparseCode(stencils)
-    RenameVariables(stencils, id_resolver)
+    UnparseCode(stencils, id_resolver)
+    RenameVariables(stencils)
 
     exp = Exporter(id_resolver, sdfg)
 

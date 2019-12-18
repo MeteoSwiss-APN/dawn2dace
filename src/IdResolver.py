@@ -10,7 +10,9 @@ class IdResolver:
         self.__fieldIDtoLegalDimensions = fieldIDtoLegalDimensions
     
     def GetName(self, id:int) -> str:
-        return self.__accessIDToName[id]
+        if isinstance(id, int):
+            return self.__accessIDToName[id]
+        raise Exception('Unexpected type')
 
     def GetDimensions(self, id:int) -> list:
         """ Returns a list containing dimensional information """

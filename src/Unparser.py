@@ -36,6 +36,8 @@ def DownCastExpression(expr):
 
 class Unparser:
     """Unparses IIR's AST into Python."""
+    def __init__(self, id_resolver:IdResolver):
+        self.id_resolver = id_resolver
 
     def _unparse_unary_operator(self, expr) -> str:
         return "{} ({})".format(
@@ -71,7 +73,7 @@ class Unparser:
         return expr.callee + "(" + ",".join(args) + ")"
 
     def _unparse_var_access_expr(self, expr) -> str:
-        return expr.name
+        return self.id_resolver.GetName(expr.data.accessID.value)
 
     def _unparse_field_access_expr(self, expr) -> str:
         indices = [
@@ -81,9 +83,10 @@ class Unparser:
         ]
         indices = [str(i) for i in indices if i != -1000]
 
+        name = self.id_resolver.GetName(expr.data.accessID.value)
         if indices:
-            return expr.name + "[{}]".format(','.join(indices))
-        return expr.name
+            return name + "[{}]".format(','.join(indices))
+        return name
     
     @staticmethod
     def _unparse_literal_access_expr(expr) -> str:
@@ -117,15 +120,17 @@ class Unparser:
         return self._unparse_expr(stmt.expr)
 
     def _unparse_var_decl_stmt(self, var_decl) -> str:
+        name = self.id_resolver.GetName(var_decl.var_decl_stmt_data.accessID.value)
+        
         if not var_decl.init_list:
-            return ''
+            return name
 
-        ret = var_decl.name + var_decl.op
+        # single value initialization. e.g. "a = 3"
+        if len(var_decl.init_list) == 1:
+            return '{} {} {}'.format(name, var_decl.op, self._unparse_expr(var_decl.init_list[0]))
 
-        for expr in var_decl.init_list:
-            ret += self._unparse_expr(expr)
-
-        return ret
+        # array initialization. e.g. "a = {0, 1, 2}"
+        return '{} {} {{}}'.format(name, var_decl.op, ', '.join(self._unparse_expr(expr) for expr in var_decl.init_list))
 
     def _unparse_if_stmt(self, stmt) -> str:
         if stmt.cond_part.WhichOneof("stmt") != "expr_stmt":
