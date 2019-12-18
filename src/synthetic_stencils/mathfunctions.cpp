@@ -1,13 +1,14 @@
+#include "gtclang_dsl_defs/math.hpp"
 #include "gtclang_dsl_defs/gtclang_dsl.hpp"
 
 using namespace gtclang::dsl;
 
-stencil copy {
-  storage original, copy;
+stencil mathfunctions {
+  storage x, y;
 
   Do {
     vertical_region(k_start, k_end) {
-      copy = original;
+      y = math::min(5.0, math::max(10.0, x));
     }
   }
 };

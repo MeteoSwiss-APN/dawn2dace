@@ -1,6 +1,6 @@
-#include "gridtools/clang_dsl.hpp"
+#include "gtclang_dsl_defs/gtclang_dsl.hpp"
 
-using namespace gridtools::clang;
+using namespace gtclang::dsl;
 
 stencil vertical_specification_2 {
   storage input1, input2, output;
