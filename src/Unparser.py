@@ -141,13 +141,13 @@ class Unparser:
             '\t{}\n'
             'else:\n'
             '\t{}').format(
-               self._unparse_expr_stmt(stmt.cond_part), 
-               self._unparse_body_stmt(stmt.then_part),
-               self._unparse_body_stmt(stmt.else_part)
+               self._unparse_expr_stmt(stmt.cond_part.expr_stmt), 
+               self.unparse_body_stmt(stmt.then_part),
+               self.unparse_body_stmt(stmt.else_part)
             )
 
     def _unparse_block_stmt(self, stmt) -> str:
-        return '\n'.join(self._unparse_body_stmt(s) for s in stmt.statements)
+        return '\n'.join(self.unparse_body_stmt(s) for s in stmt.statements)
 
     def unparse_body_stmt(self, stmt) -> str:
         which = stmt.WhichOneof("stmt")
