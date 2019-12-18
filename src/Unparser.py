@@ -39,16 +39,19 @@ class Unparser:
     def __init__(self, id_resolver:IdResolver):
         self.id_resolver = id_resolver
 
+    def _unparse_logical_operator(self, op) -> str:
+        return {'&&': 'and', '||': 'or', '!': 'not'}.get(op, op)
+
     def _unparse_unary_operator(self, expr) -> str:
         return "{} ({})".format(
-            expr.op,
+            self._unparse_logical_operator(expr.op),
             self._unparse_expr(expr.operand)
         )
 
     def _unparse_binary_operator(self, expr) -> str:
         return "({}) {} ({})".format(
             self._unparse_expr(expr.left),
-            expr.op,
+            self._unparse_logical_operator(expr.op),
             self._unparse_expr(expr.right)
         )
 
