@@ -35,3 +35,12 @@ class IdResolver:
 
     def IsLocal(self, id:int) -> bool:
         return self.GetName(id).startswith("__local")
+
+    def Classify(self, ids: list):
+        """ Returns a tuple of lists of ids: (apis, temporaries, globals, literals, locals). """
+        apis = {id for id in ids if self.IsInAPI(id)}
+        temporaries = {id for id in ids if self.IsATemporary(id)}
+        globals = {id for id in ids if self.IsGlobal(id)}
+        literals = {id for id in ids if self.IsALiteral(id)}
+        locals = {id for id in ids if self.IsLocal(id)}
+        return apis, temporaries, globals, literals, locals
