@@ -141,16 +141,17 @@ class Exporter:
                     continue
 
                 for stmt in do_method.statements:
-                    self.try_add_array(sub_sdfg, stmt.reads.keys())
-                    self.try_add_array(sub_sdfg, stmt.writes.keys())
+                    reads = stmt.reads.keys()
+                    writes = stmt.writes.keys()
+                    all = reads | writes
+                    apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
 
-                    self.try_add_transient(self.sdfg, stmt.reads.keys())
-                    self.try_add_transient(self.sdfg, stmt.writes.keys())
+                    self.try_add_array(sub_sdfg, all)
+                    self.try_add_transient(self.sdfg, all)
+                    self.try_add_scalar(self.sdfg, reads & globals)
 
-                    self.try_add_scalar(self.sdfg, (id for id in stmt.reads.keys() if self.id_resolver.IsGlobal(id)))
-
-                    collected_input_ids.extend((id for id in stmt.reads.keys() if not self.id_resolver.IsALiteral(id)))
-                    collected_output_ids.extend((id for id in stmt.writes.keys() if not self.id_resolver.IsALiteral(id)))
+                    collected_input_ids.extend(reads - literals)
+                    collected_output_ids.extend(writes - literals)
 
                     # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                     # the maps are ij-only
