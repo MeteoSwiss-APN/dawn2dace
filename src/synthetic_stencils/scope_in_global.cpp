@@ -7,7 +7,7 @@ globals
   double global_var = 3.14;
 };
 
-stencil scope_in_region {
+stencil scope_in_global {
   storage input, output;
   
   Do {
