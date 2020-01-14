@@ -117,9 +117,9 @@ class Exporter:
             mem_acc.k.lower, mem_acc.k.upper + 1,
         )
 
-    def CreateMemlets(self, transactions, suffix:str, relative_to_k:bool) -> dict:
+    def CreateMemlets(self, transactions:dict, suffix:str, relative_to_k:bool) -> dict:
         memlets = {}
-        for id, mem_acc in transactions:
+        for id, mem_acc in transactions.items():
             name = self.id_resolver.GetName(id)
 
             if self.id_resolver.IsALiteral(id):
@@ -146,12 +146,14 @@ class Exporter:
                     all = reads | writes
                     apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
 
-                    self.try_add_array(sub_sdfg, all)
-                    self.try_add_transient(self.sdfg, all)
+                    self.try_add_array(sub_sdfg, all - locals)
+                    self.try_add_transient(sub_sdfg, locals)
+
+                    self.try_add_transient(self.sdfg, all - locals)
                     self.try_add_scalar(self.sdfg, reads & globals)
 
-                    collected_input_ids.extend(reads - literals)
-                    collected_output_ids.extend(writes - literals)
+                    collected_input_ids.extend(reads - literals - locals)
+                    collected_output_ids.extend(writes - literals - locals)
 
                     # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                     # the maps are ij-only
@@ -159,10 +161,11 @@ class Exporter:
                     state.add_mapped_tasklet(
                         str(stmt),
                         dict(i="halo:I-halo", j="halo:J-halo"),
-                        inputs = self.CreateMemlets(stmt.reads.items(), '_in', relative_to_k = False),
+                        inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = False),
                         code = stmt.code,
-                        outputs = self.CreateMemlets(stmt.writes.items(), '_out', relative_to_k = False),
-                        external_edges = True
+                        outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = False),
+                        external_edges = True,
+                        propagate=False
                     )
 
                     # set the state to be the last one to connect them
@@ -200,6 +203,7 @@ class Exporter:
                 nested_sdfg,
                 memlet = dace.Memlet.simple(name, subset_str),
                 dst_conn = name,
+                propagate=False
             )
         for id in set(collected_output_ids):
             name = self.id_resolver.GetName(id)
@@ -217,6 +221,7 @@ class Exporter:
                 write,
                 memlet=dace.Memlet.simple(name, subset_str),
                 src_conn = name,
+                propagate=False
             )
 
         if self.last_state_ is not None:
@@ -245,10 +250,10 @@ class Exporter:
                     state.add_mapped_tasklet(
                         str(stmt),
                         dict(i="halo:I-halo", j="halo:J-halo"),
-                        inputs = self.CreateMemlets(stmt.reads.items(), '_in', relative_to_k = True),
+                        inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = True),
                         code = stmt.code,
-                        outputs = self.CreateMemlets(stmt.writes.items(), '_out', relative_to_k = True),
-                        external_edges = True
+                        outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = True),
+                        external_edges = True, propagate=False
                     )
 
                     if first_state is None:
