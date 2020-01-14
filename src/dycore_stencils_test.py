@@ -5,22 +5,25 @@ from dace.codegen import codegen, compiler
 class Transcompiler():
     def test1_file_exists(self):
         self.assertIsNotNone(read_file(self.file_name + ".iir"))
-
-    def test2_translate(self):
+ 
+    def test2_translates(self):
         iir = read_file(self.file_name + ".iir")
-
         sdfg = dawn2dace.IIR_str_to_SDFG(iir)
-        sdfg.save("gen/" + self.file_name + ".sdfg")
 
+        sdfg.apply_strict_transformations(validate=False) # Don't validate all the time, for performance reasons.
+        sdfg.validate() # Validate only once.
+        
+        # WORKAROUND: Creates all arrays on the CPU heap. Can be removed as soon as the PR is merged.
+        for arr in sdfg.arrays.values():
+            if arr.transient:
+                arr.storage = dace.StorageType.CPU_Heap
+        
         program_objects = codegen.generate_code(sdfg)
         compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.file_name)
 
-    def test3_strict_transform(self):
-        sdfg = SDFG.from_file("gen/" + self.file_name + ".sdfg")
-        sdfg.apply_strict_transformations()
-        sdfg.save("gen/" + self.file_name + "_StictTrafo.sdfg")
+        sdfg.save("gen/" + self.file_name + ".sdfg")
 
-    def test4_compile(self):
+    def test3_compiles(self):
         sdfg = SDFG.from_file("gen/" + self.file_name + ".sdfg")
         self.assertIsNotNone(sdfg.compile(optimizer=""))
 
