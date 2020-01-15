@@ -2,7 +2,7 @@
 
 using namespace gtclang::dsl;
 
-stencil vertical_specification_2 {
+stencil vertical_loop {
   storage a;
 
   Do {
