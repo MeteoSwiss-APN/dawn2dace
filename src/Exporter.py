@@ -1,4 +1,5 @@
 import dace
+from IndexHandling import *
 from Intermediates import *
 from IdResolver import IdResolver
 
@@ -8,8 +9,9 @@ K = dace.symbol("K")
 halo = dace.symbol("haloSize")
 data_type = dace.float64
 
-def filter2(conditionals:list, elements:list) -> list:
-    return [elem for cond, elem in zip(conditionals, elements) if cond]
+def dim_filter(dimensions:Index3D, i, j, k) -> list:
+    dim_mem = ToMemLayout(dimensions.i, dimensions.j, dimensions.k)
+    return [elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim]
 
 class Exporter:
     def __init__(self, id_resolver:IdResolver, sdfg):
@@ -94,7 +96,7 @@ class Exporter:
         self.last_state_ = init_state
 
     def GetShape(self, id:int) -> list:
-        ret = filter2(self.id_resolver.GetDimensions(id), [I,J,K])
+        ret = dim_filter(self.id_resolver.GetDimensions(id), I, J, K)
         if ret:
             return ret
         return [1]
@@ -104,18 +106,17 @@ class Exporter:
             raise TypeError("Expected MemoryAccess3D, got: {}".format(type(mem_acc).__name__))
         
         dims = self.id_resolver.GetDimensions(id)
-        if all(d == 0 for d in dims):
+        if (dims.i == 0) and (dims.j == 0) and (dims.k == 0):
             return "0"
 
-        dimensional_templates = filter2(dims, ["i+{}:i+{}", "j+{}:j+{}", ("k+{}:k+{}" if relative_to_k else "{}:{}")])
+        i_str = "i+{}:i+{}".format(mem_acc.i.lower, mem_acc.i.upper + 1)
+        j_str = "j+{}:j+{}".format(mem_acc.j.lower, mem_acc.j.upper + 1)
+        if relative_to_k:
+            k_str = "k+{}:k+{}".format(mem_acc.k.lower, mem_acc.k.upper + 1)
+        else:
+            k_str = "{}:{}".format(mem_acc.k.lower, mem_acc.k.upper + 1)
         
-        template = ', '.join(dimensional_templates)
-    
-        return template.format(
-            mem_acc.i.lower, mem_acc.i.upper + 1,
-            mem_acc.j.lower, mem_acc.j.upper + 1,
-            mem_acc.k.lower, mem_acc.k.upper + 1,
-        )
+        return ', '.join(dim_filter(dims, i_str, j_str, k_str))
 
     def CreateMemlets(self, transactions:dict, suffix:str, relative_to_k:bool) -> dict:
         memlets = {}
@@ -192,7 +193,7 @@ class Exporter:
             dims = self.id_resolver.GetDimensions(id)
 
             read = multi_stage_state.add_read(name)
-            subset_str = ', '.join(filter2(dims, ["0:I", "0:J", "k+{}:k+{}".format(lower_k, upper_k + 1)]))
+            subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(lower_k, upper_k + 1)))
             if not subset_str:
                 subset_str = "0"
 
@@ -210,7 +211,7 @@ class Exporter:
             dims = self.id_resolver.GetDimensions(id)
 
             write = multi_stage_state.add_write(name)
-            subset_str = ', '.join(filter2(dims, ["0:I", "0:J", "k"]))
+            subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k"))
             if not subset_str:
                 subset_str = "0"
             

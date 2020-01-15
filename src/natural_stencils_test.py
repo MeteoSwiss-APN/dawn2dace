@@ -21,6 +21,14 @@ class coriolis(LegalSDFG, Asserts):
                 # v_tens -= 0.25 * (fc * (u + u[j+1]) + fc[i-1] * (u[i-1] + u[i-1,j+1]));
                 v_tens[i,j,:] -= 0.25 * (fc[i,j] * (u[i,j,:] + u[i,j+1,:]) + fc[i-1,j] * (u[i-1,j,:] + u[i-1,j+1,:]))
 
+        u = Transpose(u)
+        v = Transpose(v)
+        fc = TransposeIJ(fc)
+        u_tens = Transpose(u_tens)
+        v_tens = Transpose(v_tens)
+        u_tens_dace = Transpose(u_tens_dace)
+        v_tens_dace = Transpose(v_tens_dace)
+
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
@@ -102,6 +110,17 @@ class thomas(LegalSDFG, Asserts):
             for j in range(halo, J-halo):
                 for k in reversed(range(0, K-1)):
                     data[i,j,k] = d[i,j,k] - (c[i,j,k] * data[i,j,k+1])
+
+        a = Transpose(a)
+        b = Transpose(b)
+        c = Transpose(c)
+        d = Transpose(d)
+        data = Transpose(data)
+        a_dace = Transpose(a_dace)
+        b_dace = Transpose(b_dace)
+        c_dace = Transpose(c_dace)
+        d_dace = Transpose(d_dace)
+        data_dace = Transpose(data_dace)
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")

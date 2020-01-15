@@ -11,6 +11,10 @@ class copy(LegalSDFG, Asserts):
         copy_dace = numpy.copy(copy)
 
         copy = numpy.copy(original)
+
+        original = Transpose(original)
+        copy = Transpose(copy)
+        copy_dace = Transpose(copy_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -30,7 +34,7 @@ class copy_with_halo(LegalSDFG, Asserts):
     file_name = "copy"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 3,4,6
         halo = 1
         original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -41,6 +45,10 @@ class copy_with_halo(LegalSDFG, Asserts):
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
+
+        original = Transpose(original)
+        copy = Transpose(copy)
+        copy_dace = Transpose(copy_dace)
 
         sdfg(
             original = original,
@@ -63,6 +71,9 @@ class inout_variable(LegalSDFG, Asserts):
         a_dace = numpy.copy(a)
 
         a = a + 7
+        
+        a = Transpose(a)
+        a_dace = Transpose(a_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -93,6 +104,11 @@ class horizontal_offsets(LegalSDFG, Asserts):
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                     a[i, j, :] = b[i-1, j, :] + b[i, j+1, :] + b[i+1, j-1, :] + c[i-1, j, :]
+        
+        a = Transpose(a)
+        b = Transpose(b)
+        c = Transpose(c)
+        a_dace = Transpose(a_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -127,6 +143,10 @@ class vertical_offsets(LegalSDFG, Asserts):
         # vertical_region(k_start + 1, k_end) { output = input[k-1]; }
         for k in range(1, K):
             output[:, :, k] = input[:, :, k-1]
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -161,6 +181,11 @@ class vertical_specification_1(LegalSDFG, Asserts):
         # vertical_region(k_start+1, k_end) { output = input2; }
         for k in range(1, K):
             output[:, :, k] = input2[:, :, k]
+
+        input1 = Transpose(input1)
+        input2 = Transpose(input2)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -196,6 +221,11 @@ class vertical_specification_2(LegalSDFG, Asserts):
         # vertical_region(k_start, k_end-1) { output = input1; }
         for k in range(0, K-1):
             output[:, :, k] = input1[:, :, k]
+
+        input1 = Transpose(input1)
+        input2 = Transpose(input2)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -224,6 +254,10 @@ class scope_in_region(LegalSDFG, Asserts):
         output_dace = numpy.copy(output)
 
         output = input + 5
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -251,6 +285,10 @@ class scope_in_stencil(LegalSDFG, Asserts):
         output_dace = numpy.copy(output)
 
         output = input + 5
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -278,6 +316,10 @@ class scope_in_global(LegalSDFG, Asserts):
         output_dace = numpy.copy(output)
 
         output = input + 3.14
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -301,14 +343,18 @@ class scopes_mixed(LegalSDFG, Asserts):
         I,J,K = 6,6,6
         halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.ones(shape=(I,J,K), dtype=dace.float64.type)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         output_dace = numpy.copy(output)
         
-        # vertical_region(k_start, k_end) { output = input[i-1] + 3.14; }
+        # vertical_region(k_start, k_end) { output = input+ 3.14; }
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    output[i, j, k] = input[i-1, j, k] + 3.14
+                    output[i, j, k] = input[i, j, k] + 3.14
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -322,7 +368,7 @@ class scopes_mixed(LegalSDFG, Asserts):
             K = numpy.int32(K),
             halo = numpy.int32(halo))
 
-        self.assertEqual(output[1:,:,:], output_dace[1:,:,:])
+        self.assertEqual(output, output_dace)
 
 
 class brackets(LegalSDFG, Asserts):
@@ -337,6 +383,10 @@ class brackets(LegalSDFG, Asserts):
 
         # output = 0.25 * (input + 7);
         output = 0.25 * (input + 7)
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -365,6 +415,9 @@ class loop(LegalSDFG, Asserts):
         # vertical_region(k_start+1, k_end) { a += a[k-1]; }
         for k in range(1, K):
             a[:,:,k] += a[:,:,k-1]
+
+        a = Transpose(a)
+        a_dace = Transpose(a_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -395,6 +448,10 @@ class mathfunctions(LegalSDFG, Asserts):
             for j in range(halo, J-halo):
                 for k in range(0, K):
                     y[i,j,k] += min(5.0, max(10.0, x[i,j,k]))
+
+        x = Transpose(x)
+        y = Transpose(y)
+        y_dace = Transpose(y_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -455,6 +512,15 @@ class tridiagonal_solve(LegalSDFG, Asserts):
             for j in range(halo, J-halo):
                 for k in reversed(range(0, K-1)):
                     d[i,j,k] -= c[i,j,k] * d[i,j,k+1]
+
+        a = Transpose(a)
+        b = Transpose(b)
+        c = Transpose(c)
+        d = Transpose(d)
+        a_dace = Transpose(a_dace)
+        b_dace = Transpose(b_dace)
+        c_dace = Transpose(c_dace)
+        d_dace = Transpose(d_dace)
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")

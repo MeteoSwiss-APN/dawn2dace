@@ -1,3 +1,4 @@
+from IndexHandling import *
 from IdResolver import IdResolver
 import IIR_pb2
 
@@ -84,11 +85,11 @@ class Unparser:
         return self.id_resolver.GetName(expr.data.accessID.value)
 
     def _unparse_field_access_expr(self, expr) -> str:
-        indices = [
+        indices = ToMemLayout(
             expr.cartesian_offset.i_offset,
             expr.cartesian_offset.j_offset,
-            expr.vertical_offset,
-        ]
+            expr.vertical_offset
+        )
         indices = [str(i) for i in indices if i != -1000]
 
         name = self.id_resolver.GetName(expr.data.accessID.value)

@@ -18,7 +18,7 @@ stencil scopes_mixed
     {
       double region_var = input;
       stencil_var = region_var;
-      output = stencil_var[i-1] + global_var;
+      output = stencil_var + global_var;
     }
   }
 };

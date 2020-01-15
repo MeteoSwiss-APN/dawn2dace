@@ -2,6 +2,7 @@ import unittest
 import numpy
 import sys
 import os
+from IndexHandling import *
 
 # This is a workaround for a bug in vscode. Apparently it ignores PYTHONPATH. (6.Nov 2019)
 sys.path.append(os.path.relpath("build/gen/iir_specification/"))
@@ -18,6 +19,26 @@ def read_file(file_name):
 def get_sdfg(file_name):
     iir = read_file(file_name)
     return dawn2dace.IIR_str_to_SDFG(iir)
+
+def Transpose(arr):
+    if len(arr.shape) != 3:
+        raise TypeError("Expected 3D array")
+    return arr.transpose(ToMemLayout(0, 1, 2)).copy()
+
+def TransposeIJ(arr):
+    if len(arr.shape) != 2:
+        raise TypeError("Expected 2D array")
+    return arr.transpose(ToMemLayout(0, 1, None)).copy()
+    
+def TransposeIK(arr):
+    if len(arr.shape) != 2:
+        raise TypeError("Expected 2D array")
+    return arr.transpose(ToMemLayout(0, None, 2)).copy()
+    
+def TransposeJK(arr):
+    if len(arr.shape) != 2:
+        raise TypeError("Expected 2D array")
+    return arr.transpose(ToMemLayout(None, 1, 2)).copy()
 
 class LegalSDFG:
     def test_1_file_exists(self):

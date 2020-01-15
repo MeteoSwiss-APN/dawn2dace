@@ -1,3 +1,4 @@
+from IndexHandling import *
 
 class IdResolver:
     def __init__(self, accessIDToName:dict,
@@ -14,12 +15,12 @@ class IdResolver:
             return self.__accessIDToName[id]
         raise Exception('Unexpected type')
 
-    def GetDimensions(self, id:int) -> list:
+    def GetDimensions(self, id:int) -> Index3D:
         """ Returns a list containing dimensional information """
-        if self.IsLocal(id):
-            return [1,1,1]
+        if self.IsLocal(id): # TODO: Think about this!
+            return Index3D(1,1,1)
         array = self.__fieldIDtoLegalDimensions[id]
-        return [array.int1, array.int2, array.int3]
+        return Index3D(array.int1, array.int2, array.int3)
     
     def IsInAPI(self, id:int) -> bool:
         return id in self.__APIFieldIDs

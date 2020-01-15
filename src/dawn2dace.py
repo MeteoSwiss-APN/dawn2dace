@@ -6,6 +6,7 @@ import pickle
 import sys
 import astunparse
 import IIR_pb2
+from IndexHandling import *
 from Intermediates import *
 from Importer import Importer
 from Exporter import *
@@ -172,11 +173,11 @@ class DimensionalReducer(IIR_Transformer):
             dims = self.id_resolver.GetDimensions(id)
             mem_acc = self.transfer[id]
 
-            if (mem_acc.i.lower == mem_acc.i.upper) or not dims[0]:
+            if (mem_acc.i.lower == mem_acc.i.upper) or not dims.i:
                 expr.cartesian_offset.i_offset = -1000
-            if (mem_acc.j.lower == mem_acc.j.upper) or not dims[1]:
+            if (mem_acc.j.lower == mem_acc.j.upper) or not dims.j:
                 expr.cartesian_offset.j_offset = -1000
-            if (mem_acc.k.lower == mem_acc.k.upper) or not dims[2]:
+            if (mem_acc.k.lower == mem_acc.k.upper) or not dims.k:
                  expr.vertical_offset = -1000
         return expr
 
