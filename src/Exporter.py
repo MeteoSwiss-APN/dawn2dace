@@ -1,4 +1,5 @@
 import dace
+import sympy
 from IndexHandling import *
 from Intermediates import *
 from IdResolver import IdResolver
@@ -6,6 +7,7 @@ from IdResolver import IdResolver
 I = dace.symbol("I")
 J = dace.symbol("J")
 K = dace.symbol("K")
+padJ = 16 * sympy.ceiling(J / 16)
 halo = dace.symbol("haloSize")
 data_type = dace.float64
 
@@ -43,14 +45,22 @@ class Exporter:
         for id in ids:
             name = self.id_resolver.GetName(id)
             shape = self.GetShape(id)
+            strides = self.GetStrides(id)
+            total_size = self.GetTotalSize(id)
 
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            print("Try add array: {} of size {}".format(name, shape))
+            print("Try add array: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
-                sdfg.add_array(name, shape, dtype=data_type)
+                sdfg.add_array(
+                    name, 
+                    shape, 
+                    dtype=data_type,
+                    strides=strides, 
+                    total_size=total_size
+                )
             except:
                 pass
 
@@ -61,14 +71,22 @@ class Exporter:
         for id in ids:
             name = self.id_resolver.GetName(id)
             shape = self.GetShape(id)
+            strides = self.GetStrides(id)
+            total_size = self.GetTotalSize(id)
 
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            print("Try add transient: {} of size {}".format(name, shape))
+            print("Try add transient: {} of size {}".format(name, shape, strides, total_size))
 
             try:
-                sdfg.add_transient(name, shape, dtype=data_type)
+                sdfg.add_transient(
+                    name, 
+                    shape, 
+                    dtype=data_type,
+                    strides=strides, 
+                    total_size=total_size
+                )
             except:
                 pass
 
@@ -100,6 +118,60 @@ class Exporter:
         if ret:
             return ret
         return [1]
+
+    def GetStrides(self, id:int) -> list:
+        dim = self.id_resolver.GetDimensions(id)
+        highest, middle, lowest = ToMemLayout(
+            I if dim.i else 0,
+            J if dim.j else 0,
+            K if dim.k else 0
+        )
+
+        lowest = 8 * sympy.ceiling(lowest / 8) # Stride policy.
+        if lowest:
+            if middle:
+                if highest:
+                    return [middle * lowest, lowest, 1]
+                else:
+                    return [lowest, 1]
+            else:
+                if highest:
+                    return [lowest, 1]
+                else:
+                    return [1]
+        else:
+            if middle:
+                if highest:
+                    return [middle, 1]
+                else:
+                    return [1]
+            else:
+                if highest:
+                    return [1]
+                else:
+                    raise Exception("No dimensions, no strides!")
+
+    def GetTotalSize(self, id:int) -> int:
+        stride = self.GetStrides(id)
+        biggest_stride = stride[0]
+
+        dim = self.id_resolver.GetDimensions(id)
+        highest, middle, lowest = ToMemLayout(
+            I if dim.i else 0,
+            J if dim.j else 0,
+            K if dim.k else 0
+        )
+
+        for x in [highest, middle, lowest]:
+            if x:
+                return x * biggest_stride
+
+    def TotalSize(size_i, size_j, size_k) -> int:
+        biggest_stride = Strides(size_i, size_j, size_k)[0]
+
+        for x in [highest, middle, lowest]:
+            if x:
+                return x * biggest_stride
 
     def Export_MemoryAccess3D(self, id:int, mem_acc:MemoryAccess3D, relative_to_k) -> str:
         if not isinstance(mem_acc, MemoryAccess3D):
@@ -147,10 +219,11 @@ class Exporter:
                     all = reads | writes
                     apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
 
-                    self.try_add_array(sub_sdfg, all - locals)
+                    self.try_add_array(sub_sdfg, all - locals - globals)
                     self.try_add_transient(sub_sdfg, locals)
+                    self.try_add_scalar(sub_sdfg, reads & globals)
 
-                    self.try_add_transient(self.sdfg, all - locals)
+                    self.try_add_transient(self.sdfg, all - locals - globals)
                     self.try_add_scalar(self.sdfg, reads & globals)
 
                     collected_input_ids.extend(reads - literals - locals)

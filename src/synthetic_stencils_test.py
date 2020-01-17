@@ -4,7 +4,7 @@ class copy(LegalSDFG, Asserts):
     file_name = "copy"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 0
         original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -34,7 +34,7 @@ class copy_with_halo(LegalSDFG, Asserts):
     file_name = "copy"
 
     def test_3_numerically(self):
-        I,J,K = 3,4,6
+        I,J,K = 8,8,8
         halo = 1
         original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -65,7 +65,7 @@ class inout_variable(LegalSDFG, Asserts):
     file_name = "inout_variable"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 0
         a = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         a_dace = numpy.copy(a)
@@ -93,7 +93,7 @@ class horizontal_offsets(LegalSDFG, Asserts):
     file_name = "horizontal_offsets"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 1
         a = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
         b = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
@@ -131,7 +131,7 @@ class vertical_offsets(LegalSDFG, Asserts):
     file_name = "vertical_offsets"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -166,7 +166,7 @@ class vertical_specification_1(LegalSDFG, Asserts):
     file_name = "vertical_specification_1"
 
     def test_3_numerically(self):
-        I,J,K = 4,4,4
+        I,J,K = 8,8,8
         halo = 0
         input1 = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         input2 = numpy.arange(100, I*J*K+100).astype(dace.float64.type).reshape(I,J,K)
@@ -207,7 +207,7 @@ class vertical_specification_2(LegalSDFG, Asserts):
     file_name = "vertical_specification_2"
 
     def test_3_numerically(self):
-        I,J,K = 4,4,4
+        I,J,K = 8,8,8
         halo = 0
         input1 = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         input2 = numpy.arange(100, I*J*K+100).astype(dace.float64.type).reshape(I,J,K)
@@ -247,7 +247,7 @@ class scope_in_region(LegalSDFG, Asserts):
     file_name = "scope_in_region"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -278,7 +278,7 @@ class scope_in_stencil(LegalSDFG, Asserts):
     file_name = "scope_in_stencil"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -309,7 +309,7 @@ class scope_in_global(LegalSDFG, Asserts):
     file_name = "scope_in_global"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -340,7 +340,7 @@ class scopes_mixed(LegalSDFG, Asserts):
     file_name = "scopes_mixed"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -375,7 +375,7 @@ class brackets(LegalSDFG, Asserts):
     file_name = "brackets"
 
     def test_3_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 0
         input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -407,7 +407,7 @@ class loop(LegalSDFG, Asserts):
     file_name = "loop"
 
     def test_3_numerically(self):
-        I,J,K = 3,3,3
+        I,J,K = 8,8,8
         halo = 0
         a = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         a_dace = numpy.copy(a)
@@ -437,7 +437,7 @@ class mathfunctions(LegalSDFG, Asserts):
     file_name = "mathfunctions"
 
     def test_3_numerically(self):
-        I,J,K = 3,3,3
+        I,J,K = 8,8,8
         halo = 0
         x = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         y = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
@@ -472,7 +472,7 @@ class tridiagonal_solve(LegalSDFG, Asserts):
     file_name = "tridiagonal_solve"
 
     def test_3_numerically(self):
-        I,J,K = 3,3,3
+        I,J,K = 8,8,8
         halo = 0
         a = numpy.arange(0,0+I*J*K).astype(dace.float64.type).reshape(I,J,K)
         b = numpy.arange(1,1+I*J*K).astype(dace.float64.type).reshape(I,J,K)

@@ -4,7 +4,7 @@ class coriolis(LegalSDFG, Asserts):
     file_name = "coriolis"
 
     def test4_numerically(self):
-        I,J,K = 6,6,6
+        I,J,K = 8,8,8
         halo = 1
         u = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
         v = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
@@ -52,7 +52,7 @@ class thomas(LegalSDFG, Asserts):
     file_name = "thomas"
 
     def test4_numerically(self):
-        I,J,K = 3,3,3
+        I,J,K = 8,8,8
         halo = 0
         a = numpy.arange(0,0+I*J*K).astype(dace.float64.type).reshape(I,J,K)
         b = numpy.arange(9,9+I*J*K).astype(dace.float64.type).reshape(I,J,K)

@@ -23,22 +23,22 @@ def get_sdfg(file_name):
 def Transpose(arr):
     if len(arr.shape) != 3:
         raise TypeError("Expected 3D array")
-    return arr.transpose(ToMemLayout(0, 1, 2)).copy()
+    return arr.transpose(list(ToMemLayout(0, 1, 2))).copy()
 
 def TransposeIJ(arr):
     if len(arr.shape) != 2:
         raise TypeError("Expected 2D array")
-    return arr.transpose(ToMemLayout(0, 1, None)).copy()
+    return arr.transpose([x for x in ToMemLayout(0, 1, None) if x is not None]).copy()
     
 def TransposeIK(arr):
     if len(arr.shape) != 2:
         raise TypeError("Expected 2D array")
-    return arr.transpose(ToMemLayout(0, None, 2)).copy()
+    return arr.transpose([x for x in ToMemLayout(0, None, 2) if x is not None]).copy()
     
 def TransposeJK(arr):
     if len(arr.shape) != 2:
         raise TypeError("Expected 2D array")
-    return arr.transpose(ToMemLayout(None, 1, 2)).copy()
+    return arr.transpose([x for x in ToMemLayout(None, 1, 2) if x is not None]).copy()
 
 class LegalSDFG:
     def test_1_file_exists(self):
