@@ -60,6 +60,135 @@ class copy_with_halo(LegalSDFG, Asserts):
 
         self.assertEqual(copy, copy_dace)
 
+class i_storage(LegalSDFG, Asserts):
+    file_name = "i_storage"
+
+    def test_3_numerically(self):
+        I,J,K = 8,8,8
+        halo = 0
+        fill = numpy.arange(I).astype(dace.float64.type).reshape(I)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        output_dace = numpy.copy(output)
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(halo, K-halo):
+                    output[i,j,k] = fill[i]
+
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+
+        sdfg(
+            fill = fill,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(output, output_dace)
+
+class j_storage(LegalSDFG, Asserts):
+    file_name = "j_storage"
+
+    def test_3_numerically(self):
+        I,J,K = 8,8,8
+        halo = 0
+        fill = numpy.arange(J).astype(dace.float64.type).reshape(J)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        output_dace = numpy.copy(output)
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(halo, K-halo):
+                    output[i,j,k] = fill[j]
+
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+
+        sdfg(
+            fill = fill,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(output, output_dace)
+
+class k_storage(LegalSDFG, Asserts):
+    file_name = "k_storage"
+
+    def test_3_numerically(self):
+        I,J,K = 8,8,8
+        halo = 0
+        fill = numpy.arange(K).astype(dace.float64.type).reshape(K)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        output_dace = numpy.copy(output)
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(halo, K-halo):
+                    output[i,j,k] = fill[k]
+
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+
+        sdfg(
+            fill = fill,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(output, output_dace)
+
+class ij_storage(LegalSDFG, Asserts):
+    file_name = "ij_storage"
+
+    def test_3_numerically(self):
+        I,J,K = 8,8,8
+        halo = 0
+        fill = numpy.arange(I*J).astype(dace.float64.type).reshape(I,J)
+        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        output_dace = numpy.copy(output)
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(halo, K-halo):
+                    output[i,j,k] = fill[i,j]
+
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        fill = TransposeIJ(fill)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+
+        sdfg(
+            fill = fill,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(output, output_dace)
+
 
 class inout_variable(LegalSDFG, Asserts):
     file_name = "inout_variable"
@@ -161,6 +290,48 @@ class vertical_offsets(LegalSDFG, Asserts):
             halo = numpy.int32(halo))
 
         self.assertEqual(output, output_dace)
+
+class parametric_offsets(LegalSDFG, Asserts):
+    file_name = "parametric_offsets"
+
+    def test_3_numerically(self):
+        I,J,K = 8,8,8
+        halo = 1
+        support = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        interpolation = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        interpolation_dace = numpy.copy(interpolation)
+
+        # stencil_function avg {
+        #     offset off;
+        #     storage in;
+
+        #     Do { return 0.5 * (in[off] + in); }
+        # };
+
+        # vertical_region(k_start, k_start) { interpolation = avg(i - 1, support) + avg(j + 1, support); }
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    interpolation[i,j,k] = (0.5 * (support[i-1,j,k] + support[i,j,k])) + (0.5 * (support[i,j+1,k] + support[i,j,k]))
+
+        support = Transpose(support)
+        interpolation = Transpose(interpolation)
+        interpolation_dace = Transpose(interpolation_dace)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            support = support,
+            interpolation = interpolation_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(interpolation, interpolation_dace)
 
 class vertical_specification_1(LegalSDFG, Asserts):
     file_name = "vertical_specification_1"
