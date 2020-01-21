@@ -23,7 +23,7 @@ class coriolis(LegalSDFG, Asserts):
 
         u = Transpose(u)
         v = Transpose(v)
-        fc = TransposeIJ(fc)
+        fc = Transpose(fc)
         u_tens = Transpose(u_tens)
         v_tens = Transpose(v_tens)
         u_tens_dace = Transpose(u_tens_dace)

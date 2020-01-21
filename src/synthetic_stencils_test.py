@@ -175,7 +175,7 @@ class ij_storage(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
-        fill = TransposeIJ(fill)
+        fill = Transpose(fill)
         output = Transpose(output)
         output_dace = Transpose(output_dace)
 
