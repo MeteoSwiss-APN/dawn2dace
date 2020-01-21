@@ -7,7 +7,6 @@ from IdResolver import IdResolver
 I = dace.symbol("I")
 J = dace.symbol("J")
 K = dace.symbol("K")
-padJ = 16 * sympy.ceiling(J / 16)
 halo = dace.symbol("haloSize")
 data_type = dace.float64
 
@@ -77,12 +76,12 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            print("Try add transient: {} of size {}".format(name, shape, strides, total_size))
+            print("Try add transient: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
                 sdfg.add_transient(
                     name, 
-                    shape, 
+                    shape,
                     dtype=data_type,
                     strides=strides, 
                     total_size=total_size
