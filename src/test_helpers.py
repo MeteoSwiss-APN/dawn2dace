@@ -27,6 +27,21 @@ def Transpose(arr):
         return arr.transpose([x for x in ToMemLayout(0, 1, None) if x is not None]).copy()
     raise TypeError("Expected 2D or 3D array.")
 
+
+def Iota(I, J, K = None, offset = 0):
+    I, J, K = ToStridePolicy3D(I, J, K)
+    if K is None:
+        return numpy.arange(offset, offset + I*J).astype(dace.float64.type).reshape(I,J)
+    else:
+        return numpy.arange(offset, offset + I*J*K).astype(dace.float64.type).reshape(I,J,K)
+
+def Zeros(I, J, K = None):
+    I, J, K = ToStridePolicy3D(I, J, K)
+    if K is None:
+        return numpy.zeros(shape=(I,J), dtype=dace.float64.type)
+    else:
+        return numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+
     
 class LegalSDFG:
     def test_1_file_exists(self):
