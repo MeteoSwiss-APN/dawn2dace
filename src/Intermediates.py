@@ -37,13 +37,19 @@ class MemoryAccess1D:
         
     @classmethod
     def GetSpan(cls, mem_accs):
-        ma = list(mem_accs)
-        if not ma:
-            raise TypeError("mem_accs should not be empty")
-        return cls(
-            min((m.lower for m in ma)),
-            max((m.upper for m in ma))
-        )
+        """
+        Returns the hull of intervals or None if empty.
+        mem_accs: May include None. Nones are ignored.
+        """
+
+        mem_accs = [m for m in mem_accs if m is not None]
+        
+        if mem_accs:
+            return cls(
+                min((m.lower for m in mem_accs)),
+                max((m.upper for m in mem_accs))
+            )
+        return None
 
     def offset(self, value:int):
         self.lower += value
@@ -58,12 +64,20 @@ class MemoryAccess3D:
 
     @classmethod
     def GetSpan(cls, mem_accs):
-        ma = list(mem_accs)
-        return cls(
-            MemoryAccess1D.GetSpan((m.i for m in ma)),
-            MemoryAccess1D.GetSpan((m.j for m in ma)),
-            MemoryAccess1D.GetSpan((m.k for m in ma))
-        )
+        """
+        Returns the hull of intervals or None if empty.
+        mem_accs: May include None. Nones are ignored.
+        """
+
+        mem_accs = [m for m in mem_accs if m is not None]
+
+        if mem_accs:
+            return cls(
+                MemoryAccess1D.GetSpan((m.i for m in mem_accs)),
+                MemoryAccess1D.GetSpan((m.j for m in mem_accs)),
+                MemoryAccess1D.GetSpan((m.k for m in mem_accs))
+            )
+        return None
 
     def offset(self, i:int = 0, j:int = 0, k:int = 0):
         self.i.offset(i)
