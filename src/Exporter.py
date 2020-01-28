@@ -126,7 +126,7 @@ class Exporter:
             K if dim.k else 0
         )
 
-        lowest = 8 * sympy.ceiling(lowest / 8) # Stride policy.
+        lowest = ToStridePolicy(lowest)
         if lowest:
             if middle:
                 if highest:
