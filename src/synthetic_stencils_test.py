@@ -4,13 +4,16 @@ class copy(LegalSDFG, Asserts):
     file_name = "copy"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        original = Iota(I,J,K)
+        copy = Zeros(I,J,K)
         copy_dace = numpy.copy(copy)
 
-        copy = numpy.copy(original)
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    copy[i,j,k] = original[i,j,k]
 
         original = Transpose(original)
         copy = Transpose(copy)
@@ -34,13 +37,16 @@ class copy_with_halo(LegalSDFG, Asserts):
     file_name = "copy"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 1
-        original = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        copy = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        original = Iota(I,J,K)
+        copy = Zeros(I,J,K)
         copy_dace = numpy.copy(copy)
 
-        copy[halo:I-halo, halo:J-halo, :] = original[halo:I-halo, halo:J-halo, :]
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    copy[i,j,k] = original[i,j,k]
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -60,19 +66,104 @@ class copy_with_halo(LegalSDFG, Asserts):
 
         self.assertEqual(copy, copy_dace)
 
+class const_value(LegalSDFG, Asserts):
+    file_name = "const_value"
+
+    def test_3_numerically(self):
+        I,J,K = 4,4,4
+        halo = 0
+        input = Iota(I,J,K)
+        output = Zeros(I,J,K)
+        output_dace = numpy.copy(output)
+
+        # vertical_region(k_start, k_end) {
+        #   const double tmp = 10.0 / 5.0;
+        #   output = input + tmp;
+        # }
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = input[i,j,k] + 2.0
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input = input,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(output, output_dace)
+
+class const_array(LegalSDFG, Asserts):
+    file_name = "const_array"
+
+    def test_3_numerically(self):
+        I,J,K = 6,6,6
+        halo = 2
+        input = Iota(I,J,K)
+        output = Zeros(I,J,K)
+        output_dace = numpy.copy(output)
+
+        # vertical_region(k_start, k_end) {
+        #   const double cf[5] = {-1.0, -2.0, 10.0, -3.0, -2.0};
+        
+        #   output = cf[0] * input[i-2]
+        #          + cf[1] * input[i-1]
+        #          + cf[2] * input
+        #          + cf[3] * input[i+1]
+        #          + cf[4] * input[i+2];
+        # }
+        cf = (-1.0, -2.0, 10.0, -3.0, -2.0)
+        
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i, j, k] = cf[0] * input[i-2, j, k] + \
+                                      cf[1] * input[i-1, j, k] + \
+                                      cf[2] * input[i+0, j, k] + \
+                                      cf[3] * input[i+1, j, k] + \
+                                      cf[4] * input[i+2, j, k]
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input = input,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(output, output_dace)
+
 class i_storage(LegalSDFG, Asserts):
     file_name = "i_storage"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
         fill = numpy.arange(I).astype(dace.float64.type).reshape(I)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
-                for k in range(halo, K-halo):
+                for k in range(0, K):
                     output[i,j,k] = fill[i]
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
@@ -96,15 +187,15 @@ class j_storage(LegalSDFG, Asserts):
     file_name = "j_storage"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
         fill = numpy.arange(J).astype(dace.float64.type).reshape(J)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
-                for k in range(halo, K-halo):
+                for k in range(0, K):
                     output[i,j,k] = fill[j]
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
@@ -128,15 +219,15 @@ class k_storage(LegalSDFG, Asserts):
     file_name = "k_storage"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
         fill = numpy.arange(K).astype(dace.float64.type).reshape(K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
-                for k in range(halo, K-halo):
+                for k in range(0, K):
                     output[i,j,k] = fill[k]
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
@@ -160,15 +251,15 @@ class ij_storage(LegalSDFG, Asserts):
     file_name = "ij_storage"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        fill = numpy.arange(I*J).astype(dace.float64.type).reshape(I,J)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        fill = Iota(I,J)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
-                for k in range(halo, K-halo):
+                for k in range(0, K):
                     output[i,j,k] = fill[i,j]
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
@@ -194,12 +285,15 @@ class inout_variable(LegalSDFG, Asserts):
     file_name = "inout_variable"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        a = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        a = Zeros(I,J,K)
         a_dace = numpy.copy(a)
 
-        a = a + 7
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    a[i,j,k] = a[i,j,k] + 7
         
         a = Transpose(a)
         a_dace = Transpose(a_dace)
@@ -222,17 +316,18 @@ class horizontal_offsets(LegalSDFG, Asserts):
     file_name = "horizontal_offsets"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 1
-        a = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
-        b = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        c = numpy.arange(100,100+I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        a = Zeros(I,J,K)
+        b = Iota(I,J,K)
+        c = Iota(I,J,K, offset=100)
         a_dace = numpy.copy(a)
 
         # vertical_region(k_start, k_end) { a = b[i-1] + b[j+1] + b[i+1, j-1] + c[i-1]; }
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
-                    a[i, j, :] = b[i-1, j, :] + b[i, j+1, :] + b[i+1, j-1, :] + c[i-1, j, :]
+                for k in range(0, K):
+                    a[i, j, k] = b[i-1, j, k] + b[i, j+1, k] + b[i+1, j-1, k] + c[i-1, j, k]
         
         a = Transpose(a)
         b = Transpose(b)
@@ -255,23 +350,65 @@ class horizontal_offsets(LegalSDFG, Asserts):
         self.assertEqual(a, a_dace)
 
 
+class horizontal_temp_offsets(LegalSDFG, Asserts):
+    file_name = "horizontal_temp_offsets"
+
+    def test_3_numerically(self):
+        I,J,K = 4,4,3
+        halo = 1
+        input = Iota(I,J,K)
+        output = Zeros(I,J,K)
+        output_dace = numpy.copy(output)
+
+        # vertical_region(k_start+1, k_end) {
+        #     tmp = input;
+        #     output = tmp[k-1];
+        # }
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = input[i-1,j,k]
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input = input,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(output, output_dace)
+
 
 class vertical_offsets(LegalSDFG, Asserts):
     file_name = "vertical_offsets"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        input = Iota(I,J,K)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
         # vertical_region(k_start, k_start) { output = input[k+1] }
-        output[:, :, 0] = input[:, :, 1]
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                output[i, j, 0] = input[i, j, 1]
 
         # vertical_region(k_start + 1, k_end) { output = input[k-1]; }
-        for k in range(1, K):
-            output[:, :, k] = input[:, :, k-1]
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(1, K):
+                    output[i, j, k] = input[i, j, k-1]
 
         input = Transpose(input)
         output = Transpose(output)
@@ -295,10 +432,10 @@ class parametric_offsets(LegalSDFG, Asserts):
     file_name = "parametric_offsets"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 1
-        support = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        interpolation = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        support = Iota(I,J,K)
+        interpolation = Zeros(I,J,K)
         interpolation_dace = numpy.copy(interpolation)
 
         # stencil_function avg {
@@ -337,21 +474,25 @@ class vertical_specification_1(LegalSDFG, Asserts):
     file_name = "vertical_specification_1"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        input1 = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        input2 = numpy.arange(100, I*J*K+100).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        input1 = Iota(I,J,K)
+        input2 = Iota(I,J,K, offset=100)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        output = Zeros(I,J,K)
         # vertical_region(k_start, k_end-1) { output = input1; }
-        for k in range(0, K-1):
-            output[:, :, k] = input1[:, :, k]
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K-1):
+                    output[i, j, k] = input1[i, j, k]
 
         # vertical_region(k_start+1, k_end) { output = input2; }
-        for k in range(1, K):
-            output[:, :, k] = input2[:, :, k]
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(1, K):
+                    output[i, j, k] = input2[i, j, k]
 
         input1 = Transpose(input1)
         input2 = Transpose(input2)
@@ -378,20 +519,24 @@ class vertical_specification_2(LegalSDFG, Asserts):
     file_name = "vertical_specification_2"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        input1 = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        input2 = numpy.arange(100, I*J*K+100).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        input1 = Iota(I,J,K)
+        input2 = Iota(I,J,K, offset=100)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
         # vertical_region(k_start+1, k_end) { output = input2; }
-        for k in range(1, K):
-            output[:, :, k] = input2[:, :, k]
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(1, K):
+                    output[i, j, k] = input2[i, j, k]
 
         # vertical_region(k_start, k_end-1) { output = input1; }
-        for k in range(0, K-1):
-            output[:, :, k] = input1[:, :, k]
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K-1):
+                    output[i, j, k] = input1[i, j, k]
 
         input1 = Transpose(input1)
         input2 = Transpose(input2)
@@ -418,13 +563,16 @@ class scope_in_region(LegalSDFG, Asserts):
     file_name = "scope_in_region"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        input = Iota(I,J,K)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
-        output = input + 5
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = input[i,j,k] + 5
 
         input = Transpose(input)
         output = Transpose(output)
@@ -449,13 +597,16 @@ class scope_in_stencil(LegalSDFG, Asserts):
     file_name = "scope_in_stencil"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        input = Iota(I,J,K)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
-        output = input + 5
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = input[i,j,k] + 5
 
         input = Transpose(input)
         output = Transpose(output)
@@ -480,13 +631,16 @@ class scope_in_global(LegalSDFG, Asserts):
     file_name = "scope_in_global"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        input = Iota(I,J,K)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
-        output = input + 3.14
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = input[i,j,k] + 3.14
 
         input = Transpose(input)
         output = Transpose(output)
@@ -511,17 +665,17 @@ class scopes_mixed(LegalSDFG, Asserts):
     file_name = "scopes_mixed"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        input = Iota(I,J,K)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
         
         # vertical_region(k_start, k_end) { output = input+ 3.14; }
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    output[i, j, k] = input[i, j, k] + 3.14
+                    output[i,j,k] = input[i,j,k] + 3.14
 
         input = Transpose(input)
         output = Transpose(output)
@@ -546,14 +700,17 @@ class brackets(LegalSDFG, Asserts):
     file_name = "brackets"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        input = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        output = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        input = Iota(I,J,K)
+        output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
         # output = 0.25 * (input + 7);
-        output = 0.25 * (input + 7)
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = 0.25 * (input[i,j,k] + 7)
 
         input = Transpose(input)
         output = Transpose(output)
@@ -578,14 +735,16 @@ class loop(LegalSDFG, Asserts):
     file_name = "loop"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        a = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        a = Iota(I,J,K)
         a_dace = numpy.copy(a)
 
         # vertical_region(k_start+1, k_end) { a += a[k-1]; }
-        for k in range(1, K):
-            a[:,:,k] += a[:,:,k-1]
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(1, K):
+                    a[i,j,k] += a[i,j,k-1]
 
         a = Transpose(a)
         a_dace = Transpose(a_dace)
@@ -608,17 +767,17 @@ class mathfunctions(LegalSDFG, Asserts):
     file_name = "mathfunctions"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        x = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        y = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
-        y_dace = numpy.copy(x)
+        x = Iota(I,J,K)
+        y = Zeros(I,J,K)
+        y_dace = numpy.copy(y)
 
-        # vertical_region(k_start, k_end) { y = min(5.0, max(10.0, x)); }
+        # vertical_region(k_start, k_end) { y = min(10.0, max(5.0, x)); }
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    y[i,j,k] += min(5.0, max(10.0, x[i,j,k]))
+                    y[i,j,k] = min(10.0, max(5.0, x[i,j,k]))
 
         x = Transpose(x)
         y = Transpose(y)
@@ -643,12 +802,12 @@ class tridiagonal_solve(LegalSDFG, Asserts):
     file_name = "tridiagonal_solve"
 
     def test_3_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        a = numpy.arange(0,0+I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        b = numpy.arange(1,1+I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        c = numpy.arange(5,5+I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        d = numpy.arange(9,9+I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        a = Iota(I,J,K, offset=0)
+        b = Iota(I,J,K, offset=1)
+        c = Iota(I,J,K, offset=5)
+        d = Iota(I,J,K, offset=9)
         a_dace = numpy.copy(a)
         b_dace = numpy.copy(b)
         c_dace = numpy.copy(c)

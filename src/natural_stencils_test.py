@@ -4,13 +4,13 @@ class coriolis(LegalSDFG, Asserts):
     file_name = "coriolis"
 
     def test_4_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 1
-        u = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        v = numpy.arange(I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        fc = numpy.arange(I*J).astype(dace.float64.type).reshape(I,J)
-        u_tens = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
-        v_tens = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        u = Iota(I,J,K)
+        v = Iota(I,J,K)
+        fc = Iota(I,J)
+        u_tens = Zeros(I,J,K)
+        v_tens = Zeros(I,J,K)
         u_tens_dace = numpy.copy(u_tens)
         v_tens_dace = numpy.copy(v_tens)
 
@@ -52,13 +52,13 @@ class thomas(LegalSDFG, Asserts):
     file_name = "thomas"
 
     def test_4_numerically(self):
-        I,J,K = 8,8,8
+        I,J,K = 4,4,4
         halo = 0
-        a = numpy.arange(0,0+I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        b = numpy.arange(9,9+I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        c = numpy.arange(1,1+I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        d = numpy.arange(6,6+I*J*K).astype(dace.float64.type).reshape(I,J,K)
-        data = numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        a = Iota(I,J,K,0)
+        b = Iota(I,J,K,9)
+        c = Iota(I,J,K,1)
+        d = Iota(I,J,K,6)
+        data = Zeros(I, J, K)
         a_dace = numpy.copy(a)
         b_dace = numpy.copy(b)
         c_dace = numpy.copy(c)
@@ -142,6 +142,90 @@ class thomas(LegalSDFG, Asserts):
         self.assertIsClose(c, c_dace)
         self.assertIsClose(d, d_dace)
         self.assertIsClose(data, data_dace)
+
+class diffusion(LegalSDFG, Asserts):
+    file_name = "diffusion"
+
+    def test_4_numerically(self):
+        I,J,K = 4,4,4
+        halo = 1
+        input = numpy.sqrt(Iota(I, J, K))
+        output = Zeros(I, J, K)
+        output_dace = numpy.copy(output)
+
+        def laplacian(data, i, j, k):
+            return data[i-1,j,k] + data[i+1,j,k] + data[i,j-1,k] + data[i,j+1,k] - 4.0 * data[i,j,k]
+
+        def diffusive_flux_x(lap, data, i, j, k):
+            flx = lap[i+1,j,k] - lap[i,j,k]
+            return 0.0 if (flx * (data[i+1,j,k] - data[i,j,k])) > 0.0 else flx
+
+        lap = Zeros(I, J, K)
+        for i in range(1, I-1):
+            for j in range(1, J-1):
+                for k in range(0, K):
+                    lap[i,j,k] = laplacian(input, i, j, k)
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = diffusive_flux_x(lap, input, i, j, k) - diffusive_flux_x(lap, input, i-1, j, k)
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        dace.graph.labeling.propagate_labels_sdfg(sdfg)
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input = input,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertIsClose(output, output_dace)
+
+class laplace(LegalSDFG, Asserts):
+    file_name = "laplace"
+
+    def test_4_numerically(self):
+        I,J,K = 4,4,4
+        halo = 1
+        input = numpy.sqrt(Iota(I, J, K))
+        output = Zeros(I, J, K)
+        output_dace = numpy.copy(output)
+
+        def laplacian(data, i, j, k):
+            return data[i-1,j,k] + data[i+1,j,k] + data[i,j-1,k] + data[i,j+1,k] - 4.0 * data[i,j,k]
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = laplacian(input, i, j, k)
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        dace.graph.labeling.propagate_labels_sdfg(sdfg)
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input = input,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertIsClose(output, output_dace)
 
 if __name__ == '__main__':
     unittest.main()

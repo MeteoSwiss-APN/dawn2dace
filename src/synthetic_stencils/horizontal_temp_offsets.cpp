@@ -1,14 +1,15 @@
-#include "gtclang_dsl_defs/math.hpp"
 #include "gtclang_dsl_defs/gtclang_dsl.hpp"
 
 using namespace gtclang::dsl;
 
-stencil mathfunctions {
-  storage x, y;
+stencil horizontal_temp_offset {
+  storage output, input;
+  var tmp;
 
   Do {
     vertical_region(k_start, k_end) {
-      y = math::min(10.0, math::max(5.0, x));
+      tmp = input;
+      output = tmp[i-1];
     }
   }
 };
