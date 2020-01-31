@@ -8,7 +8,8 @@ stencil mathfunctions {
 
   Do {
     vertical_region(k_start, k_end) {
-      y = math::min(10.0, math::max(5.0, x));
+      const double tmp = x;
+      y = math::min(10.0, math::max(5.0, tmp));
     }
   }
 };
