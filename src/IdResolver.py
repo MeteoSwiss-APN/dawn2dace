@@ -3,12 +3,12 @@ from IndexHandling import *
 class IdResolver:
     def __init__(self, accessIDToName:dict,
         APIFieldIDs:list, temporaryFieldIDs:list,
-        globalVariableIDs:list, fieldIDtoLegalDimensions:list):
+        globalVariableIDs:list, fieldIDtoDimensions:list):
         self.__accessIDToName = accessIDToName
         self.__APIFieldIDs = APIFieldIDs
         self.__temporaryFieldIDs = temporaryFieldIDs
         self.__globalVariableIDs = globalVariableIDs
-        self.__fieldIDtoLegalDimensions = fieldIDtoLegalDimensions
+        self.__fieldIDtoDimensions = fieldIDtoDimensions
     
     def GetName(self, id:int) -> str:
         if isinstance(id, int):
@@ -19,8 +19,12 @@ class IdResolver:
         """ Returns a list containing dimensional information """
         if self.IsLocal(id): # TODO: Think about this!
             return Index3D(1,1,1)
-        array = self.__fieldIDtoLegalDimensions[id]
-        return Index3D(array.int1, array.int2, array.int3)
+        dims = self.__fieldIDtoDimensions[id]
+        return Index3D(
+            dims.cartesian_horizontal_dimension.mask_cart_i,
+            dims.cartesian_horizontal_dimension.mask_cart_j,
+            dims.mask_k
+            )
     
     def IsInAPI(self, id:int) -> bool:
         return id in self.__APIFieldIDs

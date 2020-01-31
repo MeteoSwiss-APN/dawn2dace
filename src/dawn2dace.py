@@ -225,7 +225,7 @@ def IIR_str_to_SDFG(iir: str):
         metadata.APIFieldIDs,
         metadata.temporaryFieldIDs,
         metadata.globalVariableIDs,
-        metadata.fieldIDtoLegalDimensions
+        metadata.fieldIDtoDimensions
         )
 
     sdfg = dace.SDFG(metadata.stencilName)
