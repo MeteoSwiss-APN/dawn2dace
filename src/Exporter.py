@@ -220,12 +220,18 @@ class Exporter:
                     collected_input_ids.extend(reads - literals - locals)
                     collected_output_ids.extend(writes - literals - locals)
 
+                    if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
+                        map_ranges = dict(i="halo:I-halo", j="halo:J-halo")
+                    else:
+                        span = MemoryAccess3D.GetSpan([stmt.GetReadSpan(), stmt.GetWriteSpan()])
+                        map_ranges = dict(i="{}:I+{}".format(-span.i.lower, -span.i.upper), j="{}:J+{}".format(-span.j.lower, -span.j.upper))
+
                     # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                     # the maps are ij-only
                     state = sub_sdfg.add_state("state_{}".format(CreateUID()))
                     state.add_mapped_tasklet(
                         str(stmt),
-                        dict(i="halo:I-halo", j="halo:J-halo"),
+                        map_ranges,
                         inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = False),
                         code = stmt.code,
                         outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = False),
@@ -310,11 +316,17 @@ class Exporter:
 
                     self.try_add_scalar(self.sdfg, (id for id in stmt.reads.keys() if self.id_resolver.IsGlobal(id)))
 
+                    if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
+                        map_ranges = dict(i="halo:I-halo", j="halo:J-halo")
+                    else:
+                        span = MemoryAccess3D.GetSpan([stmt.GetReadSpan(), stmt.GetWriteSpan()])
+                        map_ranges = dict(i="{}:I+{}".format(-span.i.lower, -span.i.upper), j="{}:J+{}".format(-span.j.lower, -span.j.upper))
+
                     # Since we're in a sequential loop, we only need a map in i and j
                     state = self.sdfg.add_state("state_{}".format(CreateUID()))
                     state.add_mapped_tasklet(
                         str(stmt),
-                        dict(i="halo:I-halo", j="halo:J-halo"),
+                        map_ranges,
                         inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = True),
                         code = stmt.code,
                         outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = True),
