@@ -151,8 +151,7 @@ class Exporter:
                     raise Exception("No dimensions, no strides!")
 
     def GetTotalSize(self, id:int) -> int:
-        stride = self.GetStrides(id)
-        biggest_stride = stride[0]
+        first_order_stride = self.GetStrides(id)[0]
 
         dim = self.id_resolver.GetDimensions(id)
         highest, middle, lowest = ToMemLayout(
@@ -163,14 +162,7 @@ class Exporter:
 
         for x in [highest, middle, lowest]:
             if x:
-                return x * biggest_stride
-
-    def TotalSize(size_i, size_j, size_k) -> int:
-        biggest_stride = Strides(size_i, size_j, size_k)[0]
-
-        for x in [highest, middle, lowest]:
-            if x:
-                return x * biggest_stride
+                return x * first_order_stride
 
     def Export_MemoryAccess3D(self, id:int, mem_acc:MemoryAccess3D, relative_to_k) -> str:
         if not isinstance(mem_acc, MemoryAccess3D):
