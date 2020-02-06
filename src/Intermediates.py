@@ -93,7 +93,7 @@ class Statement:
         self.writes = writes # dict of MemoryAccess3D
     
     def __str__(self):
-        return "Statement_{}".format(self.id)
+        return "Stmt{}".format(self.id)
 
     @staticmethod
     def __GetSpan(transaction):

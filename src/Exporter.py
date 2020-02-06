@@ -30,7 +30,7 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            print("Try add scalar: {}".format(name))
+            #print("Try add scalar: {}".format(name))
 
             try:
                 sdfg.add_scalar(name, dtype=data_type)
@@ -50,7 +50,7 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            print("Try add array: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
+            #print("Try add array: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
                 sdfg.add_array(
@@ -220,6 +220,7 @@ class Exporter:
                     collected_input_ids.extend(reads - literals - locals)
                     collected_output_ids.extend(writes - literals - locals)
 
+                    # Workaround for missing shape inferance information in IIR.
                     if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
                         map_ranges = dict(i="halo:I-halo", j="halo:J-halo")
                     else:
