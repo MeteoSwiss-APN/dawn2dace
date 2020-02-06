@@ -276,6 +276,11 @@ class Exporter:
                 dst_conn = name,
                 propagate=False
             )
+        if len(collected_input_ids) == 0:
+            # If there are no inputs to this SDFG, connect it to the map with an empty memlet
+            # to keep it in the scope.
+            multi_stage_state.add_edge(map_entry, None, nested_sdfg, None, dace.EmptyMemlet())
+
         for id in set(collected_output_ids):
             name = self.id_resolver.GetName(id)
             dims = self.id_resolver.GetDimensions(id)

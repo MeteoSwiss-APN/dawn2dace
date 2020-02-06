@@ -1,5 +1,36 @@
 from test_helpers import *
 
+class set_zero(LegalSDFG, Asserts):
+    file_name = "set_zero"
+
+    def test_3_numerically(self):
+        I,J,K = 4,4,4
+        halo = 0
+        output = Iota(I,J,K)
+        output_dace = numpy.copy(output)
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = 0
+
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(output, output_dace)
+
+
 class copy(LegalSDFG, Asserts):
     file_name = "copy"
 
