@@ -40,6 +40,10 @@ class Renamer(ast.NodeTransformer):
         self.storemode = False
 
     def visit_Name(self, node):
+        if node.id == "true":
+            return node
+        if node.id == "false":
+            return node
         if self.storemode or isinstance(node.ctx, ast.Store):
             node.id += '_out'
         elif isinstance(node.ctx, ast.Load):
