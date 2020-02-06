@@ -134,53 +134,6 @@ class const_value(LegalSDFG, Asserts):
 
         self.assertEqual(output, output_dace)
 
-class const_array(LegalSDFG, Asserts):
-    file_name = "const_array"
-
-    def test_3_numerically(self):
-        I,J,K = 6,6,6
-        halo = 2
-        input = Iota(I,J,K)
-        output = Zeros(I,J,K)
-        output_dace = numpy.copy(output)
-
-        # vertical_region(k_start, k_end) {
-        #   const double cf[5] = {-1.0, -2.0, 10.0, -3.0, -2.0};
-        
-        #   output = cf[0] * input[i-2]
-        #          + cf[1] * input[i-1]
-        #          + cf[2] * input
-        #          + cf[3] * input[i+1]
-        #          + cf[4] * input[i+2];
-        # }
-        cf = (-1.0, -2.0, 10.0, -3.0, -2.0)
-        
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    output[i, j, k] = cf[0] * input[i-2, j, k] + \
-                                      cf[1] * input[i-1, j, k] + \
-                                      cf[2] * input[i+0, j, k] + \
-                                      cf[3] * input[i+1, j, k] + \
-                                      cf[4] * input[i+2, j, k]
-
-        input = Transpose(input)
-        output = Transpose(output)
-        output_dace = Transpose(output_dace)
-        
-        sdfg = get_sdfg(self.file_name + ".0.iir")
-        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
-        sdfg = sdfg.compile(optimizer="")
-
-        sdfg(
-            input = input,
-            output = output_dace,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo = numpy.int32(halo))
-
-        self.assertEqual(output, output_dace)
 
 class i_storage(LegalSDFG, Asserts):
     file_name = "i_storage"
