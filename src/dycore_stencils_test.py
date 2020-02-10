@@ -72,6 +72,9 @@ class fast_waves_sc_prepare_lhs_0(Transcompiler, unittest.TestCase):
 class fast_waves_sc_rhs_0(Transcompiler, unittest.TestCase):
     file_name = "fast_waves_sc_rhs.0"
 
+class fast_waves_sc_0(Transcompiler, unittest.TestCase):
+    file_name = "fast_waves_sc.0"
+
 class fast_waves_sc_uv_0(Transcompiler, unittest.TestCase):
     file_name = "fast_waves_sc_uv.0"
 
