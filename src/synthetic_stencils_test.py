@@ -97,6 +97,40 @@ class copy_with_halo(LegalSDFG, Asserts):
 
         self.assertEqual(copy, copy_dace)
 
+class delta(LegalSDFG, Asserts):
+    file_name = "delta"
+
+    def test_3_numerically(self):
+        I,J,K = 4,4,4
+        halo = 0
+        inp = Iota(I,J,K)
+        out = Zeros(I,J,K)
+        out_dace = numpy.copy(out)
+
+        # vertical_region(k_start, k_end) { out = 0.5 * d(k - 1, inp) + 2.0 * d(k + 1, inp); }
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(1, K-1):
+                    out[i,j,k] = 0.5 * (inp[i,j,k-1] - inp[i,j,k]) + 2.0 * (inp[i,j,k+1] - inp[i,j,k])
+
+        inp = Transpose(inp)
+        out = Transpose(out)
+        out_dace = Transpose(out_dace)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            inp = inp,
+            out = out_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(out, out_dace)
+
 class const_value(LegalSDFG, Asserts):
     file_name = "const_value"
 
@@ -425,10 +459,8 @@ class parametric_offsets(LegalSDFG, Asserts):
         # stencil_function avg {
         #     offset off;
         #     storage in;
-
         #     Do { return 0.5 * (in[off] + in); }
         # };
-
         # vertical_region(k_start, k_start) { interpolation = avg(i - 1, support) + avg(j + 1, support); }
 
         for i in range(halo, I-halo):
