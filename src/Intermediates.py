@@ -86,25 +86,39 @@ class MemoryAccess3D:
 
 
 class Statement:
-    def __init__(self, code, reads:dict, writes:dict):
-        self.id = CreateUID()
+    def __init__(self, code, line:int, reads:dict, writes:dict):
         self.code = code
-        self.reads = reads # dict of MemoryAccess3D
-        self.writes = writes # dict of MemoryAccess3D
+        self.line = CreateUID()
+        self.reads = reads # dict[id, MemoryAccess3D]
+        self.writes = writes # dict[id, MemoryAccess3D]
+        self.saved_read_spans = None #dict[id, mem_acc_3D]
+        self.saved_write_spans = None #dict[id, mem_acc_3D]
     
     def __str__(self):
-        return "Stmt{}".format(self.id)
+        return "Line{}".format(self.line)
 
-    @staticmethod
-    def __GetSpan(transaction):
-        return MemoryAccess3D.GetSpan((x for _, x in transaction.items()))
+    def GetReadSpans(self) -> dict:
+        return self.reads
+    def GetWriteSpans(self) -> dict:
+        return self.writes
 
-    def GetReadSpan(self):
-        return self.__GetSpan(self.reads)
-
-    def GetWriteSpan(self):
-        return self.__GetSpan(self.writes)
+    def SaveSpans(self):
+        import copy
+        self.saved_read_spans = copy.deepcopy(self.GetReadSpans())
+        self.saved_write_spans = copy.deepcopy(self.GetWriteSpans())
         
+
+def FuseMemAccDicts(dicts) -> dict:
+    """ dicts: An iteratable of dicts. """
+    ret = {}
+    for d in dicts:
+        for id, mem_acc in d.items():
+            if id in ret:
+                ret[id] = MemoryAccess3D.GetSpan([ret[id], mem_acc]) # Hull of old an new.
+            else:
+                ret[id] = mem_acc
+    return ret
+
 
 class DoMethod:
     def __init__(self, k_interval:K_Interval, statements:list):
@@ -112,23 +126,20 @@ class DoMethod:
         self.k_interval = k_interval
         self.statements = statements # List of Statement
 
-    def GetReadSpan(self):
-        return MemoryAccess3D.GetSpan((x.GetReadSpan() for x in self.statements if x.reads))
-
-    def GetWriteSpan(self):
-        return MemoryAccess3D.GetSpan((x.GetWriteSpan() for x in self.statements if x.writes))
-
+    def GetReadSpans(self) -> dict:
+        return FuseMemAccDicts((x.GetReadSpans() for x in self.statements))
+    def GetWriteSpans(self) -> dict:
+        return FuseMemAccDicts((x.GetWriteSpans() for x in self.statements))
 
 class Stage:
     def __init__(self, do_methods:list):
         self.uid = CreateUID()
         self.do_methods = do_methods
 
-    def GetReadSpan(self):
-        return MemoryAccess3D.GetSpan((x.GetReadSpan() for x in self.do_methods))
-
-    def GetWriteSpan(self):
-        return MemoryAccess3D.GetSpan((x.GetWriteSpan() for x in self.do_methods))
+    def GetReadSpans(self) -> dict:
+        return FuseMemAccDicts((x.GetReadSpans() for x in self.do_methods))
+    def GetWriteSpans(self) -> dict:
+        return FuseMemAccDicts((x.GetWriteSpans() for x in self.do_methods))
 
 
 class ExecutionOrder(Enum):
@@ -142,17 +153,22 @@ class MultiStage:
         self.uid = CreateUID()
         self.execution_order = execution_order
         self.stages = stages
-        self.lower_k = None
-        self.upper_k = None
+        self.saved_read_spans = None #dict[id, mem_acc_3D]
+        self.saved_write_spans = None #dict[id, mem_acc_3D]
 
     def __str__(self):
         return "state_{}".format(self.uid)
 
-    def GetReadSpan(self):
-        return MemoryAccess3D.GetSpan((x.GetReadSpan() for x in self.stages))
+    def GetReadSpans(self) -> dict:
+        return FuseMemAccDicts((x.GetReadSpans() for x in self.stages))
+    def GetWriteSpans(self) -> dict:
+        return FuseMemAccDicts((x.GetWriteSpans() for x in self.stages))
 
-    def GetWriteSpan(self):
-        return MemoryAccess3D.GetSpan((x.GetWriteSpan() for x in self.stages))
+    def SaveSpans(self):
+        import copy
+        self.saved_read_spans = copy.deepcopy(self.GetReadSpans())
+        self.saved_write_spans = copy.deepcopy(self.GetWriteSpans())
+
 
 
 class Stencil:

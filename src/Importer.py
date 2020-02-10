@@ -58,11 +58,12 @@ class Importer:
         return ret
 
     def Import_Statement(self, stmt) -> Statement:
-        data = DownCastStatement(stmt).data
+        down_casted_statement = DownCastStatement(stmt)
         return Statement(
             code = stmt,
-            reads = self.Import_MemoryAccesses(data.accesses.readAccess),
-            writes = self.Import_MemoryAccesses(data.accesses.writeAccess),
+            line = down_casted_statement.loc.Line,
+            reads = self.Import_MemoryAccesses(down_casted_statement.data.accesses.readAccess),
+            writes = self.Import_MemoryAccesses(down_casted_statement.data.accesses.writeAccess),
         )
 
     def Import_DoMethod(self, do_method) -> DoMethod:

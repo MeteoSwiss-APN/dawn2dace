@@ -104,7 +104,7 @@ class AssignmentExpander(IIR_Transformer):
         expr.right.binary_operator.CopyFrom(novum)
         return expr
 
-def ExpandAssignment(stencils: list):
+def ExpandAssignmentOperator(stencils: list):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
@@ -136,33 +136,56 @@ def AccountForIJMap(stencils: list):
                         stmt.code = IJ_Mapper(stmt.reads).visit(stmt.code)
 
 
-class K_Mapper(IIR_Transformer):
-    def __init__(self, k_offset:int, transfer:dict):
-        self.k_offset = k_offset
-        self.transfer = transfer
+class K_Offsetter(IIR_Transformer):
+    """ Ofsets the k-index by a given value per id. """
+    def __init__(self, k_offsets:dict):
+        self.k_offsets = k_offsets # dict[id, int]
 
     def visit_FieldAccessExpr(self, expr):
         id = expr.data.accessID.value
-        if id in self.transfer:
-            expr.vertical_offset += self.k_offset
+        expr.vertical_offset += self.k_offsets.get(id, 0) # offsets by 0 if not in dict.
         return expr
 
-def AccountForKMap(stencils: list):
+def AccountForKMapMemlets(stencils: list, id_resolver):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
-            span = multi_stage.GetReadSpan()
-            k_min = span.k.lower
-            k_max = span.k.upper
-            multi_stage.lower_k = k_min
-            multi_stage.upper_k = k_max
-            if k_min != 0:
+            if multi_stage.execution_order == 2: # parallel
+                multi_stage.SaveSpans()
                 for stage in multi_stage.stages:
                     for do_method in stage.do_methods:
                         for stmt in do_method.statements:
-                            stmt.code = K_Mapper(-k_min, stmt.reads).visit(stmt.code)
-                            if multi_stage.execution_order == 2: # parallel
-                                for _, read in stmt.reads.items():
-                                    read.offset(k = -k_min)
+                            k_read_offset_dict = { 
+                                id: -mem_acc.k.lower 
+                                for id, mem_acc in multi_stage.saved_read_spans.items() 
+                                if id in stmt.reads and not id_resolver.IsLocal(id)
+                                }
+                            stmt.code = K_Offsetter(k_read_offset_dict).visit(stmt.code)
+                            for id, offset in k_read_offset_dict.items():
+                                stmt.reads[id].offset(k = offset)
+
+                            k_write_offset_dict = { 
+                                id: -mem_acc.k.lower
+                                for id, mem_acc in multi_stage.saved_write_spans.items()
+                                if id in stmt.writes and not id_resolver.IsLocal(id)
+                                }
+                            stmt.code = K_Offsetter(k_write_offset_dict).visit(stmt.code)
+                            for id, offset in k_write_offset_dict.items():
+                                stmt.writes[id].offset(k = offset)
+
+
+def AccountForIJMapMemlets(stencils: list):
+    for stencil in stencils:
+        for multi_stage in stencil.multi_stages:
+            for stage in multi_stage.stages:
+                for do_method in stage.do_methods:
+                    for stmt in do_method.statements:
+                        stmt.SaveSpans()
+
+                        k_read_offset_dict = { id: -mem_acc.k.lower for id, mem_acc in stmt.saved_read_spans.items() if id in stmt.reads }
+                        stmt.code = K_Offsetter(k_read_offset_dict).visit(stmt.code)
+
+                        k_write_offset_dict = { id: -mem_acc.k.lower for id, mem_acc in stmt.saved_write_spans.items() if id in stmt.writes }
+                        stmt.code = K_Offsetter(k_write_offset_dict).visit(stmt.code)
 
 
 class DimensionalReducer(IIR_Transformer):
@@ -238,9 +261,10 @@ def IIR_str_to_SDFG(iir: str):
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
     ReplaceKeywords(stencils)
-    ExpandAssignment(stencils)
+    ExpandAssignmentOperator(stencils)
+    AccountForKMapMemlets(stencils, id_resolver)
+    AccountForIJMapMemlets(stencils)
     AccountForIJMap(stencils)
-    AccountForKMap(stencils)
     RemoveUnusedDimensions(id_resolver, stencils)
     UnparseCode(stencils, id_resolver)
     RenameVariables(stencils)

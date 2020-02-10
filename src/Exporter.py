@@ -7,7 +7,7 @@ from IdResolver import IdResolver
 I = dace.symbol("I")
 J = dace.symbol("J")
 K = dace.symbol("K")
-halo = dace.symbol("haloSize")
+halo = dace.symbol("halo")
 data_type = dace.float64
 
 def dim_filter(dimensions:Index3D, i, j, k) -> list:
@@ -148,7 +148,7 @@ class Exporter:
                 if highest:
                     return [1]
                 else:
-                    raise Exception("No dimensions, no strides!")
+                    return [1]
 
     def GetTotalSize(self, id:int) -> int:
         first_order_stride = self.GetStrides(id)[0]
@@ -224,8 +224,11 @@ class Exporter:
                     if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
                         map_ranges = dict(i="halo:I-halo", j="halo:J-halo")
                     else:
-                        span = MemoryAccess3D.GetSpan([stmt.GetReadSpan(), stmt.GetWriteSpan()])
-                        map_ranges = dict(i="{}:I+{}".format(-span.i.lower, -span.i.upper), j="{}:J+{}".format(-span.j.lower, -span.j.upper))
+                        span = MemoryAccess3D.GetSpan(list(stmt.saved_read_spans.values()) + list(stmt.saved_write_spans.values()))
+                        map_ranges = dict(
+                            i="{}:I+{}".format(-span.i.lower, -span.i.upper),
+                            j="{}:J+{}".format(-span.j.lower, -span.j.upper)
+                            )
 
                     # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
                     # the maps are ij-only
@@ -255,16 +258,16 @@ class Exporter:
             collected_output_names
         )
 
-        lower_k = multi_stage.lower_k
-        upper_k = multi_stage.upper_k
-
         map_entry, map_exit = multi_stage_state.add_map("kmap", dict(k=str(interval)))
+
+        # input memlets
         for id in set(collected_input_ids):
             name = self.id_resolver.GetName(id)
             dims = self.id_resolver.GetDimensions(id)
 
             read = multi_stage_state.add_read(name)
-            subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(lower_k, upper_k + 1)))
+            k_mem_acc = multi_stage.saved_read_spans[id].k
+            subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1)))
             if not subset_str:
                 subset_str = "0"
 
@@ -282,12 +285,14 @@ class Exporter:
             # to keep it in the scope.
             multi_stage_state.add_edge(map_entry, None, nested_sdfg, None, dace.EmptyMemlet())
 
+        # output memlets
         for id in set(collected_output_ids):
             name = self.id_resolver.GetName(id)
             dims = self.id_resolver.GetDimensions(id)
 
             write = multi_stage_state.add_write(name)
-            subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k"))
+            k_mem_acc = multi_stage.saved_write_spans[id].k
+            subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1)))
             if not subset_str:
                 subset_str = "0"
             
@@ -322,11 +327,15 @@ class Exporter:
 
                     self.try_add_scalar(self.sdfg, (id for id in stmt.reads.keys() if self.id_resolver.IsGlobal(id)))
 
+                    # Workaround for missing shape inferance information in IIR.
                     if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
                         map_ranges = dict(i="halo:I-halo", j="halo:J-halo")
                     else:
-                        span = MemoryAccess3D.GetSpan([stmt.GetReadSpan(), stmt.GetWriteSpan()])
-                        map_ranges = dict(i="{}:I+{}".format(-span.i.lower, -span.i.upper), j="{}:J+{}".format(-span.j.lower, -span.j.upper))
+                        span = MemoryAccess3D.GetSpan(list(stmt.saved_read_spans.values()) + list(stmt.saved_write_spans.values()))
+                        map_ranges = dict(
+                            i="{}:I+{}".format(-span.i.lower, -span.i.upper),
+                            j="{}:J+{}".format(-span.j.lower, -span.j.upper)
+                            )
 
                     # Since we're in a sequential loop, we only need a map in i and j
                     state = self.sdfg.add_state("state_{}".format(CreateUID()))
