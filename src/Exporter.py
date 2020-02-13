@@ -120,13 +120,11 @@ class Exporter:
 
     def GetStrides(self, id:int) -> list:
         dim = self.id_resolver.GetDimensions(id)
-        highest, middle, lowest = ToMemLayout(
+        highest, middle, lowest = ToMemLayout(*ToStridePolicy3D(
             I if dim.i else 0,
             J if dim.j else 0,
-            K if dim.k else 0
-        )
-
-        lowest = ToStridePolicy(lowest)
+            K+1 if dim.k else 0
+        ))
         if lowest:
             if middle:
                 if highest:
