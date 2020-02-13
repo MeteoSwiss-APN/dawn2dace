@@ -97,6 +97,41 @@ class copy_with_halo(LegalSDFG, Asserts):
 
         self.assertEqual(copy, copy_dace)
 
+
+class staggered_k(LegalSDFG, Asserts):
+    file_name = "staggered_k"
+
+    def test_3_numerically(self):
+        I,J,K = 4,4,4
+        halo = 0
+        data = Iota(I,J,K)
+        mid_avg = Zeros(I,J,K)
+        mid_avg_dace = numpy.copy(mid_avg)
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    mid_avg[i,j,k] = data[i,j,k] + data[i,j,k+1]
+
+        data = Transpose(data)
+        mid_avg = Transpose(mid_avg)
+        mid_avg_dace = Transpose(mid_avg_dace)
+        
+        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            data = data,
+            mid_avg = mid_avg_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertEqual(mid_avg, mid_avg_dace)
+
+
 class delta(LegalSDFG, Asserts):
     file_name = "delta"
 
