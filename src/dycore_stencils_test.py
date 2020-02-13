@@ -1,17 +1,19 @@
 from test_helpers import *
 from dace.sdfg import SDFG
 from dace.codegen import codegen, compiler
+from dace.transformation.interstate import GPUTransformSDFG
 
 class Transcompiler():
     def test1_file_exists(self):
         self.assertIsNotNone(read_file(self.file_name + ".iir"))
  
-    def test2_translates(self):
+    def test2_translates_to_sdfg(self):
         iir = read_file(self.file_name + ".iir")
         sdfg = dawn2dace.IIR_str_to_SDFG(iir)
 
-        sdfg.apply_strict_transformations(validate=False) # Don't validate all the time, for performance reasons.
-        sdfg.validate() # Validate only once.
+        # Don't validate all the time, for performance reasons.
+        sdfg.apply_strict_transformations(validate=False)
+        sdfg.validate()
         
         # WORKAROUND: Creates all arrays on the CPU heap. Can be removed as soon as the PR is merged.
         for arr in sdfg.arrays.values():
@@ -23,9 +25,23 @@ class Transcompiler():
 
         sdfg.save("gen/" + self.file_name + ".sdfg")
 
-    def test3_compiles(self):
+    def test3_transforms_to_gpu(self):
         sdfg = SDFG.from_file("gen/" + self.file_name + ".sdfg")
+
+        # Don't validate all the time, for performance reasons.
+        sdfg.apply_transformations(GPUTransformSDFG, apply_once=True, validate=False)
+        sdfg.apply_strict_transformations(validate=False)
+        sdfg.validate()
+
+        program_objects = codegen.generate_code(sdfg)
+        compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.file_name + "_gpu")
+
+        sdfg.save("gen/" + self.file_name + "_gpu.sdfg")
+
+    def test4_compiles(self):
+        sdfg = SDFG.from_file("gen/" + self.file_name + "_gpu.sdfg")
         self.assertIsNotNone(sdfg.compile(optimizer=""))
+
 
 class advection_pptp_0(Transcompiler, unittest.TestCase):
     file_name = "advection_pptp.0"
@@ -162,4 +178,3 @@ class vertical_diffusion_w_0(Transcompiler, unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    
