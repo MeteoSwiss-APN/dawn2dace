@@ -16,10 +16,11 @@ class coriolis(LegalSDFG, Asserts):
 
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
-                # u_tens += 0.25 * (fc * (v + v[i+1]) + fc[j-1] * (v[j-1] + v[i+1,j-1]));
-                u_tens[i,j,:] += 0.25 * (fc[i,j] * (v[i,j,:] + v[i+1,j,:]) + fc[i,j-1] * (v[i,j-1,:] + v[i+1,j-1,:]))
-                # v_tens -= 0.25 * (fc * (u + u[j+1]) + fc[i-1] * (u[i-1] + u[i-1,j+1]));
-                v_tens[i,j,:] -= 0.25 * (fc[i,j] * (u[i,j,:] + u[i,j+1,:]) + fc[i-1,j] * (u[i-1,j,:] + u[i-1,j+1,:]))
+                for k in range(0, K):
+                    # u_tens += 0.25 * (fc * (v + v[i+1]) + fc[j-1] * (v[j-1] + v[i+1,j-1]));
+                    u_tens[i,j,k] += 0.25 * (fc[i,j] * (v[i,j,k] + v[i+1,j,k]) + fc[i,j-1] * (v[i,j-1,k] + v[i+1,j-1,k]))
+                    # v_tens -= 0.25 * (fc * (u + u[j+1]) + fc[i-1] * (u[i-1] + u[i-1,j+1]));
+                    v_tens[i,j,k] -= 0.25 * (fc[i,j] * (u[i,j,k] + u[i,j+1,k]) + fc[i-1,j] * (u[i-1,j,k] + u[i-1,j+1,k]))
 
         u = Transpose(u)
         v = Transpose(v)
