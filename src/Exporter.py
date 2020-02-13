@@ -1,4 +1,5 @@
 import dace
+import dace.libraries.stencil
 import sympy
 from IndexHandling import *
 from Intermediates import *
@@ -10,9 +11,9 @@ K = dace.symbol("K")
 halo = dace.symbol("halo")
 data_type = dace.float64
 
-def dim_filter(dimensions:Index3D, i, j, k) -> list:
+def dim_filter(dimensions:Index3D, i, j, k) -> tuple:
     dim_mem = ToMemLayout(dimensions.i, dimensions.j, dimensions.k)
-    return [elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim]
+    return (elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim)
 
 class Exporter:
     def __init__(self, id_resolver:IdResolver, sdfg):
@@ -76,7 +77,7 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            print("Try add transient: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
+            # print("Try add transient: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
                 sdfg.add_transient(
@@ -115,7 +116,7 @@ class Exporter:
     def GetShape(self, id:int) -> list:
         ret = dim_filter(self.id_resolver.GetDimensions(id), I, J, K + 1)
         if ret:
-            return ret
+            return list(ret)
         return [1]
 
     def GetStrides(self, id:int) -> list:
@@ -179,6 +180,19 @@ class Exporter:
         
         return ', '.join(dim_filter(dims, i_str, j_str, k_str))
 
+    def Export_MemoryAccess3D_2(self, id:int, mem_acc:MemoryAccess3D, relative_to_k) -> list:
+        if not isinstance(mem_acc, MemoryAccess3D):
+            raise TypeError("Expected MemoryAccess3D, got: {}".format(type(mem_acc).__name__))
+
+        # if relative_to_k:
+        #     return [ToMemLayout(i, j, "k+{}".format(k)) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
+        #                                                 for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
+        #                                                 for k in range(mem_acc.k.lower, mem_acc.k.upper + 1)]
+        # else:
+        return [ToMemLayout(i, j, k) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
+                                     for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
+                                     for k in range(mem_acc.k.lower, mem_acc.k.upper + 1)]
+
     def CreateMemlets(self, transactions:dict, suffix:str, relative_to_k:bool) -> dict:
         memlets = {}
         for id, mem_acc in transactions.items():
@@ -188,6 +202,17 @@ class Exporter:
                 continue
 
             memlets[name + suffix] = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k))
+        return memlets
+
+    def CreateMemlets_2(self, transactions:dict, suffix:str, relative_to_k:bool) -> dict:
+        memlets = {}
+        for id, mem_acc in transactions.items():
+            name = self.id_resolver.GetName(id)
+
+            if self.id_resolver.IsALiteral(id):
+                continue
+
+            memlets[name + suffix] = self.Export_MemoryAccess3D_2(id, mem_acc, relative_to_k)
         return memlets
 
     def Export_parallel(self, multi_stage: MultiStage, interval: K_Interval):
@@ -221,25 +246,59 @@ class Exporter:
                     # Workaround for missing shape inferance information in IIR.
                     if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
                         map_ranges = dict(i="halo:I-halo", j="halo:J-halo")
+                        boundary_conditions = { self.id_resolver.GetName(id): {"btype": "shrink", "halo": (halo, halo, halo, halo, 0, 0)} for id in stmt.reads }
                     else:
                         span = MemoryAccess3D.GetSpan(list(stmt.saved_read_spans.values()) + list(stmt.saved_write_spans.values()))
                         map_ranges = dict(
                             i="{}:I+{}".format(-span.i.lower, -span.i.upper),
                             j="{}:J+{}".format(-span.j.lower, -span.j.upper)
                             )
+                        boundary_conditions = { self.id_resolver.GetName(id): {"btype": "shrink", "halo": (span.i.lower, span.i.upper, span.j.lower, span.j.upper, 0, 0)} for id in stmt.reads }
 
-                    # The memlet is only in ijk if the do-method is parallel, otherwise we have a loop and hence
-                    # the maps are ij-only
                     state = sub_sdfg.add_state("state_{}".format(CreateUID()))
-                    state.add_mapped_tasklet(
-                        str(stmt),
-                        map_ranges,
-                        inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = False),
-                        code = stmt.code,
-                        outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = False),
-                        external_edges = True,
-                        propagate=False
-                    )
+
+                    stencil = dace.libraries.stencil.Stencil(
+                        label = str(stmt),
+                        iterators = ['i', 'j'],
+                        shape = [I, J],
+                        accesses = self.CreateMemlets_2(stmt.reads, '_in', relative_to_k = False),
+                        output_fields = self.CreateMemlets_2(stmt.writes, '_out', relative_to_k = False),
+                        boundary_conditions = boundary_conditions,
+                        code = stmt.code
+                        )
+
+                    state.add_node(stencil)
+                    
+                    for id, mem_acc in stmt.reads.items():
+                        name = self.id_resolver.GetName(id)
+                        read = state.add_read(name)
+                        state.add_memlet_path(
+                            read,
+                            stencil,
+                            memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = False)),
+                            dst_conn = name + '_in',
+                            propagate=False)
+
+                    for id, mem_acc in stmt.writes.items():
+                        name = self.id_resolver.GetName(id)
+                        write = state.add_write(name)
+                        state.add_memlet_path(
+                            stencil,
+                            write,
+                            memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = False)),
+                            src_conn = name + '_out',
+                            propagate=False)
+                    
+                    # state = sub_sdfg.add_state("state_{}".format(CreateUID()))
+                    # state.add_mapped_tasklet(
+                    #     str(stmt),
+                    #     map_ranges,
+                    #     inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = False),
+                    #     code = stmt.code,
+                    #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = False),
+                    #     external_edges = True,
+                    #     propagate=False
+                    # )
 
                     # set the state to be the last one to connect them
                     if last_state is not None:
@@ -250,7 +309,7 @@ class Exporter:
         collected_output_names = set(self.id_resolver.GetName(id) for id in collected_output_ids)
 
         nested_sdfg = multi_stage_state.add_nested_sdfg(
-            sub_sdfg,
+            sub_sdfg, 
             self.sdfg,
             collected_input_names,
             collected_output_names
@@ -328,23 +387,59 @@ class Exporter:
                     # Workaround for missing shape inferance information in IIR.
                     if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
                         map_ranges = dict(i="halo:I-halo", j="halo:J-halo")
+                        boundary_conditions = { self.id_resolver.GetName(id): {"btype": "shrink", "halo": (halo, halo, halo, halo, 0, 0)} for id in stmt.reads }
                     else:
                         span = MemoryAccess3D.GetSpan(list(stmt.saved_read_spans.values()) + list(stmt.saved_write_spans.values()))
                         map_ranges = dict(
                             i="{}:I+{}".format(-span.i.lower, -span.i.upper),
                             j="{}:J+{}".format(-span.j.lower, -span.j.upper)
                             )
+                        boundary_conditions = { self.id_resolver.GetName(id): {"btype": "shrink", "halo": (span.i.lower, span.i.upper, span.j.lower, span.j.upper, 0, 0)} for id in stmt.reads }
+
+                    state = self.sdfg.add_state("state_{}".format(CreateUID()))
+
+                    stencil = dace.libraries.stencil.Stencil(
+                        label = str(stmt),
+                        iterators = ['i', 'j'],
+                        shape = [I, J],
+                        accesses = self.CreateMemlets_2(stmt.reads, '_in', relative_to_k = True),
+                        output_fields = self.CreateMemlets_2(stmt.writes, '_out', relative_to_k = True),
+                        boundary_conditions = boundary_conditions,
+                        code = stmt.code
+                        )
+
+                    state.add_node(stencil)
+                    
+                    for id, mem_acc in stmt.reads.items():
+                        name = self.id_resolver.GetName(id)
+                        read = state.add_read(name)
+                        state.add_memlet_path(
+                            read,
+                            stencil,
+                            memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = True)),
+                            dst_conn = name + '_in',
+                            propagate=False)
+
+                    for id, mem_acc in stmt.writes.items():
+                        name = self.id_resolver.GetName(id)
+                        write = state.add_write(name)
+                        state.add_memlet_path(
+                            stencil,
+                            write,
+                            memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = True)),
+                            src_conn = name + '_out',
+                            propagate=False)
 
                     # Since we're in a sequential loop, we only need a map in i and j
-                    state = self.sdfg.add_state("state_{}".format(CreateUID()))
-                    state.add_mapped_tasklet(
-                        str(stmt),
-                        map_ranges,
-                        inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = True),
-                        code = stmt.code,
-                        outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = True),
-                        external_edges = True, propagate=False
-                    )
+                    # state = self.sdfg.add_state("state_{}".format(CreateUID()))
+                    # state.add_mapped_tasklet(
+                    #     str(stmt),
+                    #     map_ranges,
+                    #     inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = True),
+                    #     code = stmt.code,
+                    #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = True),
+                    #     external_edges = True, propagate=False
+                    # )
 
                     if first_state is None:
                         first_state = state

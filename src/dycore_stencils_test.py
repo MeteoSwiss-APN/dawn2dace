@@ -2,6 +2,7 @@ from test_helpers import *
 from dace.sdfg import SDFG
 from dace.codegen import codegen, compiler
 from dace.transformation.interstate import GPUTransformSDFG
+from dace.transformation.dataflow import MapFusion
 
 class Transcompiler():
     def test1_file_exists(self):
@@ -14,33 +15,26 @@ class Transcompiler():
         # Don't validate all the time, for performance reasons.
         sdfg.apply_strict_transformations(validate=False)
         sdfg.validate()
-        
-        # WORKAROUND: Creates all arrays on the CPU heap. Can be removed as soon as the PR is merged.
-        for arr in sdfg.arrays.values():
-            if arr.transient:
-                arr.storage = dace.StorageType.CPU_Heap
+        sdfg.save("gen/" + self.file_name + ".sdfg")
         
         program_objects = codegen.generate_code(sdfg)
         compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.file_name)
 
-        sdfg.save("gen/" + self.file_name + ".sdfg")
+    # def test3_transforms_to_gpu(self):
+    #     sdfg = SDFG.from_file("gen/" + self.file_name + ".sdfg")
 
-    def test3_transforms_to_gpu(self):
-        sdfg = SDFG.from_file("gen/" + self.file_name + ".sdfg")
+    #     # Don't validate all the time, for performance reasons.
+    #     sdfg.apply_transformations(GPUTransformSDFG, apply_once=True, validate=False)
+    #     sdfg.validate()
 
-        # Don't validate all the time, for performance reasons.
-        sdfg.apply_transformations(GPUTransformSDFG, apply_once=True, validate=False)
-        sdfg.apply_strict_transformations(validate=False)
-        sdfg.validate()
+    #     program_objects = codegen.generate_code(sdfg)
+    #     compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.file_name + "_gpu")
 
-        program_objects = codegen.generate_code(sdfg)
-        compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.file_name + "_gpu")
+    #     sdfg.save("gen/" + self.file_name + "_gpu.sdfg")
 
-        sdfg.save("gen/" + self.file_name + "_gpu.sdfg")
-
-    def test4_compiles(self):
-        sdfg = SDFG.from_file("gen/" + self.file_name + "_gpu.sdfg")
-        self.assertIsNotNone(sdfg.compile(optimizer=""))
+    # def test4_compiles(self):
+    #     sdfg = SDFG.from_file("gen/" + self.file_name + "_gpu.sdfg")
+    #     self.assertIsNotNone(sdfg.compile(optimizer=""))
 
 
 class advection_pptp_0(Transcompiler, unittest.TestCase):
