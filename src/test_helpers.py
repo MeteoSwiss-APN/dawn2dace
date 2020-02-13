@@ -33,6 +33,7 @@ def Iota(I, J, K = None, offset = 0):
     if K is None:
         return numpy.arange(offset, offset + I*J).astype(dace.float64.type).reshape(I,J)
     else:
+        K = K + 1
         return numpy.arange(offset, offset + I*J*K).astype(dace.float64.type).reshape(I,J,K)
 
 def Zeros(I, J, K = None):
@@ -40,6 +41,7 @@ def Zeros(I, J, K = None):
     if K is None:
         return numpy.zeros(shape=(I,J), dtype=dace.float64.type)
     else:
+        K = K + 1
         return numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
 
     

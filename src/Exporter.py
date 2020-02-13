@@ -113,7 +113,7 @@ class Exporter:
         self.last_state_ = init_state
 
     def GetShape(self, id:int) -> list:
-        ret = dim_filter(self.id_resolver.GetDimensions(id), I, J, K)
+        ret = dim_filter(self.id_resolver.GetDimensions(id), I, J, K + 1)
         if ret:
             return ret
         return [1]
@@ -159,7 +159,7 @@ class Exporter:
         )
 
         for x in [highest, middle, lowest]:
-            if x:
+            if x != 0:
                 return x * first_order_stride
 
     def Export_MemoryAccess3D(self, id:int, mem_acc:MemoryAccess3D, relative_to_k) -> str:
