@@ -9,7 +9,7 @@ import IIR_pb2
 from IndexHandling import *
 from Intermediates import *
 from Importer import Importer
-from Exporter import *
+from Exporter import Exporter
 from IdResolver import IdResolver
 from Unparser import Unparser
 from IIR_AST import *

@@ -5,8 +5,9 @@ import os
 from IndexHandling import *
 
 # This is a workaround for a bug in vscode. Apparently it ignores PYTHONPATH. (6.Nov 2019)
-sys.path.append(os.path.relpath("build/gen/iir_specification/"))
+sys.path.append(os.path.relpath("build/gen/iir_specification"))
 sys.path.append(os.path.relpath("../dace"))
+sys.path.append(os.path.relpath("../stencilflow/src"))
 
 import dawn2dace
 import dace

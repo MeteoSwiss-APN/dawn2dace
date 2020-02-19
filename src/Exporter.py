@@ -1,5 +1,5 @@
 import dace
-import dace.libraries.stencil
+import stencil
 import sympy
 from IndexHandling import *
 from Intermediates import *
@@ -180,18 +180,14 @@ class Exporter:
         
         return ', '.join(dim_filter(dims, i_str, j_str, k_str))
 
-    def Export_MemoryAccess3D_2(self, id:int, mem_acc:MemoryAccess3D, relative_to_k) -> list:
+    def Export_MemoryAccess3D_2(self, id:int, mem_acc:MemoryAccess3D) -> list:
         if not isinstance(mem_acc, MemoryAccess3D):
             raise TypeError("Expected MemoryAccess3D, got: {}".format(type(mem_acc).__name__))
 
-        # if relative_to_k:
-        #     return [ToMemLayout(i, j, "k+{}".format(k)) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
-        #                                                 for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
-        #                                                 for k in range(mem_acc.k.lower, mem_acc.k.upper + 1)]
-        # else:
-        return [ToMemLayout(i, j, k) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
-                                     for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
-                                     for k in range(mem_acc.k.lower, mem_acc.k.upper + 1)]
+        # TODO: This is the bounding box of all memory accesses, thus suboptimal and can be improved to not include unused data.
+        return [(i, j, k) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
+                          for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
+                          for k in range(mem_acc.k.lower, mem_acc.k.upper + 1)]
 
     def CreateMemlets(self, transactions:dict, suffix:str, relative_to_k:bool) -> dict:
         memlets = {}
@@ -204,7 +200,8 @@ class Exporter:
             memlets[name + suffix] = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k))
         return memlets
 
-    def CreateMemlets_2(self, transactions:dict, suffix:str, relative_to_k:bool) -> dict:
+    def Create_Variable_Access_map(self, transactions:dict, suffix:str) -> dict:
+        """ Returns a map of variable names and a list of relative array acceesses. """
         memlets = {}
         for id, mem_acc in transactions.items():
             name = self.id_resolver.GetName(id)
@@ -212,7 +209,7 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            memlets[name + suffix] = self.Export_MemoryAccess3D_2(id, mem_acc, relative_to_k)
+            memlets[name + suffix] = self.Export_MemoryAccess3D_2(id, mem_acc)
         return memlets
 
     def Export_parallel(self, multi_stage: MultiStage, interval: K_Interval):
@@ -257,37 +254,39 @@ class Exporter:
 
                     state = sub_sdfg.add_state("state_{}".format(CreateUID()))
 
-                    stencil = dace.libraries.stencil.Stencil(
+                    stenc = stencil.Stencil(
                         label = str(stmt),
                         iterators = ['i', 'j'],
                         shape = [I, J],
-                        accesses = self.CreateMemlets_2(stmt.reads, '_in', relative_to_k = False),
-                        output_fields = self.CreateMemlets_2(stmt.writes, '_out', relative_to_k = False),
+                        accesses = self.Create_Variable_Access_map(stmt.reads, '_in'),
+                        output_fields = self.Create_Variable_Access_map(stmt.writes, '_out'),
                         boundary_conditions = boundary_conditions,
                         code = stmt.code
                         )
 
-                    state.add_node(stencil)
+                    state.add_node(stenc)
                     
                     for id, mem_acc in stmt.reads.items():
                         name = self.id_resolver.GetName(id)
                         read = state.add_read(name)
                         state.add_memlet_path(
                             read,
-                            stencil,
-                            memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = False)),
+                            stenc,
+                            memlet = dace.Memlet.simple(name, ','.join(ToMemLayout("0:I", "0:J", "0"))),
                             dst_conn = name + '_in',
-                            propagate=False)
+                            propagate=False
+                        )
 
                     for id, mem_acc in stmt.writes.items():
                         name = self.id_resolver.GetName(id)
                         write = state.add_write(name)
                         state.add_memlet_path(
-                            stencil,
+                            stenc,
                             write,
-                            memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = False)),
+                            memlet = dace.Memlet.simple(name, ','.join(ToMemLayout(map_ranges['i'], map_ranges['j'], "0"))),
                             src_conn = name + '_out',
-                            propagate=False)
+                            propagate=False
+                        )
                     
                     # state = sub_sdfg.add_state("state_{}".format(CreateUID()))
                     # state.add_mapped_tasklet(
@@ -398,24 +397,24 @@ class Exporter:
 
                     state = self.sdfg.add_state("state_{}".format(CreateUID()))
 
-                    stencil = dace.libraries.stencil.Stencil(
+                    stenc = stencil.Stencil(
                         label = str(stmt),
                         iterators = ['i', 'j'],
                         shape = [I, J],
-                        accesses = self.CreateMemlets_2(stmt.reads, '_in', relative_to_k = True),
-                        output_fields = self.CreateMemlets_2(stmt.writes, '_out', relative_to_k = True),
+                        accesses = self.Create_Variable_Access_map(stmt.reads, '_in'),
+                        output_fields = self.Create_Variable_Access_map(stmt.writes, '_out'),
                         boundary_conditions = boundary_conditions,
                         code = stmt.code
                         )
 
-                    state.add_node(stencil)
+                    state.add_node(stenc)
                     
                     for id, mem_acc in stmt.reads.items():
                         name = self.id_resolver.GetName(id)
                         read = state.add_read(name)
                         state.add_memlet_path(
                             read,
-                            stencil,
+                            stenc,
                             memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = True)),
                             dst_conn = name + '_in',
                             propagate=False)
@@ -424,7 +423,7 @@ class Exporter:
                         name = self.id_resolver.GetName(id)
                         write = state.add_write(name)
                         state.add_memlet_path(
-                            stencil,
+                            stenc,
                             write,
                             memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = True)),
                             src_conn = name + '_out',
@@ -497,12 +496,12 @@ class Exporter:
             else:
             	self.last_state_ = self.Export_loop(multi_stage, interval, multi_stage.execution_order)
 
-    def Export_Stencil(self, stencil:Stencil):
-        assert type(stencil) is Stencil
+    def Export_Stencil(self, stenc:Stencil):
+        assert type(stenc) is Stencil
         
-        for ms in stencil.multi_stages:
+        for ms in stenc.multi_stages:
             self.Export_MultiStage(ms)
 
-    def Export_Stencils(self, stencils: list):
-        for s in stencils:
+    def Export_Stencils(self, stenc: list):
+        for s in stenc:
             self.Export_Stencil(s)

@@ -32,6 +32,7 @@ class coriolis(LegalSDFG, Asserts):
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -125,6 +126,7 @@ class thomas(LegalSDFG, Asserts):
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -179,6 +181,7 @@ class diffusion(LegalSDFG, Asserts):
         sdfg = get_sdfg(self.file_name + ".0.iir")
         dace.graph.labeling.propagate_labels_sdfg(sdfg)
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -216,6 +219,8 @@ class laplace(LegalSDFG, Asserts):
         sdfg = get_sdfg(self.file_name + ".0.iir")
         dace.graph.labeling.propagate_labels_sdfg(sdfg)
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
