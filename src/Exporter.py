@@ -482,10 +482,11 @@ class Exporter:
                         name = self.id_resolver.GetName(id)
                         dims = self.id_resolver.GetDimensions(id)
                         read = state.add_read(name)
+                        k_mem_acc = stmt.unoffsetted_read_spans[id].k
                         input_memlet_subst = ','.join(dim_filter(dims,
                             "0:I",
                             "0:J",
-                            "k+{}:k+{}".format(unoffsetted_read_span.k.lower, unoffsetted_read_span.k.upper + 1),
+                            "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1),
                         ))
                         state.add_memlet_path(
                             read,

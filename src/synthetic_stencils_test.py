@@ -915,8 +915,9 @@ class tridiagonal_solve(LegalSDFG, Asserts):
         sdfg = get_sdfg(self.file_name + ".0.iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
-        sdfg.apply_strict_transformations()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
