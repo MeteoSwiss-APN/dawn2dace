@@ -7,7 +7,7 @@ from IndexHandling import *
 # This is a workaround for a bug in vscode. Apparently it ignores PYTHONPATH. (6.Nov 2019)
 sys.path.append(os.path.relpath("build/gen/iir_specification"))
 sys.path.append(os.path.relpath("../dace"))
-sys.path.append(os.path.relpath("../stencilflow/src"))
+sys.path.append(os.path.relpath("../stencilflow"))
 
 import dawn2dace
 import dace
@@ -52,6 +52,7 @@ class LegalSDFG:
 
     def test_2_sdfg_is_valid(self):
         sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.validate()
         self.assertTrue(sdfg.is_valid())
 
 class Asserts(unittest.TestCase):

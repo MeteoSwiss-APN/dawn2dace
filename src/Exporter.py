@@ -1,6 +1,7 @@
 import dace
-import stencil
+from stencilflow.stencil.stencil import Stencil as StencilLib
 import sympy
+from itertools import chain
 from IndexHandling import *
 from Intermediates import *
 from IdResolver import IdResolver
@@ -180,14 +181,28 @@ class Exporter:
         
         return ', '.join(dim_filter(dims, i_str, j_str, k_str))
 
-    def Export_MemoryAccess3D_2(self, id:int, mem_acc:MemoryAccess3D) -> list:
+    def Export_Accesses(self, id:int, mem_acc:MemoryAccess3D):
+        """
+        Returns a pair containing the following two things:
+        - A 3-tuple of bools to denote wich dimensions are non-degenerated.
+        - A list of accesses where the array is accessed.
+        """
+
         if not isinstance(mem_acc, MemoryAccess3D):
             raise TypeError("Expected MemoryAccess3D, got: {}".format(type(mem_acc).__name__))
 
+        dims = self.id_resolver.GetDimensions(id)
+
         # TODO: This is the bounding box of all memory accesses, thus suboptimal and can be improved to not include unused data.
-        return [(i, j, k) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
-                          for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
-                          for k in range(mem_acc.k.lower, mem_acc.k.upper + 1)]
+        accs = [ToMemLayout(i, j, k) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
+                                     for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
+                                     for k in range(0, mem_acc.k.upper + 1 - mem_acc.k.lower)]
+        dimensions_present = ToMemLayout(
+            dims.i != 0,
+            dims.j != 0,
+            dims.k != 0,
+        )
+        return (dimensions_present, accs)
 
     def CreateMemlets(self, transactions:dict, suffix:str, relative_to_k:bool) -> dict:
         memlets = {}
@@ -201,7 +216,7 @@ class Exporter:
         return memlets
 
     def Create_Variable_Access_map(self, transactions:dict, suffix:str) -> dict:
-        """ Returns a map of variable names and a list of relative array acceesses. """
+        """ Returns a map of variable names (suffixed) and its saccesses. """
         memlets = {}
         for id, mem_acc in transactions.items():
             name = self.id_resolver.GetName(id)
@@ -209,7 +224,7 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            memlets[name + suffix] = self.Export_MemoryAccess3D_2(id, mem_acc)
+            memlets[name + suffix] = self.Export_Accesses(id, mem_acc)
         return memlets
 
     def Export_parallel(self, multi_stage: MultiStage, interval: K_Interval):
@@ -240,52 +255,86 @@ class Exporter:
                     collected_input_ids.extend(reads - literals - locals)
                     collected_output_ids.extend(writes - literals - locals)
 
+                    unoffsetted_read_span = MemoryAccess3D.GetSpan(stmt.unoffsetted_read_spans.values())
+                    unoffsetted_write_span = MemoryAccess3D.GetSpan(stmt.unoffsetted_write_spans.values())
+                    unoffsetted_span = MemoryAccess3D.GetSpan([unoffsetted_read_span, unoffsetted_write_span])
+
+                    halo_i_lower = -unoffsetted_span.i.lower
+                    halo_i_upper = unoffsetted_span.i.upper
+                    halo_j_lower = -unoffsetted_span.j.lower
+                    halo_j_upper = unoffsetted_span.j.upper
+
                     # Workaround for missing shape inferance information in IIR.
                     if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
-                        map_ranges = dict(i="halo:I-halo", j="halo:J-halo")
-                        boundary_conditions = { self.id_resolver.GetName(id): {"btype": "shrink", "halo": (halo, halo, halo, halo, 0, 0)} for id in stmt.reads }
-                    else:
-                        span = MemoryAccess3D.GetSpan(list(stmt.saved_read_spans.values()) + list(stmt.saved_write_spans.values()))
-                        map_ranges = dict(
-                            i="{}:I+{}".format(-span.i.lower, -span.i.upper),
-                            j="{}:J+{}".format(-span.j.lower, -span.j.upper)
-                            )
-                        boundary_conditions = { self.id_resolver.GetName(id): {"btype": "shrink", "halo": (span.i.lower, span.i.upper, span.j.lower, span.j.upper, 0, 0)} for id in stmt.reads }
+                        halo_i_lower = halo
+                        halo_i_upper = halo
+                        halo_j_lower = halo
+                        halo_j_upper = halo
+
+                    boundary_conditions = {
+                        self.id_resolver.GetName(id): {
+                            "btype": "shrink",
+                            "halo": tuple(chain.from_iterable(
+                                ToMemLayout(
+                                    (halo_i_lower, halo_i_upper), # halo in I
+                                    (halo_j_lower, halo_j_upper), # halo in J
+                                    (0, 0), # halo in K
+                                )))
+                            }
+                            for id in stmt.reads
+                        }
 
                     state = sub_sdfg.add_state("state_{}".format(CreateUID()))
 
-                    stenc = stencil.Stencil(
+                    input_fields = self.Create_Variable_Access_map(stmt.reads, '_in')
+                    output_fields = self.Create_Variable_Access_map(stmt.writes, '_out')
+
+                    stenc = StencilLib(
                         label = str(stmt),
-                        iterators = ['i', 'j'],
-                        shape = [I, J],
-                        accesses = self.Create_Variable_Access_map(stmt.reads, '_in'),
-                        output_fields = self.Create_Variable_Access_map(stmt.writes, '_out'),
+                        shape = list(ToMemLayout(I, J, 1)),
+                        accesses = input_fields,
+                        output_fields = output_fields,
                         boundary_conditions = boundary_conditions,
                         code = stmt.code
-                        )
-
+                    )
                     state.add_node(stenc)
                     
+                    # Add stencil-input memlet paths, from state.read to stencil.
                     for id, mem_acc in stmt.reads.items():
                         name = self.id_resolver.GetName(id)
+                        dims = self.id_resolver.GetDimensions(id)
                         read = state.add_read(name)
+                        input_memlet_subst = ','.join(dim_filter(dims,
+                            "0:I",
+                            "0:J",
+                            "0:{}".format(unoffsetted_read_span.k.lower - unoffsetted_read_span.k.upper + 1),
+                        ))
+                        if not input_memlet_subst:
+                            input_memlet_subst = '0'
                         state.add_memlet_path(
                             read,
                             stenc,
-                            memlet = dace.Memlet.simple(name, ','.join(ToMemLayout("0:I", "0:J", "0"))),
+                            memlet = dace.Memlet.simple(name, input_memlet_subst),
                             dst_conn = name + '_in',
-                            propagate=False
+                            propagate=True
                         )
 
+                    # Add stencil-output memlet paths, from stencil to state.write.
                     for id, mem_acc in stmt.writes.items():
                         name = self.id_resolver.GetName(id)
+                        dims = self.id_resolver.GetDimensions(id)
                         write = state.add_write(name)
+                        output_memlet_subst = ','.join(dim_filter(dims,
+                            "{}:I-{}".format(halo_i_lower, halo_i_upper),
+                            "{}:J-{}".format(halo_j_lower, halo_j_upper),
+                            "{}:{}".format(-unoffsetted_write_span.k.lower, -unoffsetted_write_span.k.upper + 1),
+                        ))
                         state.add_memlet_path(
                             stenc,
                             write,
-                            memlet = dace.Memlet.simple(name, ','.join(ToMemLayout(map_ranges['i'], map_ranges['j'], "0"))),
+                            memlet = dace.Memlet.simple(name, output_memlet_subst),
                             src_conn = name + '_out',
-                            propagate=False
+                            propagate=True
                         )
                     
                     # state = sub_sdfg.add_state("state_{}".format(CreateUID()))
@@ -296,7 +345,7 @@ class Exporter:
                     #     code = stmt.code,
                     #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = False),
                     #     external_edges = True,
-                    #     propagate=False
+                    #     propagate=True
                     # )
 
                     # set the state to be the last one to connect them
@@ -322,7 +371,7 @@ class Exporter:
             dims = self.id_resolver.GetDimensions(id)
 
             read = multi_stage_state.add_read(name)
-            k_mem_acc = multi_stage.saved_read_spans[id].k
+            k_mem_acc = multi_stage.unoffsetted_read_spans[id].k
             subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1)))
             if not subset_str:
                 subset_str = "0"
@@ -334,7 +383,7 @@ class Exporter:
                 nested_sdfg,
                 memlet = dace.Memlet.simple(name, subset_str),
                 dst_conn = name,
-                propagate=False
+                propagate=True
             )
         if len(collected_input_ids) == 0:
             # If there are no inputs to this SDFG, connect it to the map with an empty memlet
@@ -347,7 +396,7 @@ class Exporter:
             dims = self.id_resolver.GetDimensions(id)
 
             write = multi_stage_state.add_write(name)
-            k_mem_acc = multi_stage.saved_write_spans[id].k
+            k_mem_acc = multi_stage.unoffsetted_write_spans[id].k
             subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1)))
             if not subset_str:
                 subset_str = "0"
@@ -359,7 +408,7 @@ class Exporter:
                 write,
                 memlet=dace.Memlet.simple(name, subset_str),
                 src_conn = name,
-                propagate=False
+                propagate=True
             )
 
         if self.last_state_ is not None:
@@ -383,24 +432,43 @@ class Exporter:
 
                     self.try_add_scalar(self.sdfg, (id for id in stmt.reads.keys() if self.id_resolver.IsGlobal(id)))
 
+                    unoffsetted_read_span = MemoryAccess3D.GetSpan(stmt.unoffsetted_read_spans.values())
+                    unoffsetted_write_span = MemoryAccess3D.GetSpan(stmt.unoffsetted_write_spans.values())
+                    unoffsetted_span = MemoryAccess3D.GetSpan([unoffsetted_read_span, unoffsetted_write_span])
+
+                    halo_i_lower = -unoffsetted_span.i.lower
+                    halo_i_upper = unoffsetted_span.i.upper
+                    halo_j_lower = -unoffsetted_span.j.lower
+                    halo_j_upper = unoffsetted_span.j.upper
+
                     # Workaround for missing shape inferance information in IIR.
                     if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
-                        map_ranges = dict(i="halo:I-halo", j="halo:J-halo")
-                        boundary_conditions = { self.id_resolver.GetName(id): {"btype": "shrink", "halo": (halo, halo, halo, halo, 0, 0)} for id in stmt.reads }
-                    else:
-                        span = MemoryAccess3D.GetSpan(list(stmt.saved_read_spans.values()) + list(stmt.saved_write_spans.values()))
-                        map_ranges = dict(
-                            i="{}:I+{}".format(-span.i.lower, -span.i.upper),
-                            j="{}:J+{}".format(-span.j.lower, -span.j.upper)
-                            )
-                        boundary_conditions = { self.id_resolver.GetName(id): {"btype": "shrink", "halo": (span.i.lower, span.i.upper, span.j.lower, span.j.upper, 0, 0)} for id in stmt.reads }
+                        halo_i_lower = halo
+                        halo_i_upper = halo
+                        halo_j_lower = halo
+                        halo_j_upper = halo
+
+                    boundary_conditions = {
+                        self.id_resolver.GetName(id): {
+                            "btype": "shrink",
+                            "halo": tuple(chain.from_iterable(
+                                ToMemLayout(
+                                    (halo_i_lower, halo_i_upper), # halo in I
+                                    (halo_j_lower, halo_j_upper), # halo in J
+                                    (0, 0), # halo in K
+                                )))
+                            }
+                            for id in stmt.reads
+                        }
 
                     state = self.sdfg.add_state("state_{}".format(CreateUID()))
 
-                    stenc = stencil.Stencil(
+                    input_fields = self.Create_Variable_Access_map(stmt.reads, '_in')
+                    output_fields = self.Create_Variable_Access_map(stmt.writes, '_out')
+
+                    stenc = StencilLib(
                         label = str(stmt),
-                        iterators = ['i', 'j'],
-                        shape = [I, J],
+                        shape = list(ToMemLayout(I, J, 1)),
                         accesses = self.Create_Variable_Access_map(stmt.reads, '_in'),
                         output_fields = self.Create_Variable_Access_map(stmt.writes, '_out'),
                         boundary_conditions = boundary_conditions,
@@ -409,25 +477,41 @@ class Exporter:
 
                     state.add_node(stenc)
                     
+                    # Add stencil-input memlet paths, from state.read to stencil.
                     for id, mem_acc in stmt.reads.items():
                         name = self.id_resolver.GetName(id)
+                        dims = self.id_resolver.GetDimensions(id)
                         read = state.add_read(name)
+                        input_memlet_subst = ','.join(dim_filter(dims,
+                            "0:I",
+                            "0:J",
+                            "k+{}:k+{}".format(unoffsetted_read_span.k.lower, unoffsetted_read_span.k.upper + 1),
+                        ))
                         state.add_memlet_path(
                             read,
                             stenc,
-                            memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = True)),
+                            memlet = dace.Memlet.simple(name, input_memlet_subst),
                             dst_conn = name + '_in',
-                            propagate=False)
+                            propagate=True
+                        )
 
+                    # Add stencil-output memlet paths, from stencil to state.write.
                     for id, mem_acc in stmt.writes.items():
                         name = self.id_resolver.GetName(id)
+                        dims = self.id_resolver.GetDimensions(id)
                         write = state.add_write(name)
+                        output_memlet_subst = ','.join(dim_filter(dims,
+                            "{}:I-{}".format(halo_i_lower, halo_i_upper),
+                            "{}:J-{}".format(halo_j_lower, halo_j_upper),
+                            "k+{}:k+{}".format(unoffsetted_write_span.k.lower, unoffsetted_write_span.k.upper + 1),
+                        ))
                         state.add_memlet_path(
                             stenc,
                             write,
-                            memlet = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k = True)),
+                            memlet = dace.Memlet.simple(name, output_memlet_subst),
                             src_conn = name + '_out',
-                            propagate=False)
+                            propagate=True
+                        )
 
                     # Since we're in a sequential loop, we only need a map in i and j
                     # state = self.sdfg.add_state("state_{}".format(CreateUID()))
@@ -437,7 +521,7 @@ class Exporter:
                     #     inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = True),
                     #     code = stmt.code,
                     #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = True),
-                    #     external_edges = True, propagate=False
+                    #     external_edges = True, propagate=True
                     # )
 
                     if first_state is None:

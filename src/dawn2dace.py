@@ -147,6 +147,10 @@ class K_Offsetter(IIR_Transformer):
         return expr
 
 def AccountForKMapMemlets(stencils: list, id_resolver):
+    """
+    For every parallel multi-stage we introduce a k-map.
+    Thus the k-accesses need to be offsetted.
+    """
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             if multi_stage.execution_order == 2: # parallel
@@ -154,21 +158,28 @@ def AccountForKMapMemlets(stencils: list, id_resolver):
                 for stage in multi_stage.stages:
                     for do_method in stage.do_methods:
                         for stmt in do_method.statements:
-                            k_read_offset_dict = { 
+                            # Taking care of the reads.
+                            k_read_offset_dict = { # a dict{id:k_offset} where k_offset states how much an access to a variable needs to be offsetted.
                                 id: -mem_acc.k.lower 
-                                for id, mem_acc in multi_stage.saved_read_spans.items() 
-                                if id in stmt.reads and not id_resolver.IsLocal(id)
+                                for id, mem_acc in multi_stage.unoffsetted_read_spans.items() 
+                                if id in stmt.reads and not id_resolver.IsLocal(id) # locals don't need offsetting
                                 }
-                            stmt.code = K_Offsetter(k_read_offset_dict).visit(stmt.code)
+                            stmt.code = K_Offsetter(k_read_offset_dict).visit(stmt.code) # Offsetting the code.
+
+                            # Offsetting the AST.
                             for id, offset in k_read_offset_dict.items():
                                 stmt.reads[id].offset(k = offset)
 
+
+                            # Taking care of the writes.
                             k_write_offset_dict = { 
                                 id: -mem_acc.k.lower
-                                for id, mem_acc in multi_stage.saved_write_spans.items()
-                                if id in stmt.writes and not id_resolver.IsLocal(id)
+                                for id, mem_acc in multi_stage.unoffsetted_write_spans.items()
+                                if id in stmt.writes and not id_resolver.IsLocal(id) # locals don't need offsetting
                                 }
-                            stmt.code = K_Offsetter(k_write_offset_dict).visit(stmt.code)
+                            stmt.code = K_Offsetter(k_write_offset_dict).visit(stmt.code) # Offsetting the code.
+
+                            # Offsetting the AST.
                             for id, offset in k_write_offset_dict.items():
                                 stmt.writes[id].offset(k = offset)
 
@@ -181,11 +192,13 @@ def AccountForIJMapMemlets(stencils: list):
                     for stmt in do_method.statements:
                         stmt.SaveSpans()
 
-                        k_read_offset_dict = { id: -mem_acc.k.lower for id, mem_acc in stmt.saved_read_spans.items() if id in stmt.reads }
-                        stmt.code = K_Offsetter(k_read_offset_dict).visit(stmt.code)
+                        # Taking care of the reads.
+                        k_read_offset_dict = { id: -mem_acc.k.lower for id, mem_acc in stmt.unoffsetted_read_spans.items() if id in stmt.reads }
+                        stmt.code = K_Offsetter(k_read_offset_dict).visit(stmt.code) # Offsetting the code.
 
-                        k_write_offset_dict = { id: -mem_acc.k.lower for id, mem_acc in stmt.saved_write_spans.items() if id in stmt.writes }
-                        stmt.code = K_Offsetter(k_write_offset_dict).visit(stmt.code)
+                        # Taking care of the writes.
+                        k_write_offset_dict = { id: -mem_acc.k.lower for id, mem_acc in stmt.unoffsetted_write_spans.items() if id in stmt.writes }
+                        stmt.code = K_Offsetter(k_write_offset_dict).visit(stmt.code) # Offsetting the code.
 
 
 class DimensionalReducer(IIR_Transformer):

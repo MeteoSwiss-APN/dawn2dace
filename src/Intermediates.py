@@ -91,8 +91,8 @@ class Statement:
         self.line = CreateUID()
         self.reads = reads # dict[id, MemoryAccess3D]
         self.writes = writes # dict[id, MemoryAccess3D]
-        self.saved_read_spans = None #dict[id, mem_acc_3D]
-        self.saved_write_spans = None #dict[id, mem_acc_3D]
+        self.unoffsetted_read_spans = None #dict[id, mem_acc_3D]
+        self.unoffsetted_write_spans = None #dict[id, mem_acc_3D]
     
     def __str__(self):
         return "Line{}".format(self.line)
@@ -104,8 +104,8 @@ class Statement:
 
     def SaveSpans(self):
         import copy
-        self.saved_read_spans = copy.deepcopy(self.GetReadSpans())
-        self.saved_write_spans = copy.deepcopy(self.GetWriteSpans())
+        self.unoffsetted_read_spans = copy.deepcopy(self.GetReadSpans())
+        self.unoffsetted_write_spans = copy.deepcopy(self.GetWriteSpans())
         
 
 def FuseMemAccDicts(dicts) -> dict:
@@ -153,8 +153,8 @@ class MultiStage:
         self.uid = CreateUID()
         self.execution_order = execution_order
         self.stages = stages
-        self.saved_read_spans = None #dict[id, mem_acc_3D]
-        self.saved_write_spans = None #dict[id, mem_acc_3D]
+        self.unoffsetted_read_spans = None #dict[id, mem_acc_3D]
+        self.unoffsetted_write_spans = None #dict[id, mem_acc_3D]
 
     def __str__(self):
         return "state_{}".format(self.uid)
@@ -166,8 +166,8 @@ class MultiStage:
 
     def SaveSpans(self):
         import copy
-        self.saved_read_spans = copy.deepcopy(self.GetReadSpans())
-        self.saved_write_spans = copy.deepcopy(self.GetWriteSpans())
+        self.unoffsetted_read_spans = copy.deepcopy(self.GetReadSpans())
+        self.unoffsetted_write_spans = copy.deepcopy(self.GetWriteSpans())
 
 
 
