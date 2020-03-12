@@ -4,13 +4,13 @@ def ToMemLayout(i, j, k):
     return j, k, i # Memory layout
 
 def ToStridePolicy3D(I, J, K):
-    # To memory layout
+    # Transform to memory layout
     I, J, K = ToMemLayout(I, J, K)
 
     # Adapt lowest order memory access
     K = 8 * sympy.ceiling(K / 8)
 
-    # Back from memory layout
+    # Transform back from memory layout
     I, J, K = ToMemLayout(I, J, K)
     I, J, K = ToMemLayout(I, J, K)
     I, J, K = ToMemLayout(I, J, K)
@@ -23,3 +23,5 @@ class Index3D:
         self.i = i
         self.j = j
         self.k = k
+    def __iter__(self):
+        return i, j, k

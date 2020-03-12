@@ -32,7 +32,8 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            print("Try add scalar: {}".format(name))
+            if __debug__:
+                print("Try add scalar: {}".format(name))
 
             try:
                 sdfg.add_scalar(name, dtype=data_type)
@@ -51,8 +52,9 @@ class Exporter:
 
             if self.id_resolver.IsALiteral(id):
                 continue
-
-            print("Try add array: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
+            
+            if __debug__:
+                print("Try add array: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
                 sdfg.add_array(
@@ -78,7 +80,8 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            print("Try add transient: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
+            if __debug__:
+                print("Try add transient: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
                 sdfg.add_transient(
@@ -532,12 +535,12 @@ class Exporter:
                     last_state = state
 
         if execution_order == ExecutionOrder.Forward_Loop.value:
-            initialize_expr = interval.begin
-            condition_expr = "k < {}".format(interval.end)
+            initialize_expr = interval.begin_as_str()
+            condition_expr = "k < {}".format(interval.end_as_str())
             increment_expr = "k + 1"
         else:
-            initialize_expr = interval.end + "-1"
-            condition_expr = "k >= {}".format(interval.begin)
+            initialize_expr = interval.end_as_str(offset = -1)
+            condition_expr = "k >= {}".format(interval.begin_as_str())
             increment_expr = "k - 1"
 
         _, _, last_state  = self.sdfg.add_loop(
@@ -557,24 +560,24 @@ class Exporter:
         if not isinstance(multi_stage, MultiStage):
             raise TypeError("Expected MultiStage, got: {}".format(type(multi_stage).__name__))
 
-        intervals = set()
+        K_intervals = set()
         for stage in multi_stage.stages:
             for do_method in stage.do_methods:
-                intervals.add(do_method.k_interval)
-        intervals = list(intervals)
+                K_intervals.add(do_method.k_interval)
+        K_intervals = list(K_intervals)
         
-        intervals.sort(
-            key = lambda interval: interval.sort_key,
+        K_intervals.sort(
+            key = lambda K_intervals: K_intervals.begin_as_value(K = 1000),
             reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
         )
 
         if __debug__:
             print("list of all the intervals:")
-            for i in intervals:
+            for i in K_intervals:
                 print(i)
 
         # export the MultiStage for every interval (in loop order)
-        for interval in intervals:
+        for interval in K_intervals:
             if multi_stage.execution_order == ExecutionOrder.Parallel.value:
             	self.last_state_ = self.Export_parallel(multi_stage, interval)
             else:

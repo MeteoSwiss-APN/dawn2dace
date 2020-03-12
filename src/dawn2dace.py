@@ -14,7 +14,11 @@ from IdResolver import IdResolver
 from Unparser import Unparser
 from IIR_AST import *
 
-RESERVED_PYTHON_KEYWORDS = {"False", "class", "finally", "is", "return", "None", "continue", "for", "lambda", "try", "True", "def", "from", "nonlocal", "while", "and", "del", "global", "not", "with", "as", "elif", "if", "or", "yield", "assert", "else", "import", "pass", "break", "except", "in", "raise"}
+RESERVED_PYTHON_KEYWORDS = {
+    "False", "class", "finally", "is", "return", "None", "continue", "for", 
+    "lambda", "try", "True", "def", "from", "nonlocal", "while", "and", "del", 
+    "global", "not", "with", "as", "elif", "if", "or", "yield", "assert", "else", 
+    "import", "pass", "break", "except", "in", "raise", "x", "y", "z"}
 
 class KeywordReplacer(IIR_Transformer):
     def visit_VarAccessExpr(self, expr):
@@ -28,6 +32,7 @@ class KeywordReplacer(IIR_Transformer):
         return expr
 
 def ReplaceKeywords(stencils: list):
+    """ Replaces reserved python keywords by appending an _."""
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
@@ -40,9 +45,7 @@ class Renamer(ast.NodeTransformer):
         self.storemode = False
 
     def visit_Name(self, node):
-        if node.id == "true":
-            return node
-        if node.id == "false":
+        if node.id == "true" or node.id == "false" or node.id == "True" or node.id == "False":
             return node
         if self.storemode or isinstance(node.ctx, ast.Store):
             node.id += '_out'
@@ -75,6 +78,7 @@ class Renamer(ast.NodeTransformer):
 
 def RenameVariables(stencils: list):
     """
+    Makes dataflow more explicit.
     Renames all variables that are read from by adding a suffix '_in'.
     Renames all variables that are written to by adding a suffix '_out'.
     """
@@ -89,7 +93,7 @@ def RenameVariables(stencils: list):
 
 
 class AssignmentExpander(IIR_Transformer):
-    """ Makes dataflow explicit by expanding 'a (op)= b' into 'a = a (op) b'. """
+    """ Makes dataflow more explicit by expanding 'a (op)= b' into 'a = a (op) b'. """
     def visit_AssignmentExpr(self, expr):
         if expr.op == '=':
             return expr
@@ -111,31 +115,6 @@ def ExpandAssignmentOperator(stencils: list):
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
                         stmt.code = AssignmentExpander().visit(stmt.code)
-
-
-class IJ_Mapper(IIR_Transformer):
-    """ Offsets the i and j-index when there's a span. """
-    def __init__(self, transfer:dict):
-        self.transfer = transfer
-
-    def visit_FieldAccessExpr(self, expr):
-        id = expr.data.accessID.value
-        if id in self.transfer:
-            mem_acc = self.transfer[id]
-            if mem_acc.i.lower != mem_acc.i.upper:
-                expr.cartesian_offset.i_offset -= mem_acc.i.lower
-            if mem_acc.j.lower != mem_acc.j.upper:
-                expr.cartesian_offset.j_offset -= mem_acc.j.lower
-        return expr
-
-def AccountForIJMap(stencils: list):
-    """ Offsets the i and j-index when there's a span. """
-    for stencil in stencils:
-        for multi_stage in stencil.multi_stages:
-            for stage in multi_stage.stages:
-                for do_method in stage.do_methods:
-                    for stmt in do_method.statements:
-                        stmt.code = IJ_Mapper(stmt.reads).visit(stmt.code)
 
 
 class K_Offsetter(IIR_Transformer):
@@ -212,9 +191,7 @@ class DimensionalReducer(IIR_Transformer):
     def visit_FieldAccessExpr(self, expr):
         id = expr.data.accessID.value
         if id in self.transfer:
-            name = self.id_resolver.GetName(id)
             dims = self.id_resolver.GetDimensions(id)
-            mem_acc = self.transfer[id]
 
             if not dims.i:
                 expr.cartesian_offset.i_offset = -1000
@@ -240,7 +217,8 @@ class DimensionalReducerWrite(DimensionalReducer):
         expr.left.CopyFrom(self.visit(expr.left))
         return expr
 
-def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
+def MarkUnusedDimensions(id_resolver:IdResolver, stencils: list):
+    """ Marks all unused dimensions in all field access expressions. """
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
@@ -251,6 +229,7 @@ def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
 
 
 def UnparseCode(stencils: list, id_resolver:IdResolver):
+    """ Unparses C++ AST to python string. """
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
@@ -276,14 +255,13 @@ def IIR_str_to_SDFG(iir: str):
     imp = Importer(id_resolver)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
-    ReplaceKeywords(stencils)
-    ExpandAssignmentOperator(stencils)
+    ReplaceKeywords(stencils) # 'in' -> 'in_'
+    ExpandAssignmentOperator(stencils) # 'a += b' -> 'a = a + b'
     AccountForKMapMemlets(stencils, id_resolver)
     AccountForIJMapMemlets(stencils)
-    #AccountForIJMap(stencils)
-    RemoveUnusedDimensions(id_resolver, stencils)
-    UnparseCode(stencils, id_resolver)
-    RenameVariables(stencils)
+    MarkUnusedDimensions(id_resolver, stencils)
+    UnparseCode(stencils, id_resolver) # C++ AST -> Python string
+    RenameVariables(stencils) # 'a = a' -> 'a_out = a_in'
 
     exp = Exporter(id_resolver, sdfg)
 

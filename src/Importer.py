@@ -14,31 +14,27 @@ class Importer:
 
         if interval.WhichOneof("LowerLevel") == "special_lower_level":
             if interval.special_lower_level == 0:
-                begin = "0"
-                sort_key = 0
+                begin = interval.lower_offset
+                begin_relative_to_K = False
             else:
-                begin = "K-1"
-                sort_key = 10000 - 1
+                begin = interval.lower_offset - 1
+                begin_relative_to_K = True
         elif interval.WhichOneof("LowerLevel") == "lower_level":
-            begin = str(interval.lower_level)
-            sort_key = interval.lower_level
-
-        begin += "+" + str(interval.lower_offset)
-        sort_key += interval.lower_offset
+            begin = interval.lower_level + interval.lower_offset
+            begin_relative_to_K = False
 
         if interval.WhichOneof("UpperLevel") == "special_upper_level":
             if interval.special_upper_level == 0:
-                end = "0"
+                end = interval.upper_offset + 1 # +1 to adapt from closed interval to half-open interval
+                end_relative_to_K = False
             else:
-                # intervals are adapted to be inclusive so K-1 is what we want (starting from 0)
-                end = "K-1"
+                end = interval.upper_offset
+                end_relative_to_K = True
         elif interval.WhichOneof("UpperLevel") == "upper_level":
-            end = str(interval.upper_level)
+            end = interval.upper_level + interval.upper_offset + 1 # +1 to adapt from closed interval to half-open interval
+            end_relative_to_K = False
 
-        end += "+" + str(interval.upper_offset)
-        end += "+1" # since python interval are open we need to add 1.
-
-        return K_Interval(begin, end, sort_key)
+        return K_Interval(HalfOpenInterval(begin, end), begin_relative_to_K, end_relative_to_K)
 
     def Import_MemoryAccesses(self, access: dict) -> list:
         ret = {}

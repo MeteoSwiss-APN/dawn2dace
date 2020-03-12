@@ -1,5 +1,14 @@
 from enum import Enum
 
+def relative_number_to_str(number:int, relative:bool, literal:str) -> str:
+    if not relative:
+        return str(number)
+    if number > 0:
+        return literal + "+" + str(number)
+    if number < 0:
+        return literal + "-" + str(-number)
+    return literal
+
 def CreateUID() -> int:
     """ Creates unique identification numbers. """
     if not hasattr(CreateUID, "counter"):
@@ -7,20 +16,62 @@ def CreateUID() -> int:
     CreateUID.counter += 1
     return CreateUID.counter
 
-class K_Interval:
-    """ Represents an interval [begin, end) in dimention K """
+class ClosedInterval:
+    """ An interval that includes its coundaries [lower, upper]. """
+    def __init__(self, lower:int, upper:int):
+        self.lower = lowers
+        self.upper = upper
+    def __str__(self) -> str:
+        return "{}:{}".format(self.lower, self.upper)
+    def __eq__(self, o) -> bool:
+        return self.lower == o.lower and self.upper == o.upper
+    def __ne__(self, o) -> bool:
+        return not self == o
+    def __hash__(self):
+        return hash(self.__dict__.values())
 
-    def __init__(self, begin, end, sort_key:int):
+class HalfOpenInterval:
+    """ An interval that does not includ its upper limit [begin, end). """
+    def __init__(self, begin:int, end:int):
         self.begin = begin
         self.end = end
-        self.sort_key = sort_key
-
     def __str__(self) -> str:
         return "{}:{}".format(self.begin, self.end)
+    def __eq__(self, o) -> bool:
+        return self.begin == o.begin and self.end == o.end
+    def __ne__(self, o) -> bool:
+        return not self == o
+    def __hash__(self):
+        return hash(self.__dict__.values())
 
+
+class K_Interval:
+    """ Represents a half-open interval, possibly relative to K. """
+    def __init__(self, interval:HalfOpenInterval, begin_relative_to_K:bool, end_relative_to_K:bool):
+        self.__interval = interval
+        self.__begin_relative_to_K = begin_relative_to_K
+        self.__end_relative_to_K = end_relative_to_K
+    
+    def begin_as_str(self, offset:int = 0) -> str:
+        return relative_number_to_str(self.__interval.begin + offset, self.__begin_relative_to_K, 'K')
+    
+    def end_as_str(self, offset:int = 0) -> str:
+        return relative_number_to_str(self.__interval.end + offset, self.__end_relative_to_K, 'K')
+
+    def begin_as_value(self, K:int, offset:int = 0) -> int:
+        return self.__interval.begin + offset + (K if self.__begin_relative_to_K else 0)
+
+    def end_as_value(self, K:int, offset:int = 0) -> int:
+        return self.__interval.end + offset + (K if self.__end_relative_to_K else 0)
+    
+    def __str__(self) -> str:
+        return "{}:{}".format(self.begin_as_str(), self.end_as_str())
+    
     def __eq__(self, other) -> bool:
-        return self.begin == other.begin and self.end == other.end
-
+        return self.__interval == other.__interval \
+            and self.__begin_relative_to_K == other.__begin_relative_to_K \
+            and self.__end_relative_to_K == other.__end_relative_to_K
+    
     def __ne__(self, other) -> bool:
         return not self == other
 
@@ -168,7 +219,6 @@ class MultiStage:
         import copy
         self.unoffsetted_read_spans = copy.deepcopy(self.GetReadSpans())
         self.unoffsetted_write_spans = copy.deepcopy(self.GetWriteSpans())
-
 
 
 class Stencil:

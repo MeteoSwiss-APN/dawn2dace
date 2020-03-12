@@ -7,10 +7,10 @@ stencil vertical_offsets {
 	
   Do {
     vertical_region(k_start, k_start) {
-      output = input[k+1];
+      output = input + input[k+1];
     }
     vertical_region(k_start+1, k_end) {
-      output = input[k-1];
+      output = input + input[k-1];
     }
   }
 };
