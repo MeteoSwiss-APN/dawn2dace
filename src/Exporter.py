@@ -14,7 +14,7 @@ data_type = dace.float64
 
 def dim_filter(dimensions:Index3D, i, j, k) -> tuple:
     dim_mem = ToMemLayout(dimensions.i, dimensions.j, dimensions.k)
-    return (elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim)
+    return tuple(elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim)
 
 class Exporter:
     def __init__(self, id_resolver:IdResolver, sdfg):
@@ -32,7 +32,7 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            #print("Try add scalar: {}".format(name))
+            print("Try add scalar: {}".format(name))
 
             try:
                 sdfg.add_scalar(name, dtype=data_type)
@@ -52,7 +52,7 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            #print("Try add array: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
+            print("Try add array: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
                 sdfg.add_array(
@@ -78,7 +78,7 @@ class Exporter:
             if self.id_resolver.IsALiteral(id):
                 continue
 
-            # print("Try add transient: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
+            print("Try add transient: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
                 sdfg.add_transient(
@@ -91,7 +91,7 @@ class Exporter:
             except:
                 pass
 
-    def Export_Globals(self, id_value:dict):
+    def Export_Globals(self, id_value: dict):
         if not id_value:
             return
 
@@ -194,26 +194,15 @@ class Exporter:
         dims = self.id_resolver.GetDimensions(id)
 
         # TODO: This is the bounding box of all memory accesses, thus suboptimal and can be improved to not include unused data.
-        accs = [ToMemLayout(i, j, k) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
-                                     for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
-                                     for k in range(0, mem_acc.k.upper + 1 - mem_acc.k.lower)]
+        accs = [dim_filter(dims, i, j, k) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
+                                          for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
+                                          for k in range(0, mem_acc.k.upper + 1 - mem_acc.k.lower)]
         dimensions_present = ToMemLayout(
             dims.i != 0,
             dims.j != 0,
             dims.k != 0,
         )
         return (dimensions_present, accs)
-
-    def CreateMemlets(self, transactions:dict, suffix:str, relative_to_k:bool) -> dict:
-        memlets = {}
-        for id, mem_acc in transactions.items():
-            name = self.id_resolver.GetName(id)
-
-            if self.id_resolver.IsALiteral(id):
-                continue
-
-            memlets[name + suffix] = dace.Memlet.simple(name, self.Export_MemoryAccess3D(id, mem_acc, relative_to_k))
-        return memlets
 
     def Create_Variable_Access_map(self, transactions:dict, suffix:str) -> dict:
         """ Returns a map of variable names (suffixed) and its saccesses. """
@@ -311,6 +300,7 @@ class Exporter:
                         ))
                         if not input_memlet_subst:
                             input_memlet_subst = '0'
+                            
                         state.add_memlet_path(
                             read,
                             stenc,
@@ -329,6 +319,9 @@ class Exporter:
                             "{}:J-{}".format(halo_j_lower, halo_j_upper),
                             "{}:{}".format(-unoffsetted_write_span.k.lower, -unoffsetted_write_span.k.upper + 1),
                         ))
+                        if not output_memlet_subst:
+                            output_memlet_subst = "0"
+
                         state.add_memlet_path(
                             stenc,
                             write,
@@ -488,6 +481,9 @@ class Exporter:
                             "0:J",
                             "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1),
                         ))
+                        if not input_memlet_subst:
+                            input_memlet_subst = '0'
+
                         state.add_memlet_path(
                             read,
                             stenc,
@@ -506,6 +502,9 @@ class Exporter:
                             "{}:J-{}".format(halo_j_lower, halo_j_upper),
                             "k+{}:k+{}".format(unoffsetted_write_span.k.lower, unoffsetted_write_span.k.upper + 1),
                         ))
+                        if not output_memlet_subst:
+                            output_memlet_subst = '0'
+
                         state.add_memlet_path(
                             stenc,
                             write,

@@ -114,6 +114,7 @@ def ExpandAssignmentOperator(stencils: list):
 
 
 class IJ_Mapper(IIR_Transformer):
+    """ Offsets the i and j-index when there's a span. """
     def __init__(self, transfer:dict):
         self.transfer = transfer
 
@@ -128,6 +129,7 @@ class IJ_Mapper(IIR_Transformer):
         return expr
 
 def AccountForIJMap(stencils: list):
+    """ Offsets the i and j-index when there's a span. """
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
@@ -185,6 +187,7 @@ def AccountForKMapMemlets(stencils: list, id_resolver):
 
 
 def AccountForIJMapMemlets(stencils: list):
+    """ Offsets the k-index that each tasklet accesses [0,?]. """
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
@@ -213,11 +216,11 @@ class DimensionalReducer(IIR_Transformer):
             dims = self.id_resolver.GetDimensions(id)
             mem_acc = self.transfer[id]
 
-            if (mem_acc.i.lower == mem_acc.i.upper) or not dims.i:
+            if not dims.i:
                 expr.cartesian_offset.i_offset = -1000
-            if (mem_acc.j.lower == mem_acc.j.upper) or not dims.j:
+            if not dims.j:
                 expr.cartesian_offset.j_offset = -1000
-            if (mem_acc.k.lower == mem_acc.k.upper) or not dims.k:
+            if not dims.k:
                  expr.vertical_offset = -1000
         return expr
 
@@ -277,7 +280,7 @@ def IIR_str_to_SDFG(iir: str):
     ExpandAssignmentOperator(stencils)
     AccountForKMapMemlets(stencils, id_resolver)
     AccountForIJMapMemlets(stencils)
-    AccountForIJMap(stencils)
+    #AccountForIJMap(stencils)
     RemoveUnusedDimensions(id_resolver, stencils)
     UnparseCode(stencils, id_resolver)
     RenameVariables(stencils)
