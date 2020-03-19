@@ -1,27 +1,23 @@
 import sympy
+from Intermediates import Any3D
 
-def ToMemLayout(i, j, k):
-    return j, k, i # Memory layout
+def ToMemLayout(value:Any3D) -> Any3D:
+    i, j, k = value.i, value.j, value.k
+    
+    return Any3D(j, k, i) # Memory layout
 
-def ToStridePolicy3D(I, J, K):
+def ToStridePolicy3D(value:Any3D) -> Any3D:
     # Transform to memory layout
-    I, J, K = ToMemLayout(I, J, K)
+    value = ToMemLayout(value)
 
     # Adapt lowest order memory access
-    K = 8 * sympy.ceiling(K / 8)
+    value.k = 8 * sympy.ceiling(value.k / 8)
 
     # Transform back from memory layout
-    I, J, K = ToMemLayout(I, J, K)
-    I, J, K = ToMemLayout(I, J, K)
-    I, J, K = ToMemLayout(I, J, K)
-    I, J, K = ToMemLayout(I, J, K)
-    I, J, K = ToMemLayout(I, J, K)
-    return I, J, K
+    value = ToMemLayout(value)
+    value = ToMemLayout(value)
+    value = ToMemLayout(value)
+    value = ToMemLayout(value)
+    value = ToMemLayout(value)
 
-class Index3D:
-    def __init__(self, i:int, j:int, k:int):
-        self.i = i
-        self.j = j
-        self.k = k
-    def __iter__(self):
-        return i, j, k
+    return value

@@ -1,4 +1,5 @@
 from enum import Enum
+from collections.abc import Iterable
 
 def relative_number_to_str(number:int, relative:bool, literal:str) -> str:
     if not relative:
@@ -8,6 +9,38 @@ def relative_number_to_str(number:int, relative:bool, literal:str) -> str:
     if number < 0:
         return literal + "-" + str(-number)
     return literal
+        
+
+class Any3D:
+    def __init__(self, i, j, k):
+        self.i = i
+        self.j = j
+        self.k = k
+    def __iter__(self):
+        return (x for x in [self.i, self.j, self.k])
+
+
+class Int3D(Any3D):
+    def __init__(self, i:int, j:int, k:int):
+        Any3D.__init__(self, i, j, k)
+        
+
+class Bool3D(Any3D):
+    def __init__(self, i:bool, j:bool, k:bool):
+        Any3D.__init__(self, i, j, k)
+
+
+class RelMemAcc1D:
+    """ A relativ memory access in 1 dimension [lower, upper]. """
+    def __init__(self, lower:int, upper:int):
+        self.lower = lower
+        self.upper = upper
+
+class RelMemAcc3D(Any3D):
+    """ A relativ memory access in 3 dimensions. """
+    def __init__(self, i:RelMemAcc1D, j:RelMemAcc1D, k:RelMemAcc1D):
+        Any3D.__init__(self, i, j, k)
+
 
 def CreateUID() -> int:
     """ Creates unique identification numbers. """
@@ -16,19 +49,19 @@ def CreateUID() -> int:
     CreateUID.counter += 1
     return CreateUID.counter
 
-class ClosedInterval:
-    """ An interval that includes its coundaries [lower, upper]. """
-    def __init__(self, lower:int, upper:int):
-        self.lower = lowers
-        self.upper = upper
-    def __str__(self) -> str:
-        return "{}:{}".format(self.lower, self.upper)
-    def __eq__(self, o) -> bool:
-        return self.lower == o.lower and self.upper == o.upper
-    def __ne__(self, o) -> bool:
-        return not self == o
-    def __hash__(self):
-        return hash(self.__dict__.values())
+# class ClosedInterval:
+#     """ An interval that includes its coundaries [lower, upper]. """
+#     def __init__(self, lower:int, upper:int):
+#         self.lower = lowers
+#         self.upper = upper
+#     def __str__(self) -> str:
+#         return "{}:{}".format(self.lower, self.upper)
+#     def __eq__(self, o) -> bool:
+#         return self.lower == o.lower and self.upper == o.upper
+#     def __ne__(self, o) -> bool:
+#         return not self == o
+#     def __hash__(self):
+#         return hash(self.__dict__.values())
 
 class HalfOpenInterval:
     """ An interval that does not includ its upper limit [begin, end). """
@@ -139,25 +172,28 @@ class MemoryAccess3D:
 class Statement:
     def __init__(self, code, line:int, reads:dict, writes:dict):
         self.code = code
-        self.line = CreateUID()
-        self.reads = reads # dict[id, MemoryAccess3D]
-        self.writes = writes # dict[id, MemoryAccess3D]
-        self.unoffsetted_read_spans = None #dict[id, mem_acc_3D]
-        self.unoffsetted_write_spans = None #dict[id, mem_acc_3D]
+        self.line = CreateUID() # TODO: Replace by 'line'.
+        self.reads = reads # Dict[id, MemoryAccess3D]
+        self.writes = writes # Dict[id, MemoryAccess3D]
     
     def __str__(self):
         return "Line{}".format(self.line)
 
-    def GetReadSpans(self) -> dict:
+    def GetReadSpans(self) -> dict: # TODO: Rename -Get.
         return self.reads
-    def GetWriteSpans(self) -> dict:
+    def GetWriteSpans(self) -> dict: # TODO: Rename -Get.
         return self.writes
 
-    def SaveSpans(self):
-        import copy
-        self.unoffsetted_read_spans = copy.deepcopy(self.GetReadSpans())
-        self.unoffsetted_write_spans = copy.deepcopy(self.GetWriteSpans())
-        
+
+class K_Section:
+    def __init__(self, interval:K_Interval, statements:list = []):
+        self.interval = interval
+        self.statements = statements
+        self.library_nodes = []
+    
+    def append(self, statement:Statement):
+        self.statements.append(statement)
+
 
 def FuseMemAccDicts(dicts) -> dict:
     """ dicts: An iteratable of dicts. """
@@ -204,8 +240,7 @@ class MultiStage:
         self.uid = CreateUID()
         self.execution_order = execution_order
         self.stages = stages
-        self.unoffsetted_read_spans = None #dict[id, mem_acc_3D]
-        self.unoffsetted_write_spans = None #dict[id, mem_acc_3D]
+        self.k_sections = []
 
     def __str__(self):
         return "state_{}".format(self.uid)
@@ -215,10 +250,42 @@ class MultiStage:
     def GetWriteSpans(self) -> dict:
         return FuseMemAccDicts((x.GetWriteSpans() for x in self.stages))
 
-    def SaveSpans(self):
-        import copy
-        self.unoffsetted_read_spans = copy.deepcopy(self.GetReadSpans())
-        self.unoffsetted_write_spans = copy.deepcopy(self.GetWriteSpans())
+
+# class VariableAccess:
+#     def __init__(self, id:int, in_api:bool, code_name, relative_offsets:list):
+#         self.id = id
+#         self.in_api = in_api
+#         self.temporary = temporary #TODO: What is this guys scope? Rename!
+#         # self.global = global # has global scope.
+#         self.local = local # Scope within ??? #TODO replace ???.
+#         self.code_name = code_name
+#         self.array_name = array_name
+#         self.relative_offsets = relative_offsets
+        
+
+class StencilNode:
+    def __init__(self, line:int, code, shape:Int3D, reads, writes, boundary_conditions):
+        self.line = line
+        self.code = code
+        self.shape = shape
+        self.reads = reads # Dict[code_name:str, (dimension_present:Bool3D, RelMemAcc3D]]
+        self.writes = writes # Dict[code_name:str, (dimension_present:Bool3D, RelMemAcc3D]]
+        self.boundary_conditions = boundary_conditions
+
+
+class Map:
+    def __init__(self, interval:K_Interval, statements:list = []):
+        self.interval = interval
+        self.statements = statements
+        self.stencil_nodes = []
+
+
+class Loop:
+    def __init__(self, interval:K_Interval, ascending:bool, statements:list = []):
+        self.interval = interval
+        self.ascending = ascending
+        self.statements = statements
+        self.stencil_nodes = []
 
 
 class Stencil:
@@ -230,3 +297,86 @@ class Stencil:
                 raise TypeError("Expected MultiStage, got: {}".format(type(x).__name__))
 
         self.multi_stages = multi_stages # list of MultiStage
+        self.map_or_loops = []
+
+D2D_Classes = (
+    Stencil,
+    Loop,
+    Map,
+    StencilNode,
+    MultiStage,
+    Stage,
+    DoMethod,
+    K_Interval,
+    K_Section,
+    Statement
+)
+
+def iter_fields(node):
+    """
+    Yield a tuple of ``(fieldname, value)`` for each field in ``node._fields``
+    that is present on *node*.
+    """
+    for field in dir(node):
+        try:
+            yield field, getattr(node, field)
+        except AttributeError:
+            pass
+
+class D2D_Visitor:
+    def visit(self, node):
+        method = 'visit_' + node.__class__.__name__
+        visitor = getattr(self, method, self.generic_visit)
+        visitor(node)
+
+    def visit_list(self, node:list):
+        for n in node:
+            if isinstance(n, D2D_Classes):
+                self.visit(n)
+
+    def generic_visit(self, node):
+        for field, value in iter_fields(node):
+            if field.startswith('_'):
+                continue
+            if isinstance(value, D2D_Classes):
+                self.visit(value)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, D2D_Classes):
+                        self.visit(item)
+
+
+class D2D_Transformer(D2D_Visitor):
+    def visit(self, node):
+        method = 'visit_' + node.__class__.__name__
+        visitor = getattr(self, method, self.generic_visit)
+        return visitor(node)
+
+    def visit_list(self, node:list):
+        new_list = []
+        for n in node:
+            if isinstance(n, D2D_Classes):
+                novum = self.visit(n)
+                if novum is not None:
+                    new_list.append(novum)
+        return new_list
+
+    def generic_visit(self, node):
+        for field, old_value in iter_fields(node):
+            if field.startswith('_'):
+                continue
+            if isinstance(old_value, D2D_Classes):
+                new_node = self.visit(old_value)
+                if new_node is None:
+                    delattr(node, field)
+                else:
+                    old_value = new_node
+            elif isinstance(old_value, Iterable):
+                for o in old_value:
+                    if isinstance(o, D2D_Classes):
+                        new_node = self.visit(o)
+                        if new_node is None:
+                            delattr(node, field)
+                        else:
+                            o = new_node
+        return node

@@ -46,11 +46,11 @@ class Importer:
             j_extent = acc.cartesian_extent.j_extent
             k_extent = acc.vertical_extent
 
-            i = MemoryAccess1D(i_extent.minus, i_extent.plus)
-            j = MemoryAccess1D(j_extent.minus, j_extent.plus)
-            k = MemoryAccess1D(k_extent.minus, k_extent.plus)
+            i = RelMemAcc1D(i_extent.minus, i_extent.plus)
+            j = RelMemAcc1D(j_extent.minus, j_extent.plus)
+            k = RelMemAcc1D(k_extent.minus, k_extent.plus)
 
-            ret[id] = MemoryAccess3D(i, j, k)
+            ret[id] = RelMemAcc3D(i, j, k)
         return ret
 
     def Import_Statement(self, stmt) -> Statement:

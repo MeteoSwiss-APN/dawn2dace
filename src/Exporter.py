@@ -12,9 +12,9 @@ K = dace.symbol("K")
 halo = dace.symbol("halo")
 data_type = dace.float64
 
-def dim_filter(dimensions:Index3D, i, j, k) -> tuple:
-    dim_mem = ToMemLayout(dimensions.i, dimensions.j, dimensions.k)
-    return tuple(elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim)
+def dim_filter(dimensions:Int3D, i, j, k) -> tuple:
+    dim_mem = ToMemLayout(dimensions)
+    return tuple(elem for dim, elem in zip(dim_mem, ToMemLayout(Int3D(i, j, k))) if dim)
 
 class Exporter:
     def __init__(self, id_resolver:IdResolver, sdfg):
@@ -125,11 +125,11 @@ class Exporter:
 
     def GetStrides(self, id:int) -> list:
         dim = self.id_resolver.GetDimensions(id)
-        highest, middle, lowest = ToMemLayout(*ToStridePolicy3D(
+        highest, middle, lowest = ToMemLayout(ToStridePolicy3D(Int3D(
             I if dim.i else 0,
             J if dim.j else 0,
             K+1 if dim.k else 0
-        ))
+        )))
         if lowest:
             if middle:
                 if highest:
@@ -157,13 +157,13 @@ class Exporter:
         first_order_stride = self.GetStrides(id)[0]
 
         dim = self.id_resolver.GetDimensions(id)
-        highest, middle, lowest = ToMemLayout(
+        sizes = ToMemLayout(Int3D(
             I if dim.i else 0,
             J if dim.j else 0,
             K if dim.k else 0
-        )
+        ))
 
-        for x in [highest, middle, lowest]:
+        for x in sizes:
             if x != 0:
                 return x * first_order_stride
 
@@ -267,11 +267,11 @@ class Exporter:
                         self.id_resolver.GetName(id): {
                             "btype": "shrink",
                             "halo": tuple(chain.from_iterable(
-                                ToMemLayout(
+                                ToMemLayout(Int3D(
                                     (halo_i_lower, halo_i_upper), # halo in I
                                     (halo_j_lower, halo_j_upper), # halo in J
                                     (0, 0), # halo in K
-                                )))
+                                ))))
                             }
                             for id in stmt.reads
                         }
@@ -382,8 +382,8 @@ class Exporter:
                 propagate=True
             )
         if len(collected_input_ids) == 0:
-            # If there are no inputs to this SDFG, connect it to the map with an empty memlet
-            # to keep it in the scope.
+            # If there are no inputs to this SDFG, connect it to the map with an empty memlet. 
+            # Otheriwse the graphs are disconnected.
             multi_stage_state.add_edge(map_entry, None, nested_sdfg, None, dace.EmptyMemlet())
 
         # output memlets
@@ -560,24 +560,7 @@ class Exporter:
         if not isinstance(multi_stage, MultiStage):
             raise TypeError("Expected MultiStage, got: {}".format(type(multi_stage).__name__))
 
-        K_intervals = set()
-        for stage in multi_stage.stages:
-            for do_method in stage.do_methods:
-                K_intervals.add(do_method.k_interval)
-        K_intervals = list(K_intervals)
-        
-        K_intervals.sort(
-            key = lambda K_intervals: K_intervals.begin_as_value(K = 1000),
-            reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
-        )
-
-        if __debug__:
-            print("list of all the intervals:")
-            for i in K_intervals:
-                print(i)
-
-        # export the MultiStage for every interval (in loop order)
-        for interval in K_intervals:
+        for section in multi_stage.k_sections:
             if multi_stage.execution_order == ExecutionOrder.Parallel.value:
             	self.last_state_ = self.Export_parallel(multi_stage, interval)
             else:

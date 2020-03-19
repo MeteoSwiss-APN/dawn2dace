@@ -1,4 +1,5 @@
 from IndexHandling import *
+from Intermediates import Int3D
 
 class IdResolver:
     def __init__(self, accessIDToName:dict,
@@ -15,12 +16,12 @@ class IdResolver:
             return self.__accessIDToName[id]
         raise Exception('Unexpected type')
 
-    def GetDimensions(self, id:int) -> Index3D:
+    def GetDimensions(self, id:int) -> Int3D:
         """ Returns a list containing dimensional information """
         if self.IsLocal(id): # TODO: Think about this!
-            return Index3D(1,1,1)
+            return Int3D(1,1,1)
         dims = self.__fieldIDtoDimensions[id]
-        return Index3D(
+        return Int3D(
             dims.cartesian_horizontal_dimension.mask_cart_i,
             dims.cartesian_horizontal_dimension.mask_cart_j,
             dims.mask_k

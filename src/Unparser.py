@@ -85,17 +85,12 @@ class Unparser:
         return self.id_resolver.GetName(expr.data.accessID.value)
 
     def _unparse_field_access_expr(self, expr) -> str:
-        indices = ToMemLayout(
+        return "{}[{},{},{}]".format(
+            self.id_resolver.GetName(expr.data.accessID.value),
             expr.cartesian_offset.i_offset,
             expr.cartesian_offset.j_offset,
             expr.vertical_offset
         )
-        indices = [str(i) for i in indices if i != -1000]
-
-        name = self.id_resolver.GetName(expr.data.accessID.value)
-        if indices:
-            return name + "[{}]".format(','.join(indices))
-        return name
     
     @staticmethod
     def _unparse_literal_access_expr(expr) -> str:

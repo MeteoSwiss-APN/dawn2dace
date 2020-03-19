@@ -3,6 +3,7 @@ import numpy
 import sys
 import os
 from IndexHandling import *
+from Intermediates import Int3D
 
 # This is a workaround for a bug in vscode. Apparently it ignores PYTHONPATH. (6.Nov 2019)
 sys.path.append(os.path.relpath("build/gen/iir_specification"))
@@ -23,27 +24,27 @@ def get_sdfg(file_name):
 
 def Transpose(arr):
     if len(arr.shape) == 3:
-        return arr.transpose(list(ToMemLayout(0, 1, 2))).copy()
+        return arr.transpose(list(ToMemLayout(Int3D(0, 1, 2)))).copy()
     if len(arr.shape) == 2:
-        return arr.transpose([x for x in ToMemLayout(0, 1, None) if x is not None]).copy()
+        return arr.transpose([x for x in ToMemLayout(Int3D(0, 1, None)) if x is not None]).copy()
     raise TypeError("Expected 2D or 3D array.")
 
 
 def Iota(I, J, K = None, offset = 0):
-    I, J, K = ToStridePolicy3D(I, J, K)
-    if K is None:
-        return numpy.arange(offset, offset + I*J).astype(dace.float64.type).reshape(I,J)
+    strides = ToStridePolicy3D(Int3D(I, J, K))
+    if strides.k is None:
+        return numpy.arange(offset, offset + strides.i * strides.j).astype(dace.float64.type).reshape(strides.i, strides.j)
     else:
-        K = K + 1
-        return numpy.arange(offset, offset + I*J*K).astype(dace.float64.type).reshape(I,J,K)
+        strides.k = strides.k + 1
+        return numpy.arange(offset, offset + strides.i * strides.j * strides.k).astype(dace.float64.type).reshape(strides.i, strides.j, strides.k)
 
 def Zeros(I, J, K = None):
-    I, J, K = ToStridePolicy3D(I, J, K)
-    if K is None:
-        return numpy.zeros(shape=(I,J), dtype=dace.float64.type)
+    strides = ToStridePolicy3D(Int3D(I, J, K))
+    if strides.k is None:
+        return numpy.zeros(shape=(strides.i, strides.j), dtype=dace.float64.type)
     else:
-        K = K + 1
-        return numpy.zeros(shape=(I,J,K), dtype=dace.float64.type)
+        strides.k = strides.k + 1
+        return numpy.zeros(shape=(strides.i, strides.j, strides.k), dtype=dace.float64.type)
 
     
 class LegalSDFG:
