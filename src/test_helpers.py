@@ -31,7 +31,7 @@ def Transpose(arr):
 
 
 def Iota(I, J, K = None, offset = 0):
-    strides = ToStridePolicy3D(Int3D(I, J, K))
+    strides = Pad(Any3D(I, J, K))
     if strides.k is None:
         return numpy.arange(offset, offset + strides.i * strides.j).astype(dace.float64.type).reshape(strides.i, strides.j)
     else:
@@ -39,7 +39,7 @@ def Iota(I, J, K = None, offset = 0):
         return numpy.arange(offset, offset + strides.i * strides.j * strides.k).astype(dace.float64.type).reshape(strides.i, strides.j, strides.k)
 
 def Zeros(I, J, K = None):
-    strides = ToStridePolicy3D(Int3D(I, J, K))
+    strides = Pad(Any3D(I, J, K))
     if strides.k is None:
         return numpy.zeros(shape=(strides.i, strides.j), dtype=dace.float64.type)
     else:

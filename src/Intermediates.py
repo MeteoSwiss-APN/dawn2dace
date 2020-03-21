@@ -264,28 +264,55 @@ class MultiStage:
         
 
 class StencilNode:
-    def __init__(self, line:int, code, shape:Int3D, reads, writes, boundary_conditions):
+    def __init__(self, line:int, code, shape:Int3D, reads, writes, bcs):
         self.line = line
         self.code = code
         self.shape = shape
-        self.reads = reads # Dict[code_name:str, (dimension_present:Bool3D, RelMemAcc3D]]
-        self.writes = writes # Dict[code_name:str, (dimension_present:Bool3D, RelMemAcc3D]]
-        self.boundary_conditions = boundary_conditions
+        self.reads = reads # Dict[id:int, (dimension_present:Bool3D, RelMemAcc3D]]
+        self.writes = writes # Dict[id:int, (dimension_present:Bool3D, RelMemAcc3D]]
+        self.bcs = bcs # boundary conditions. Dict[id:int, RelMemAcc3D]
+        self.state = None # dace.state
+    @property
+    def ReadKeys(self):
+        return self.reads.keys()
+    @property
+    def WriteKeys(self):
+        return self.writes.keys()
 
 
-class Map:
+class ControlFlow:
     def __init__(self, interval:K_Interval, statements:list = []):
         self.interval = interval
         self.statements = statements
         self.stencil_nodes = []
+    @property
+    def ReadKeys(self):
+        keys = set()
+        for sn in self.stencil_nodes:
+            keys.union(sn.ReadKeys)
+        return keys
+    @property
+    def WriteKeys(self):
+        keys = set()
+        for sn in self.stencil_nodes:
+            keys.union(sn.WriteKeys)
+        return keys
 
+class Map(ControlFlow):
+    def __init__(self, interval:K_Interval, statements:list = []):
+        ControlFlow.__init__(self, interval, statements)
+        self.state = None # dace state
+        self.sdfg = None # dace sdfg
+        self.map_entry = None # dace MapEntry
+        self.map_exit = None # dace MapExit
+        self.nested_sdfg = None
 
-class Loop:
+class Loop(ControlFlow):
     def __init__(self, interval:K_Interval, ascending:bool, statements:list = []):
-        self.interval = interval
+        ControlFlow.__init__(self, interval, statements)
         self.ascending = ascending
-        self.statements = statements
-        self.stencil_nodes = []
+        self.first_state = None
+        self.last_state = None
 
 
 class Stencil:
@@ -297,7 +324,19 @@ class Stencil:
                 raise TypeError("Expected MultiStage, got: {}".format(type(x).__name__))
 
         self.multi_stages = multi_stages # list of MultiStage
-        self.map_or_loops = []
+        self.control_flow = []
+    @property
+    def ReadKeys(self):
+        keys = set()
+        for cf in self.control_flow:
+            keys.union(cf.ReadKeys)
+        return keys
+    @property
+    def WriteKeys(self):
+        keys = set()
+        for cf in self.control_flow:
+            keys.union(cf.WriteKeys)
+        return keys
 
 D2D_Classes = (
     Stencil,

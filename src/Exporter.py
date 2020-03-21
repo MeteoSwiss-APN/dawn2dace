@@ -4,14 +4,9 @@ import sympy
 from itertools import chain
 from IndexHandling import *
 from Intermediates import *
-from IdResolver import IdResolver
+from IdResolver import IdResolver, I, J, K, halo
 
-I = dace.symbol("I")
-J = dace.symbol("J")
-K = dace.symbol("K")
-halo = dace.symbol("halo")
-data_type = dace.float64
-
+# TODO: Remove
 def dim_filter(dimensions:Int3D, i, j, k) -> tuple:
     dim_mem = ToMemLayout(dimensions)
     return tuple(elem for dim, elem in zip(dim_mem, ToMemLayout(Int3D(i, j, k))) if dim)
@@ -104,14 +99,14 @@ class Exporter:
             name = self.id_resolver.GetName(id)
             self.sdfg.add_scalar(name, dtype=data_type, transient=True)
 
-            op2 = init_state.add_write(name)
+            write = init_state.add_write(name)
             tasklet = init_state.add_tasklet(name,
                 inputs=None,
                 outputs={name},
                 code="{} = {}".format(name, value)
             )
             out_memlet = dace.Memlet.simple(name, '0')
-            init_state.add_edge(tasklet, name, op2, None, out_memlet)
+            init_state.add_edge(tasklet, name, write, None, out_memlet)
 
         if self.last_state_ is not None:
             self.sdfg.add_edge(self.last_state_, init_state, dace.InterstateEdge())
@@ -125,7 +120,7 @@ class Exporter:
 
     def GetStrides(self, id:int) -> list:
         dim = self.id_resolver.GetDimensions(id)
-        highest, middle, lowest = ToMemLayout(ToStridePolicy3D(Int3D(
+        highest, middle, lowest = ToMemLayout(Pad(Int3D(
             I if dim.i else 0,
             J if dim.j else 0,
             K+1 if dim.k else 0
@@ -263,7 +258,7 @@ class Exporter:
                         halo_j_lower = halo
                         halo_j_upper = halo
 
-                    boundary_conditions = {
+                    bcs = {
                         self.id_resolver.GetName(id): {
                             "btype": "shrink",
                             "halo": tuple(chain.from_iterable(
@@ -286,7 +281,7 @@ class Exporter:
                         shape = list(ToMemLayout(I, J, 1)),
                         accesses = input_fields,
                         output_fields = output_fields,
-                        boundary_conditions = boundary_conditions,
+                        bcs = bcs,
                         code = stmt.code
                     )
                     state.add_node(stenc)
@@ -296,18 +291,18 @@ class Exporter:
                         name = self.id_resolver.GetName(id)
                         dims = self.id_resolver.GetDimensions(id)
                         read = state.add_read(name)
-                        input_memlet_subst = ','.join(dim_filter(dims,
+                        input_memlet_subset = ','.join(dim_filter(dims,
                             "0:I",
                             "0:J",
                             "0:{}".format(unoffsetted_read_span.k.lower - unoffsetted_read_span.k.upper + 1),
                         ))
-                        if not input_memlet_subst:
-                            input_memlet_subst = '0'
+                        if not input_memlet_subset:
+                            input_memlet_subset = '0'
                             
                         state.add_memlet_path(
                             read,
                             stenc,
-                            memlet = dace.Memlet.simple(name, input_memlet_subst),
+                            memlet = dace.Memlet.simple(name, input_memlet_subset),
                             dst_conn = name + '_in',
                             propagate=True
                         )
@@ -317,18 +312,18 @@ class Exporter:
                         name = self.id_resolver.GetName(id)
                         dims = self.id_resolver.GetDimensions(id)
                         write = state.add_write(name)
-                        output_memlet_subst = ','.join(dim_filter(dims,
+                        output_memlet_subset = ','.join(dim_filter(dims,
                             "{}:I-{}".format(halo_i_lower, halo_i_upper),
                             "{}:J-{}".format(halo_j_lower, halo_j_upper),
                             "{}:{}".format(-unoffsetted_write_span.k.lower, -unoffsetted_write_span.k.upper + 1),
                         ))
-                        if not output_memlet_subst:
-                            output_memlet_subst = "0"
+                        if not output_memlet_subset:
+                            output_memlet_subset = "0"
 
                         state.add_memlet_path(
                             stenc,
                             write,
-                            memlet = dace.Memlet.simple(name, output_memlet_subst),
+                            memlet = dace.Memlet.simple(name, output_memlet_subset),
                             src_conn = name + '_out',
                             propagate=True
                         )
@@ -353,7 +348,7 @@ class Exporter:
         collected_output_names = set(self.id_resolver.GetName(id) for id in collected_output_ids)
 
         nested_sdfg = multi_stage_state.add_nested_sdfg(
-            sub_sdfg, 
+            sub_sdfg,
             self.sdfg,
             collected_input_names,
             collected_output_names
@@ -444,7 +439,7 @@ class Exporter:
                         halo_j_lower = halo
                         halo_j_upper = halo
 
-                    boundary_conditions = {
+                    bcs = {
                         self.id_resolver.GetName(id): {
                             "btype": "shrink",
                             "halo": tuple(chain.from_iterable(
@@ -467,7 +462,7 @@ class Exporter:
                         shape = list(ToMemLayout(I, J, 1)),
                         accesses = self.Create_Variable_Access_map(stmt.reads, '_in'),
                         output_fields = self.Create_Variable_Access_map(stmt.writes, '_out'),
-                        boundary_conditions = boundary_conditions,
+                        bcs = bcs,
                         code = stmt.code
                         )
 
@@ -479,18 +474,18 @@ class Exporter:
                         dims = self.id_resolver.GetDimensions(id)
                         read = state.add_read(name)
                         k_mem_acc = stmt.unoffsetted_read_spans[id].k
-                        input_memlet_subst = ','.join(dim_filter(dims,
+                        input_memlet_subset = ','.join(dim_filter(dims,
                             "0:I",
                             "0:J",
                             "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1),
                         ))
-                        if not input_memlet_subst:
-                            input_memlet_subst = '0'
+                        if not input_memlet_subset:
+                            input_memlet_subset = '0'
 
                         state.add_memlet_path(
                             read,
                             stenc,
-                            memlet = dace.Memlet.simple(name, input_memlet_subst),
+                            memlet = dace.Memlet.simple(name, input_memlet_subset),
                             dst_conn = name + '_in',
                             propagate=True
                         )
@@ -500,18 +495,18 @@ class Exporter:
                         name = self.id_resolver.GetName(id)
                         dims = self.id_resolver.GetDimensions(id)
                         write = state.add_write(name)
-                        output_memlet_subst = ','.join(dim_filter(dims,
+                        output_memlet_subset = ','.join(dim_filter(dims,
                             "{}:I-{}".format(halo_i_lower, halo_i_upper),
                             "{}:J-{}".format(halo_j_lower, halo_j_upper),
                             "k+{}:k+{}".format(unoffsetted_write_span.k.lower, unoffsetted_write_span.k.upper + 1),
                         ))
-                        if not output_memlet_subst:
-                            output_memlet_subst = '0'
+                        if not output_memlet_subset:
+                            output_memlet_subset = '0'
 
                         state.add_memlet_path(
                             stenc,
                             write,
-                            memlet = dace.Memlet.simple(name, output_memlet_subst),
+                            memlet = dace.Memlet.simple(name, output_memlet_subset),
                             src_conn = name + '_out',
                             propagate=True
                         )
