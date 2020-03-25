@@ -22,54 +22,17 @@ def pairwise(iterable):
     next(b, None)
     return zip(a, b)
 
-def try_add_array(sdfg, id_resolver:IdResolver, ids:list):
-    for id in ids:
-        name = id_resolver.GetName(id)
-        shape = id_resolver.GetShape(id)
-        strides = id_resolver.GetStrides(id)
-        total_size = id_resolver.GetTotalSize(id)
-        if __debug__:
-            print("Try add array: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
-        try:
-            sdfg.add_array(
-                name, 
-                shape,
-                dtype=data_type,
-                strides=strides, 
-                total_size=total_size
-            )
-        except:
-            pass
+def MemletSubset(x:OptionalRelMemAcc3D, relative_to_k:bool):
+    if relative_to_k:
+        k_template = "k+{}:k+{}"
+    else:
+        k_template = "{}:{}"
+    k_component = k_template.format(x.mem_acc.k.lower, x.mem_acc.k.upper)
 
-def try_add_transient(sdfg, id_resolver:IdResolver, ids:list):
-    for id in ids:
-        name = id_resolver.GetName(id)
-        shape = id_resolver.GetShape(id)
-        strides = id_resolver.GetStrides(id)
-        total_size = id_resolver.GetTotalSize(id)
-        if __debug__:
-            print("Try add transient: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
-        try:
-            sdfg.add_transient(
-                name, 
-                shape,
-                dtype=data_type,
-                strides=strides, 
-                total_size=total_size
-            )
-        except:
-            pass
-
-def try_add_scalar(sdfg, id_resolver:IdResolver, ids:list):    
-    for id in ids:
-        name = id_resolver.GetName(id)
-        if __debug__:
-            print("Try add scalar: {}".format(name))
-        try:
-            sdfg.add_scalar(name, dtype=data_type)
-        except:
-            pass
-
+    subset = ','.join(filter_by_second(Any3D("0:I", "0:J", k_component), x.dim_present))
+    if subset:
+        return subset
+    return '0'
 
 class KeywordReplacer_IIR(IIR_Transformer):
     def __init__(self):
@@ -92,7 +55,7 @@ class KeywordReplacer_D2D(D2D_Transformer):
         stmt.code = KeywordReplacer_IIR().visit(stmt.code)
         return stmt
 
-def ReplaceKeywords(stencils: list):
+def ReplaceKeywords(stencils:list):
     """ Replaces reserved python keywords by appending an _."""
     KeywordReplacer_D2D().visit(stencils)
 
@@ -120,7 +83,7 @@ class AssignmentExpander_D2D(D2D_Transformer):
         stmt.code = AssignmentExpander_IIR().visit(stmt.code)
         return stmt
 
-def ExpandAssignmentOperator(stencils: list):
+def ExpandAssignmentOperator(stencils:list):
     AssignmentExpander_D2D().visit(stencils)
 
 
@@ -133,7 +96,7 @@ class CodeUnparser(D2D_Transformer):
         print(stmt.code)
         return stmt
 
-def UnparseCode(stencils: list, id_resolver:IdResolver):
+def UnparseCode(stencils:list, id_resolver:IdResolver):
     """ Unparses C++ AST to Python string. """
     CodeUnparser(id_resolver).visit(stencils)
 
@@ -182,7 +145,7 @@ class Renamer_D2D(D2D_Transformer):
         print(stmt.code)
         return stmt
 
-def RenameVariables(stencils: list):
+def RenameVariables(stencils:list):
     """ Adds a suffixes '_in'/'_out' to all variables that are read/write-accessed. """
     Renamer_D2D().visit(stencils)
 
@@ -197,7 +160,7 @@ def RenameVariables(stencils: list):
 #         expr.vertical_offset += self.k_offsets.get(id, 0) # offsets by 0 if not in dict.
 #         return expr
 
-# def AccountForKMapMemlets(stencils: list, id_resolver):
+# def AccountForKMapMemlets(stencils:list, id_resolver):
 #     """
 #     For every parallel multi-stage we introduce a k-map.
 #     Thus the k-accesses need to be offsetted.
@@ -235,7 +198,7 @@ def RenameVariables(stencils: list):
 #                                 stmt.writes[id].offset(k = offset)
 
 
-# def AccountForIJMapMemlets(stencils: list):
+# def AccountForIJMapMemlets(stencils:list):
 #     """ Offsets the k-index that each tasklet accesses [0,*]. """
 #     for stencil in stencils:
 #         for multi_stage in stencil.multi_stages:
@@ -287,36 +250,24 @@ class K_Interval_Grouper(D2D_Transformer):
         ms.stages = []
         return ms
 
-def Group_by_K_Intervals(stencils: list):
+def Group_by_K_Intervals(stencils:list):
     """ Replaces Stages and DoMethods with K_Sections. """
     K_Interval_Grouper().visit(stencils)
 
 
-# def Group_by_K_Intervals(stencils: list):
-#     """ Replaces Stages and DoMethods with K_Sections. """
-#     for stencil in stencils:
-#         for multi_stage in stencil.multi_stages:
-#             intervals = set()
-#             for stage in multi_stage.stages:
-#                 for do_method in stage.do_methods:
-#                     intervals.add(do_method.k_interval)
-#             intervals = list(intervals)
-            
-#             intervals.sort(
-#                 key = lambda intervals: intervals.begin_as_value(K = 1000),
-#                 reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
-#             )
 
-#             for interval in intervals:
-#                 statements = []
-#                 for stage in multi_stage.stages:
-#                     for do_method in stage.do_methods:
-#                         if do_method.k_interval == interval:
-#                             for stmt in do_method.statements:
-#                                 statements.append(stmt)
-#                 multi_stage.k_sections.append(K_Section(interval, statements))
+def AddGlobalInits(stencils:list, id_resolver:IdResolver, values:dict):
+    for s in stencils:
+        stmts = []
+        for id, value in values.items():
+            stmts.append(Statement(
+                code = "{} = {}".format(name, value),
+                line = 0,
+                reads = {},
+                writes = { id:RelMemAcc3D(0,0,0,0,0,0) }
+                ))
+        s.flow_controllers.append(Init(stmts))
 
-#             multi_stage.stages = []
 
 
 class MultiStageReplacer(D2D_Transformer):
@@ -324,14 +275,14 @@ class MultiStageReplacer(D2D_Transformer):
         for ms in stencil.multi_stages:
             for section in ms.k_sections:
                 if ms.execution_order == ExecutionOrder.Parallel.value:
-                    stencil.control_flow.append(Map(section.interval, section.statements))
+                    stencil.flow_controllers.append(Map(section.interval, section.statements))
                 else:
                     ascending = (ms.execution_order == ExecutionOrder.Forward_Loop.value)
-                    stencil.control_flow.append(Loop(section.interval, ascending, section.statements))
+                    stencil.flow_controllers.append(Loop(section.interval, ascending, section.statements))
         stencil.multi_stages = []
         return stencil
 
-def ReplaceMultiStages(stencils: list):
+def ReplaceMultiStages(stencils:list):
     """ Replaces MultiStages with Maps or Loops. """
     MultiStageReplacer().visit(stencils)
 
@@ -349,17 +300,16 @@ class StencilNodeIntroducer(D2D_Transformer):
         ret = {}
         for id, mem_acc in transactions.items():
             if not self.id_resolver.IsALiteral(id):
-                ret[id] = (self.DimensionalMask(id), mem_acc)
+                ret[id] = OptionalRelMemAcc3D(self.DimensionalMask(id), mem_acc)
         return ret
 
     def BoundaryConditions(self, transactions:dict):
         ret = {}
         for id, mem_acc in transactions.items():
             if self.id_resolver.IsInAPI(id): # Workaround for missing shape inferance information in IIR.
-                h = RelMemAcc3D(RelMemAcc1D(halo, halo), RelMemAcc1D(halo, halo), RelMemAcc1D(0, 0))
+                ret[id] = RelMemAcc3D(halo, halo, halo, halo, 0, 0)
             else:
-                h = mem_acc
-            ret[id] = h
+                ret[id] = mem_acc
         return ret
 
     def visit_Map(self, m):
@@ -367,7 +317,7 @@ class StencilNodeIntroducer(D2D_Transformer):
             StencilNode(
                 stmt.line,
                 stmt.code,
-                Int3D(I, J, 1), # k==1 because it's in a k-loop.
+                Int3D(I, J, 1), # k==1 because it's in a k-map.
                 self.TranslateTransactions(stmt.reads),
                 self.TranslateTransactions(stmt.writes),
                 self.BoundaryConditions(stmt.writes)
@@ -390,7 +340,7 @@ class StencilNodeIntroducer(D2D_Transformer):
         loop.statements = []
         return loop
 
-def IntroduceStencilNode(stencils: list, id_resolver:IdResolver):
+def IntroduceStencilNode(stencils:list, id_resolver:IdResolver):
     """ Replaces Statements with StencilNode. """
     StencilNodeIntroducer(id_resolver).visit(stencils)
     
@@ -413,12 +363,12 @@ class MemLayoutTransformer_D2D(D2D_Transformer):
         sn.code = astunparse.unparse(MemLayoutTransformer_PyAST().visit(tree))
         print("Memory transformed: " + sn.code)
         sn.shape = ToMemLayout(sn.shape)
-        sn.reads = { k : (ToMemLayout(v[0]), ToMemLayout(v[1])) for k,v in sn.reads.items() }
-        sn.writes = { k : (ToMemLayout(v[0]), ToMemLayout(v[1])) for k,v in sn.writes.items() }
+        sn.reads = { k : (ToMemLayout(dim_present), ToMemLayout(mem_acc)) for k,(dim_present, mem_acc) in sn.reads.items() }
+        sn.writes = { k : (ToMemLayout(dim_present), ToMemLayout(mem_acc)) for k,(dim_present, mem_acc) in sn.writes.items() }
         sn.bcs = { k:ToMemLayout(v) for k,v in sn.bcs.items() }
         return sn
 
-def AdaptToMemoryLayout(stencils: list):
+def AdaptToMemoryLayout(stencils:list):
     MemLayoutTransformer_D2D().visit(stencils)
 
 
@@ -448,60 +398,55 @@ class DimensionalFilter_D2D(D2D_Transformer):
         print("Dimensions filtered: " + sn.code)
         return sn
 
-def RemoveUnusedDimensions(stencils: list, id_resolver:IdResolver):
+def RemoveUnusedDimensions(stencils:list, id_resolver:IdResolver):
     """ Removes all unused dimensions in all code field access expressions. """
     DimensionalFilter_D2D(id_resolver).visit(stencils)
 
 
-
-def AddGlobalInit(sdfg, id_resolver:IdResolver, values:dict): # returns the dace state or None.
-    try_add_scalar(sdfg, id_resolver, values.keys())
-
-    state = sdfg.add_state("GlobalInit")
-    for id, value in values.items():
-        name = self.id_resolver.GetName(id)
-        sdfg.add_scalar(name, dtype=data_type, transient=True)
-        tasklet = state.add_tasklet(name,
-            inputs=None,
-            outputs={name},
-            code="{} = {}".format(name, value)
-        )
-        out_memlet = dace.Memlet.simple(name, subset_str = '0')
-        state.add_edge(tasklet, name, state.add_write(name), None, out_memlet)
-    return state
 
 def DaisyChainStates(states:list, sdfg):
     """ Daisy chains the states. The states have to be in the sdfg. """
     for a, b in pairwise(states):
         sdfg.add_edge(a, b, dace.InterstateEdge())
 
-class ControlFlowAdder(D2D_Transformer):
-    def __init__(self, sdfg, last_state, id_resolver:IdResolver):
+class FlowControlerAdder(D2D_Transformer):
+    def __init__(self, sdfg, id_resolver:IdResolver):
         self.sdfg = sdfg # The current context
-        self.last_state = last_state
         self.id_resolver = id_resolver
 
+    def visit_Init(self, init):
+        init.state = self.sdfg.add_state("GlobalInit")
+        return init
+
     def visit_Map(self, m):
+        reads = m.Reads
+        writes = m.Writes
+        read_keys = m.ReadKeys
+        write_keys = m.WriteKeys
+        all = read_keys | write_keys
+        apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
         # Sets up control flow.
         m.state = self.sdfg.add_state("state_{}".format(CreateUID()))
-        m.sdfg = dace.SDFG("ms_subsdfg{}".format(CreateUID()))
+        m.sdfg = dace.SDFG("subsdfg{}".format(CreateUID()))
         m.nested_sdfg = m.state.add_nested_sdfg(
-            m.sdfg, 
-            self.sdfg,
-            set(self.id_resolver.GetName(id) for id in m.ReadKeys),
-            set(self.id_resolver.GetName(id) for id in m.WriteKeys),
+            m.sdfg,
+            parent = self.sdfg,
+            inputs = None, # Will be done later.
+            outputs = None, # Will be done later.
+            symbol_mapping = { 'I':I, 'J':J, 'K':K, 'halo':halo, 'k':dace.symbol('k') }
         )
         m.map_entry, m.map_exit = m.state.add_map("kmap", dict(k=str(m.interval)))
-
-        if self.last_state is not None:
-            DaisyChainStates([self.last_state, m.state], self.sdfg)
-        self.last_state = m.state
+        
+        for sn in m.stencil_nodes:
+            sn.state = m.sdfg.add_state("state_{}".format(CreateUID()))
+        DaisyChainStates((sn.state for sn in m.stencil_nodes), m.sdfg)
 
         return m
 
     def visit_Loop(self, loop):
-        loop.first_state = self.sdfg.add_state("dummy_{}".format(CreateUID()))
-        loop.last_state = self.sdfg.add_state("dummy_{}".format(CreateUID()))
+        for sn in loop.stencil_nodes:
+            sn.state = self.sdfg.add_state("state_{}".format(CreateUID()))
+        DaisyChainStates((sn.state for sn in loop.stencil_nodes), self.sdfg)
 
         if loop.ascending:
             initialize_expr = loop.interval.begin_as_str()
@@ -512,11 +457,14 @@ class ControlFlowAdder(D2D_Transformer):
             condition_expr = "k >= {}".format(loop.interval.begin_as_str())
             increment_expr = "k - 1"
 
+        loop.first_state = self.sdfg.add_state("dummy_{}".format(CreateUID()))
+        loop.last_state = self.sdfg.add_state("dummy_{}".format(CreateUID()))
+        
         _, _, self.last_state = self.sdfg.add_loop(
-            before_state = self.last_state,
-            loop_state = loop.first_state,
-            loop_end_state = loop.last_state,
-            after_state = None,
+            before_state = loop.first_state,
+            loop_state = loop.stencil_nodes[0].state,
+            loop_end_state = loop.stencil_nodes[-1].state,
+            after_state = loop.last_state,
             loop_var = "k",
             initialize_expr = initialize_expr,
             condition_expr = condition_expr,
@@ -525,8 +473,293 @@ class ControlFlowAdder(D2D_Transformer):
         return loop
 
 
-def AddControlFlow(stencils: list, sdfg, last_state, id_resolver:IdResolver):
-    ControlFlowAdder(sdfg, last_state, id_resolver).visit(stencils)
+
+def AddFlowControllers(stencils:list, sdfg, id_resolver:IdResolver):
+    FlowControlerAdder(sdfg, id_resolver).visit(stencils)
+
+
+def AddControlFlow(stencils:list, sdfg):
+    for s in stencils:
+        for a, b in pairwise(s.flow_controllers):
+            sdfg.add_edge(a.LastState, b.FirstState, dace.InterstateEdge())
+
+
+
+class DataAdder(D2D_Visitor):
+    def __init__(self, sdfg, id_resolver:IdResolver):
+        self.sdfg = sdfg # The current context
+        self.id_resolver = id_resolver
+
+    def try_add_array(self, node, ids, transient=False):
+        for id in ids:
+            name = self.id_resolver.GetName(id)
+            sizes = self.id_resolver.GetSizes(id)
+            strides = self.id_resolver.GetStrides(id)
+            total_size = self.id_resolver.GetTotalSize(id)
+
+            opt_mem_acc = node.Transations(id)
+            dim_present = opt_mem_acc.dim_present
+
+            sizes = filter_by_second(sizes, dim_present)
+            strides = filter_by_second(strides, dim_present)
+
+            try:
+                node.sdfg.add_array(
+                    name,
+                    sizes,
+                    dtype=data_type,
+                    strides=tuple(strides),
+                    total_size=total_size,
+                    transient=transient
+                )
+                if __debug__:
+                    print("Added {}array: '{}' to '{}'. size ({}), strides ({}), total size {}".format(
+                        'transient ' if transient else '',
+                        name, node.sdfg.label, sizes, strides, total_size))
+            except:
+                if __debug__:
+                    print("Tried add {}array: '{}' to '{}'. size ({}), strides ({}), total size {}".format(
+                        'transient ' if transient else '',
+                        name, node.sdfg.label, sizes, strides, total_size))
+
+    def try_add_transient(self, node, ids:list):
+        self.try_add_array(node, ids, transient=True)
+
+    def try_add_scalar(self, node, ids:list):    
+        for id in ids:
+            name = self.id_resolver.GetName(id)
+            if __debug__:
+                print("Try add scalar: {}".format(name))
+            try:
+                node.sdfg.add_scalar(name, dtype=data_type)
+            except:
+                pass
+
+    def visit_Stencil(self, node):
+        reads = node.ReadKeys
+        writes = node.WriteKeys
+        all = reads | writes
+        apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
+        
+        self.try_add_scalar(node, globals)
+        self.try_add_array(node, apis)
+        self.try_add_transient(node, temporaries)
+        
+        self.visit(node.flow_controllers)
+
+
+    def visit_Map(self, node):
+        """ Adds data to the sub-sdfg and memlets in/out of it. """
+        reads = node.Reads
+        writes = node.Writes
+        read_keys = node.ReadKeys
+        write_keys = node.WriteKeys
+        all = read_keys | write_keys
+        apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
+        
+        self.try_add_scalar(node, globals)
+        for id in globals:
+            name = self.id_resolver.GetName(id)
+            node.state.add_memlet_path(
+                node.state.add_read(name),
+                node.map_entry,
+                node.nested_sdfg,
+                memlet = dace.Memlet.simple(name, '0'),
+                dst_conn = name,
+                propagate = True
+            )
+
+        self.try_add_array(node, apis | temporaries)
+        node.nested_sdfg.in_connectors = set(self.id_resolver.GetName(id) for id in (apis | temporaries) & read_keys)
+        for id in (apis | temporaries) & read_keys:
+            name = self.id_resolver.GetName(id)
+            subset = MemletSubset(node.Reads(id), relative_to_k=True)
+            node.state.add_memlet_path(
+                node.state.add_read(name),
+                node.map_entry,
+                node.nested_sdfg,
+                memlet = dace.Memlet.simple(name, subset),
+                dst_conn = name,
+                propagate = True
+            )
+        node.nested_sdfg.out_connectors = set(self.id_resolver.GetName(id) for id in (apis | temporaries) & write_keys)
+        for id in (apis | temporaries) & write_keys:
+            name = self.id_resolver.GetName(id)
+            subset = MemletSubset(node.Writes(id), relative_to_k=True)
+            node.state.add_memlet_path(
+                node.nested_sdfg,
+                node.map_exit,
+                node.state.add_write(name),
+                memlet = dace.Memlet.simple(name, subset),
+                src_conn = name,
+                propagate = True
+            )
+
+        self.try_add_transient(node, locals)
+        
+    def visit_Loop(self, node):
+        reads = node.Reads
+        writes = node.Writes
+        read_keys = node.ReadKeys
+        write_keys = node.WriteKeys
+        all = read_keys | write_keys
+        apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
+
+        self.try_add_scalar(node, globals)
+        self.try_add_array(node, apis | temporaries)
+        self.try_add_transient(node, locals)
+        
+    def visit_Init(self, node):
+        reads = node.Reads
+        writes = node.Writes
+        read_keys = node.ReadKeys
+        write_keys = node.WriteKeys
+        all = read_keys | write_keys
+        apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
+
+        self.try_add_scalar(node, globals)
+        self.try_add_array(node, apis | temporaries)
+        self.try_add_transient(node, locals)
+
+def AddData(stencils:list, sdfg, id_resolver:IdResolver):
+    DataAdder(sdfg, id_resolver).visit(stencils)
+    
+
+
+class OperationAdder(D2D_Visitor):
+    def __init__(self, id_resolver:IdResolver):
+        self.id_resolver = id_resolver
+
+    def ExpandMemAcc(self, x:OptionalRelMemAcc3D) -> tuple:
+        accs = [list(filter_by_second(Any3D(i,j,k), x.dim_present)) \
+            for i in range(x.mem_acc.i.lower, x.mem_acc.i.upper + 1)
+            for j in range(x.mem_acc.j.lower, x.mem_acc.j.upper + 1)
+            for k in range(x.mem_acc.k.lower, x.mem_acc.k.upper + 1)]
+        return (list(x.dim_present), accs)
+
+    def CreateStencilLib(self, sn:StencilNode):
+        return StencilLib(
+            label = "Line{}".format(CreateUID()), # TODO: Replace with sn.line
+            shape = list(sn.shape),
+            accesses = { self.id_resolver.GetName(id)+'_in':self.ExpandMemAcc(x) \
+                for id,x in sn.reads.items() },
+            output_fields = { self.id_resolver.GetName(id)+'_out':self.ExpandMemAcc(x) \
+                for id,x in sn.writes.items() },
+            boundary_conditions = { self.id_resolver.GetName(id)+'_out':{'btype':'shrink', 'halo':x.mem_acc.to_list()} \
+                for id,x in sn.writes.items() },
+            code = sn.code
+        )
+
+class MapOperationAdder(OperationAdder):
+    def __init__(self, id_resolver:IdResolver):
+        OperationAdder.__init__(self, id_resolver)
+        self.map_sdfg = None
+
+    def visit_Init(self, node):
+        pass
+
+    def visit_Loop(self, node):
+        pass
+
+    def visit_Map(self, node):
+        self.map_sdfg = node.sdfg
+        self.visit(node.stencil_nodes)
+
+    def visit_StencilNode(self, node):
+        stencil = self.CreateStencilLib(node)
+        node.state.add_node(stencil)
+        
+        reads = node.Reads
+        writes = node.Writes
+        read_keys = node.ReadKeys
+        write_keys = node.WriteKeys
+        all = read_keys | write_keys
+        apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
+
+        # Add stencil-input memlet paths, from state.read to stencil.
+        for id in (apis | temporaries | locals) & read_keys:
+            name = self.id_resolver.GetName(id)
+            subset = MemletSubset(node.Reads(id), relative_to_k=True)
+
+            node.state.add_memlet_path(
+                node.state.add_read(name),
+                stencil,
+                memlet = dace.Memlet.simple(name, subset),
+                dst_conn = name + '_in',
+                propagate = True
+            )
+
+        # Add stencil-output memlet paths, from stencil to state.write.
+        for id in (apis | temporaries | locals) & write_keys:
+            name = self.id_resolver.GetName(id)
+            subset = MemletSubset(node.Writes(id), relative_to_k=True)
+
+            write = node.state.add_write(name)
+            node.state.add_memlet_path(
+                stencil,
+                write,
+                memlet = dace.Memlet.simple(name, subset),
+                src_conn = name + '_out',
+                propagate=True
+            )
+
+class LoopOperationAdder(OperationAdder):
+    def __init__(self, id_resolver:IdResolver):
+        OperationAdder.__init__(self, id_resolver)
+        self.map_sdfg = None
+
+    def visit_Init(self, node):
+        pass
+
+    def visit_Map(self, node):
+        pass
+
+    def visit_Loop(self, node):
+        self.map_sdfg = node.sdfg
+        self.visit(node.stencil_nodes)
+        DaisyChainStates((x.state for x in node.stencil_nodes), node.sdfg)
+
+    def visit_StencilNode(self, node):
+        node.state = self.map_sdfg.add_state("state_{}".format(CreateUID()))
+        stencil = self.CreateStencilLib(node)
+        node.state.add_node(stencil)
+        
+        reads = node.Reads
+        writes = node.Writes
+        read_keys = node.ReadKeys
+        write_keys = node.WriteKeys
+        all = read_keys | write_keys
+        apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
+
+        # Add stencil-input memlet paths, from state.read to stencil.
+        for id in (apis | temporaries | locals) & read_keys:
+            name = self.id_resolver.GetName(id)
+            subset = MemletSubset(node.Reads(id), relative_to_k=True)
+
+            node.state.add_memlet_path(
+                node.state.add_read(name),
+                stencil,
+                memlet = dace.Memlet.simple(name, subset),
+                dst_conn = name + '_in',
+                propagate = True
+            )
+
+        # Add stencil-output memlet paths, from stencil to state.write.
+        for id in (apis | temporaries | locals) & write_keys:
+            name = self.id_resolver.GetName(id)
+            subset = MemletSubset(node.Writes(id), relative_to_k=True)
+
+            write = node.state.add_write(name)
+            node.state.add_memlet_path(
+                stencil,
+                write,
+                memlet = dace.Memlet.simple(name, subset),
+                src_conn = name + '_out',
+                propagate=True
+            )
+
+def AddOperations(stencils:list, id_resolver:IdResolver):
+    MapOperationAdder(id_resolver).visit(stencils)
 
 
 
@@ -539,122 +772,8 @@ class MapDummyConnector(D2D_Visitor):
     def visit_Loop(self, loop):
         pass
 
-def ConnectMapDummies(stencils: list, sdfg):
+def ConnectMapDummies(stencils:list, sdfg):
     MapDummyConnector(sdfg).visit(stencils)
-
-class LoopDummyConnector(D2D_Visitor):
-    def __init__(self, sdfg):
-        self.sdfg = sdfg # The current context
-    def visit_Map(self, m):
-        pass
-    def visit_Loop(self, loop):
-        DaisyChainStates([loop.first_state, loop.last_state], self.sdfg)
-
-def ConnectLoopDummies(stencils: list, sdfg):
-    LoopDummyConnector(sdfg).visit(stencils)
-
-
-
-class MapFiller(D2D_Visitor):
-    def __init__(self, sdfg, id_resolver:IdResolver):
-        self.sdfg = sdfg # The current context
-        self.id_resolver = id_resolver
-
-    def try_add_array(self, sdfg, ids:list):
-        try_add_array(sdfg, self.id_resolver, ids)
-    def try_add_transient(self, sdfg, ids:list):
-        try_add_transient(sdfg, self.id_resolver, ids)
-    def try_add_scalar(self, sdfg, ids:list):
-        try_add_scalar(sdfg, self.id_resolver, ids)
-
-    def ExpandMemAcc(self, dim_present:Bool3D, mem_acc:RelMemAcc3D):
-        accs = [list(filter_by_second(Any3D(i,j,k), dim_present)) \
-            for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
-            for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
-            for k in range(mem_acc.k.lower, mem_acc.k.upper + 1)]
-        return (list(ToMemLayout(dim_present)), accs)
-
-    def CreateStencilLib(self, sn:StencilNode):
-        return StencilLib(
-            label = "Line{}".format(CreateUID()), # TODO: Replace with sn.line
-            shape = list(sn.shape),
-            accesses = { self.id_resolver.GetName(id)+'_in':self.ExpandMemAcc(v[0], v[1]) for id, v in sn.reads.items() },
-            output_fields = { self.id_resolver.GetName(id)+'_out':self.ExpandMemAcc(v[0], v[1]) for id, v in sn.writes.items() },
-            boundary_conditions = { self.id_resolver.GetName(id)+'_out': {'btype':'shrink', 'halo':list(ToMemLayout(mem_acc))} for id,mem_acc in sn.bcs.items() },
-            code = sn.code
-        )
-
-    def MemletSubset(self, dim_present:Bool3D, mem_acc:RelMemAcc3D):
-        subset = ','.join(
-            filter_by_second(
-                Any3D("0:I","0:J", "{}:{}".format(mem_acc.k.lower, mem_acc.k.upper))
-                , dim_present
-            )
-        )
-        if subset:
-            return subset
-        return '0'
-
-    def visit_Map(self, m):
-        self.map_sdfg = m.sdfg
-
-        for sn in m.stencil_nodes:
-            self.visit(sn)
-
-    def visit_Loop(self, loop):
-        pass
-
-    def visit_StencilNode(self, sn):
-        reads = sn.ReadKeys
-        writes = sn.WriteKeys
-        all = reads | writes
-        apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
-
-        self.try_add_scalar(self.map_sdfg, reads & globals)
-        self.try_add_array(self.map_sdfg, all - locals - globals - literals)
-        self.try_add_transient(self.sdfg, all - locals - globals - literals)
-        self.try_add_transient(self.map_sdfg, locals)
-
-        sn.state = self.map_sdfg.add_state("state_{}".format(CreateUID()))
-        stencil = self.CreateStencilLib(sn)
-        sn.state.add_node(stencil)
-
-        # Add stencil-input memlet paths, from state.read to stencil.
-        for id, v in sn.reads.items():
-            dims_present = v[0]
-            mem_acc = v[1]
-            name = self.id_resolver.GetName(id)
-            memlet_subset = self.MemletSubset(dims_present, mem_acc)
-
-            read = sn.state.add_read(name)
-            sn.state.add_memlet_path(
-                read,
-                stencil,
-                memlet = dace.Memlet.simple(name, memlet_subset),
-                dst_conn = name + '_in',
-                propagate=True
-            )
-
-        # Add stencil-output memlet paths, from stencil to state.write.
-        for id, v in sn.writes.items():
-            dims_present = v[0]
-            mem_acc = v[1]
-            name = self.id_resolver.GetName(id)
-            memlet_subset = self.MemletSubset(dims_present, mem_acc)
-
-            write = sn.state.add_write(name)
-            sn.state.add_memlet_path(
-                stencil,
-                write,
-                memlet = dace.Memlet.simple(name, memlet_subset),
-                src_conn = name + '_out',
-                propagate=True
-            )
-        return sn
-
-
-def FillMaps(stencils: list, sdfg, id_resolver):
-    MapFiller(sdfg, id_resolver).visit(stencils)
 
 
 
@@ -679,24 +798,26 @@ def IIR_str_to_SDFG(iir: str):
     ExpandAssignmentOperator(stencils) # Makes data flow explicit. 'a += b' -> 'a = a + b'
     UnparseCode(stencils, id_resolver) # C++ AST -> Python string
     RenameVariables(stencils) # 'a = a' -> 'a_out = a_in'
-
-    # TODO: Move these two.
-    AdaptToMemoryLayout(stencils)
+    #AdaptToMemoryLayout(stencils)
     RemoveUnusedDimensions(stencils, id_resolver) # 'a[0,0,0] = b2D[0,0,0]' -> 'a[0,0,0] = b2D[0,0]'
 
     # Tree transformations
     Group_by_K_Intervals(stencils) # Sorts control flow. (Stages x DoMethods) -> K_Sections
+    AddGlobalInits(stencils, id_resolver, { id : stencilInstantiation.internalIR.globalVariableToValue[id_resolver.GetName(id)].value for id in metadata.globalVariableIDs })
     ReplaceMultiStages(stencils) # MultiStages -> (Map, Loop)
     IntroduceStencilNode(stencils, id_resolver) # Statements -> StencilNode
 
     global_sdfg = dace.SDFG(metadata.stencilName)
+    for s in stencils:
+        s.sdfg = global_sdfg
 
-    gi = AddGlobalInit(global_sdfg, id_resolver, 
-        { id : stencilInstantiation.internalIR.globalVariableToValue[id_resolver.GetName(id)].value for id in metadata.globalVariableIDs })
-    AddControlFlow(stencils, global_sdfg, gi, id_resolver)
-    #ConnectMapDummies(stencils, global_sdfg)
-    FillMaps(stencils, global_sdfg, id_resolver)
-    ConnectLoopDummies(stencils, global_sdfg)
+    AddFlowControllers(stencils, global_sdfg, id_resolver)
+    AddControlFlow(stencils, global_sdfg)
+    
+    AddData(stencils, global_sdfg, id_resolver)
+    AddOperations(stencils, id_resolver)
+
+    # ConnectMapDummies(stencils, global_sdfg)
 
     # exp = Exporter(id_resolver, global_sdfg)
 

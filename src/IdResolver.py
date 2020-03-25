@@ -6,9 +6,19 @@ I = dace.symbol("I")
 J = dace.symbol("J")
 K = dace.symbol("K")
 halo = dace.symbol("halo")
+data_type = dace.float64
 
 def filter_by_second(first, second) -> tuple:
     return tuple(f for f, s in zip(first, second) if s)
+
+def Replace0with1(o:Any3D) -> Any3D:
+    if o.i == 0:
+        o.i = 1
+    if o.j == 0:
+        o.j = 1
+    if o.k == 0:
+        o.k = 1
+    return o
 
 class IdResolver:
     def __init__(self, accessIDToName:dict,
@@ -57,13 +67,6 @@ class IdResolver:
         locals = {id for id in ids if self.IsLocal(id)}
         return apis, temporaries, globals, literals, locals
 
-    def GetShape(self, id:int) -> list:
-        """ Returns the shape of the array accoring to memory layout. """
-        ret = filter_by_second(ToMemLayout(Any3D(I, J, K + 1)), self.GetDimensions(id)) # +1 for staggering.
-        if not ret:
-            return [1]
-        return list(ret)
-
     def GetSizes(self, id:int) -> Any3D:
         dim = self.GetDimensions(id)
         return Any3D(
@@ -71,31 +74,21 @@ class IdResolver:
             J if dim.j else 0,
             K+1 if dim.k else 0 # This is a hack for the staggering in k.
         )
-
-    def GetPaddedSize(self, id:int) -> int:
-        sizes = self.GetSizes(id)
-        return math.max(1, sizes[0]) * math.max(1, sizes[1]) * math.max(1, sizes[2])
-
-    def GetStrides(self, id:int) -> list:
-        """ Returns the strides according to memory layout. """
-        padded_sizes = Pad(ToMemLayout(self.GetSizes(id)))
-
-        highest = padded_sizes.i
-        middle = padded_sizes.j
-        lowest = padded_sizes.k
-
-        if lowest and middle and highest:
-            return [middle * lowest, lowest, 1] # 3D
-        if lowest and (middle or highest):
-            return [lowest, 1] # 2D and lowest is present
-        if middle and highest:
-            return [middle, 1] # 2D and lowest missing
-        return [1] # 1D
+    
+    def GetPaddedSizes(self, id:int) -> Any3D:
+        return Pad(self.GetSizes(id))
 
     def GetTotalSize(self, id:int) -> int:
-        highest_order_stride = self.GetStrides(id)[0]
-        padded_sizes = Pad(ToMemLayout(self.GetSizes(id)))
+        sizes = self.GetSizes(id)
+        sizes = Replace0with1(sizes)
+        return sizes.i * sizes.j * sizes.k
 
-        for x in padded_sizes:
-            if x != 0:
-                return x * highest_order_stride
+    def GetTotalPaddedSize(self, id:int) -> int:
+        sizes = self.GetPaddedSizes(id)
+        sizes = Replace0with1(sizes)
+        return sizes.i * sizes.j * sizes.k
+
+    def GetStrides(self, id:int) -> Any3D:
+        sizes = self.GetPaddedSizes(id)
+        sizes = Replace0with1(sizes)
+        return Any3D(sizes.j * sizes.k, sizes.k, 1)

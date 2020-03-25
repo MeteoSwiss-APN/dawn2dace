@@ -40,17 +40,17 @@ class Importer:
         ret = {}
         for id, acc in access.items():
             if self.id_resolver.IsALiteral(id):
-                continue # Literals don't need processing.
+                continue # Literals don't have a relative memory access.
 
-            i_extent = acc.cartesian_extent.i_extent
-            j_extent = acc.cartesian_extent.j_extent
-            k_extent = acc.vertical_extent
+            i = acc.cartesian_extent.i_extent
+            j = acc.cartesian_extent.j_extent
+            k = acc.vertical_extent
 
-            i = RelMemAcc1D(i_extent.minus, i_extent.plus)
-            j = RelMemAcc1D(j_extent.minus, j_extent.plus)
-            k = RelMemAcc1D(k_extent.minus, k_extent.plus)
-
-            ret[id] = RelMemAcc3D(i, j, k)
+            ret[id] = RelMemAcc3D(
+                i.minus, i.plus,
+                j.minus, j.plus,
+                k.minus, k.plus
+            )
         return ret
 
     def Import_Statement(self, stmt) -> Statement:

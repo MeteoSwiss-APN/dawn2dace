@@ -1,7 +1,8 @@
 from enum import Enum
 from collections.abc import Iterable
 
-def relative_number_to_str(number:int, relative:bool, literal:str) -> str:
+
+def relative_number_to_str(number: int, relative: bool, literal: str) -> str:
     if not relative:
         return str(number)
     if number > 0:
@@ -9,37 +10,6 @@ def relative_number_to_str(number:int, relative:bool, literal:str) -> str:
     if number < 0:
         return literal + "-" + str(-number)
     return literal
-        
-
-class Any3D:
-    def __init__(self, i, j, k):
-        self.i = i
-        self.j = j
-        self.k = k
-    def __iter__(self):
-        return (x for x in [self.i, self.j, self.k])
-
-
-class Int3D(Any3D):
-    def __init__(self, i:int, j:int, k:int):
-        Any3D.__init__(self, i, j, k)
-        
-
-class Bool3D(Any3D):
-    def __init__(self, i:bool, j:bool, k:bool):
-        Any3D.__init__(self, i, j, k)
-
-
-class RelMemAcc1D:
-    """ A relativ memory access in 1 dimension [lower, upper]. """
-    def __init__(self, lower:int, upper:int):
-        self.lower = lower
-        self.upper = upper
-
-class RelMemAcc3D(Any3D):
-    """ A relativ memory access in 3 dimensions. """
-    def __init__(self, i:RelMemAcc1D, j:RelMemAcc1D, k:RelMemAcc1D):
-        Any3D.__init__(self, i, j, k)
 
 
 def CreateUID() -> int:
@@ -48,6 +18,127 @@ def CreateUID() -> int:
         CreateUID.counter = 0
     CreateUID.counter += 1
     return CreateUID.counter
+
+
+class Any3D:
+    def __init__(self, i, j, k):
+        self.i = i
+        self.j = j
+        self.k = k
+
+    def __iter__(self):
+        return (x for x in [self.i, self.j, self.k])
+
+    def __eq__(self, o) -> bool:
+        return self.i == o.i and self.j == o.j and self.k == o.k
+
+    def __ne__(self, o) -> bool:
+        return not self == o
+
+    def __str__(self) -> str:
+        return ', '.join([str(self.i), str(self.j), str(self.k)])
+
+
+class Int3D(Any3D):
+    def __init__(self, i: int, j: int, k: int):
+        Any3D.__init__(self, i, j, k)
+
+
+class Bool3D(Any3D):
+    def __init__(self, i: bool, j: bool, k: bool):
+        Any3D.__init__(self, i, j, k)
+
+    @classmethod
+    def Or(cls, bools) -> bool:
+        # Make list without None
+        bools = [x for x in bools if x]
+        if len(bools) == 0:
+            return None
+        ret = Bool3D(False, False, False)
+        for x in bools:
+            ret.i |= x.i
+            ret.j |= x.j
+            ret.k |= x.k
+        return ret
+
+
+class RelMemAcc1D:
+    """ A relative memory access in 1 dimension [lower, upper]. """
+
+    def __init__(self, lower: int, upper: int):
+        self.lower = lower
+        self.upper = upper
+
+    def offset(self, value: int = 0):
+        self.lower += value
+        self.upper += value
+        return self
+
+    @classmethod
+    def BoundingBox(cls, mem_accs):
+        # Make list without None
+        mem_accs = [x for x in mem_accs if x]
+        if len(mem_accs) == 0:
+            return None
+        return cls(
+            min(m.lower for m in mem_accs),
+            max(m.upper for m in mem_accs)
+        )
+
+
+class RelMemAcc3D(Any3D):
+    """ A relativ memory access in 3 dimensions. """
+
+    def __init__(self, i_lower, i_upper, j_lower, j_upper, k_lower, k_upper):
+        Any3D.__init__(self,
+                       RelMemAcc1D(i_lower, i_upper),
+                       RelMemAcc1D(j_lower, j_upper),
+                       RelMemAcc1D(k_lower, k_upper)
+                       )
+
+    def offset(self, i: int = 0, j: int = 0, k: int = 0):
+        self.i.offset(i)
+        self.j.offset(j)
+        self.k.offset(k)
+        return self
+
+    def to_list(self) -> list:
+        return [self.i.lower, self.i.upper, self.j.lower, self.j.upper, self.k.lower, self.k.upper]
+
+    @classmethod
+    def BoundingBox(cls, mem_accs):
+        # Make list without None
+        mem_accs = [x for x in mem_accs if x]
+        if len(mem_accs) == 0:
+            return None
+        i = RelMemAcc1D.BoundingBox(m.i for m in mem_accs)
+        j = RelMemAcc1D.BoundingBox(m.j for m in mem_accs)
+        k = RelMemAcc1D.BoundingBox(m.k for m in mem_accs)
+        return cls(i.lower, i.upper, j.lower, j.upper, k.lower, k.upper)
+
+
+class OptionalRelMemAcc3D():
+    def __init__(self, dim_present:Bool3D, mem_acc:RelMemAcc3D):
+        self.dim_present = dim_present
+        self.mem_acc = mem_acc
+    # def __init__(self, i: bool, j: bool, k: bool, i_lower, i_upper, j_lower, j_upper, k_lower, k_upper):
+    #     self.dim_present = Bool3D(i, j, k)
+    #     self.mem_acc = RelMemAcc3D(i_lower, i_upper, j_lower, j_upper, k_lower, k_upper)
+
+    def offset(self, i: int = 0, j: int = 0, k: int = 0):
+        self.mem_acc.offset(i, j, k)
+        return self
+
+    @classmethod
+    def Fold(cls, opt_mem_accs):
+        # Make list without None
+        opt_mem_accs = [x for x in opt_mem_accs if x]
+        if len(opt_mem_accs) == 0:
+            return None
+        dim_present = Bool3D.Or(x.dim_present for x in opt_mem_accs)
+        mem_acc = RelMemAcc3D.BoundingBox(x.mem_acc for x in opt_mem_accs)
+        return cls(dim_present, mem_acc)
+
 
 # class ClosedInterval:
 #     """ An interval that includes its coundaries [lower, upper]. """
@@ -65,46 +156,52 @@ def CreateUID() -> int:
 
 class HalfOpenInterval:
     """ An interval that does not includ its upper limit [begin, end). """
-    def __init__(self, begin:int, end:int):
+
+    def __init__(self, begin: int, end: int):
         self.begin = begin
         self.end = end
+
     def __str__(self) -> str:
         return "{}:{}".format(self.begin, self.end)
+
     def __eq__(self, o) -> bool:
         return self.begin == o.begin and self.end == o.end
+
     def __ne__(self, o) -> bool:
         return not self == o
+
     def __hash__(self):
         return hash(self.__dict__.values())
 
 
 class K_Interval:
     """ Represents a half-open interval, possibly relative to K. """
-    def __init__(self, interval:HalfOpenInterval, begin_relative_to_K:bool, end_relative_to_K:bool):
+
+    def __init__(self, interval: HalfOpenInterval, begin_relative_to_K: bool, end_relative_to_K: bool):
         self.__interval = interval
         self.__begin_relative_to_K = begin_relative_to_K
         self.__end_relative_to_K = end_relative_to_K
-    
-    def begin_as_str(self, offset:int = 0) -> str:
+
+    def begin_as_str(self, offset: int = 0) -> str:
         return relative_number_to_str(self.__interval.begin + offset, self.__begin_relative_to_K, 'K')
-    
-    def end_as_str(self, offset:int = 0) -> str:
+
+    def end_as_str(self, offset: int = 0) -> str:
         return relative_number_to_str(self.__interval.end + offset, self.__end_relative_to_K, 'K')
 
-    def begin_as_value(self, K:int, offset:int = 0) -> int:
+    def begin_as_value(self, K: int, offset: int = 0) -> int:
         return self.__interval.begin + offset + (K if self.__begin_relative_to_K else 0)
 
-    def end_as_value(self, K:int, offset:int = 0) -> int:
+    def end_as_value(self, K: int, offset: int = 0) -> int:
         return self.__interval.end + offset + (K if self.__end_relative_to_K else 0)
-    
+
     def __str__(self) -> str:
         return "{}:{}".format(self.begin_as_str(), self.end_as_str())
-    
+
     def __eq__(self, other) -> bool:
         return self.__interval == other.__interval \
-            and self.__begin_relative_to_K == other.__begin_relative_to_K \
-            and self.__end_relative_to_K == other.__end_relative_to_K
-    
+               and self.__begin_relative_to_K == other.__begin_relative_to_K \
+               and self.__end_relative_to_K == other.__end_relative_to_K
+
     def __ne__(self, other) -> bool:
         return not self == other
 
@@ -115,10 +212,10 @@ class K_Interval:
 class MemoryAccess1D:
     """ Represents a relativ interval [lower, upper] """
 
-    def __init__(self, lower:int, upper:int):
+    def __init__(self, lower: int, upper: int):
         self.lower = lower
         self.upper = upper
-        
+
     @classmethod
     def GetSpan(cls, mem_accs):
         """
@@ -127,7 +224,7 @@ class MemoryAccess1D:
         """
 
         mem_accs = [m for m in mem_accs if m is not None]
-        
+
         if mem_accs:
             return cls(
                 min((m.lower for m in mem_accs)),
@@ -135,13 +232,14 @@ class MemoryAccess1D:
             )
         return None
 
-    def offset(self, value:int):
+    def offset(self, value: int):
         self.lower += value
         self.upper += value
+        return self
 
 
 class MemoryAccess3D:
-    def __init__(self, i:MemoryAccess1D, j:MemoryAccess1D, k:MemoryAccess1D):
+    def __init__(self, i: MemoryAccess1D, j: MemoryAccess1D, k: MemoryAccess1D):
         self.i = i
         self.j = j
         self.k = k
@@ -163,35 +261,37 @@ class MemoryAccess3D:
             )
         return None
 
-    def offset(self, i:int = 0, j:int = 0, k:int = 0):
+    def offset(self, i: int = 0, j: int = 0, k: int = 0):
         self.i.offset(i)
         self.j.offset(j)
         self.k.offset(k)
+        return self
 
 
 class Statement:
-    def __init__(self, code, line:int, reads:dict, writes:dict):
+    def __init__(self, code, line: int, reads: dict, writes: dict):
         self.code = code
-        self.line = CreateUID() # TODO: Replace by 'line'.
-        self.reads = reads # Dict[id, MemoryAccess3D]
-        self.writes = writes # Dict[id, MemoryAccess3D]
-    
+        self.line = CreateUID()  # TODO: Replace by 'line'.
+        self.reads = reads  # Dict[id, MemoryAccess3D]
+        self.writes = writes  # Dict[id, MemoryAccess3D]
+
     def __str__(self):
         return "Line{}".format(self.line)
 
-    def GetReadSpans(self) -> dict: # TODO: Rename -Get.
+    def GetReadSpans(self) -> dict:  # TODO: Rename -Get.
         return self.reads
-    def GetWriteSpans(self) -> dict: # TODO: Rename -Get.
+
+    def GetWriteSpans(self) -> dict:  # TODO: Rename -Get.
         return self.writes
 
 
 class K_Section:
-    def __init__(self, interval:K_Interval, statements:list = []):
+    def __init__(self, interval: K_Interval, statements: list = []):
         self.interval = interval
         self.statements = statements
         self.library_nodes = []
-    
-    def append(self, statement:Statement):
+
+    def append(self, statement: Statement):
         self.statements.append(statement)
 
 
@@ -201,30 +301,33 @@ def FuseMemAccDicts(dicts) -> dict:
     for d in dicts:
         for id, mem_acc in d.items():
             if id in ret:
-                ret[id] = MemoryAccess3D.GetSpan([ret[id], mem_acc]) # Hull of old an new.
+                ret[id] = MemoryAccess3D.GetSpan([ret[id], mem_acc])  # Hull of old an new.
             else:
                 ret[id] = mem_acc
     return ret
 
 
 class DoMethod:
-    def __init__(self, k_interval:K_Interval, statements:list):
+    def __init__(self, k_interval: K_Interval, statements: list):
         self.uid = CreateUID()
         self.k_interval = k_interval
-        self.statements = statements # List of Statement
+        self.statements = statements  # List of Statement
 
     def GetReadSpans(self) -> dict:
         return FuseMemAccDicts((x.GetReadSpans() for x in self.statements))
+
     def GetWriteSpans(self) -> dict:
         return FuseMemAccDicts((x.GetWriteSpans() for x in self.statements))
 
+
 class Stage:
-    def __init__(self, do_methods:list):
+    def __init__(self, do_methods: list):
         self.uid = CreateUID()
         self.do_methods = do_methods
 
     def GetReadSpans(self) -> dict:
         return FuseMemAccDicts((x.GetReadSpans() for x in self.do_methods))
+
     def GetWriteSpans(self) -> dict:
         return FuseMemAccDicts((x.GetWriteSpans() for x in self.do_methods))
 
@@ -236,7 +339,7 @@ class ExecutionOrder(Enum):
 
 
 class MultiStage:
-    def __init__(self, execution_order:ExecutionOrder, stages:list):
+    def __init__(self, execution_order: ExecutionOrder, stages: list):
         self.uid = CreateUID()
         self.execution_order = execution_order
         self.stages = stages
@@ -247,99 +350,158 @@ class MultiStage:
 
     def GetReadSpans(self) -> dict:
         return FuseMemAccDicts((x.GetReadSpans() for x in self.stages))
+
     def GetWriteSpans(self) -> dict:
         return FuseMemAccDicts((x.GetWriteSpans() for x in self.stages))
 
 
-# class VariableAccess:
-#     def __init__(self, id:int, in_api:bool, code_name, relative_offsets:list):
-#         self.id = id
-#         self.in_api = in_api
-#         self.temporary = temporary #TODO: What is this guys scope? Rename!
-#         # self.global = global # has global scope.
-#         self.local = local # Scope within ??? #TODO replace ???.
-#         self.code_name = code_name
-#         self.array_name = array_name
-#         self.relative_offsets = relative_offsets
-        
-
 class StencilNode:
-    def __init__(self, line:int, code, shape:Int3D, reads, writes, bcs):
+    def __init__(self, line: int, code, shape: Int3D, reads, writes, bcs):
+        if not isinstance(shape, Int3D):
+            raise TypeError()
+        if not isinstance(reads, dict):
+            raise TypeError()
+        if not isinstance(writes, dict):
+            raise TypeError()
         self.line = line
         self.code = code
         self.shape = shape
-        self.reads = reads # Dict[id:int, (dimension_present:Bool3D, RelMemAcc3D]]
-        self.writes = writes # Dict[id:int, (dimension_present:Bool3D, RelMemAcc3D]]
-        self.bcs = bcs # boundary conditions. Dict[id:int, RelMemAcc3D]
-        self.state = None # dace.state
+        self.reads = reads  # Dict[id:int, OptionalRelMemAcc3D]
+        self.writes = writes  # Dict[id:int, OptionalRelMemAcc3D]
+        self.state = None  # dace.state
+
+    def offset(self, i: int = 0, j: int = 0, k: int = 0):
+        self.reads = {id: x.offset(i, j, k) for id, x in self.reads}
+        self.writes = {id: x.offset(i, j, k) for id, x in self.writes}
+        return self
+
     @property
     def ReadKeys(self):
         return self.reads.keys()
+
     @property
     def WriteKeys(self):
         return self.writes.keys()
 
+    def Reads(self, id: int) -> OptionalRelMemAcc3D:
+        return self.reads.get(id, None)
 
-class ControlFlow:
-    def __init__(self, interval:K_Interval, statements:list = []):
+    def Writes(self, id: int) -> OptionalRelMemAcc3D:
+        return self.writes.get(id, None)
+
+    def Transations(self, id: int) -> OptionalRelMemAcc3D:
+        return OptionalRelMemAcc3D.Fold([self.Reads(id), self.Writes(id)])
+
+
+class FlowControler:
+    def __init__(self, interval: K_Interval, statements: list = []):
         self.interval = interval
         self.statements = statements
         self.stencil_nodes = []
+
+    def offset(self, i: int = 0, j: int = 0, k: int = 0):
+        self.stencil_nodes = [x.offset(i, j, k) for x in self.stencil_nodes]
+        return self
+
     @property
     def ReadKeys(self):
-        keys = set()
-        for sn in self.stencil_nodes:
-            keys.union(sn.ReadKeys)
-        return keys
+        return set().union(*(x.ReadKeys for x in self.stencil_nodes))
+
     @property
     def WriteKeys(self):
-        keys = set()
-        for sn in self.stencil_nodes:
-            keys.union(sn.WriteKeys)
-        return keys
+        return set().union(*(x.WriteKeys for x in self.stencil_nodes))
 
-class Map(ControlFlow):
-    def __init__(self, interval:K_Interval, statements:list = []):
-        ControlFlow.__init__(self, interval, statements)
-        self.state = None # dace state
-        self.sdfg = None # dace sdfg
-        self.map_entry = None # dace MapEntry
-        self.map_exit = None # dace MapExit
+    def Reads(self, id: int) -> OptionalRelMemAcc3D:
+        return OptionalRelMemAcc3D.Fold(x.Reads(id) for x in self.stencil_nodes)
+
+    def Writes(self, id: int) -> OptionalRelMemAcc3D:
+        return OptionalRelMemAcc3D.Fold(x.Writes(id) for x in self.stencil_nodes)
+
+    def Transations(self, id: int) -> OptionalRelMemAcc3D:
+        return OptionalRelMemAcc3D.Fold([self.Reads(id), self.Writes(id)])
+
+
+class Map(FlowControler):
+    def __init__(self, interval: K_Interval, statements: list = []):
+        FlowControler.__init__(self, interval, statements)
+        self.state = None  # dace state
+        self.sdfg = None  # dace sdfg
+        self.map_entry = None  # dace MapEntry
+        self.map_exit = None  # dace MapExit
         self.nested_sdfg = None
 
-class Loop(ControlFlow):
-    def __init__(self, interval:K_Interval, ascending:bool, statements:list = []):
-        ControlFlow.__init__(self, interval, statements)
+    @property
+    def FirstState(self):
+        return self.state
+
+    @property
+    def LastState(self):
+        return self.state
+
+
+class Loop(FlowControler):
+    def __init__(self, interval: K_Interval, ascending: bool, statements: list = []):
+        FlowControler.__init__(self, interval, statements)
         self.ascending = ascending
         self.first_state = None
         self.last_state = None
 
+    @property
+    def FirstState(self):
+        return self.first_state
+
+    @property
+    def LastState(self):
+        return self.last_state
+
+
+class Init(FlowControler):
+    def __init__(self, statements: list = []):
+        FlowControler.__init__(self, None, statements)
+        self.state = None  # dace state
+
+    @property
+    def FirstState(self):
+        return self.state
+
+    @property
+    def LastState(self):
+        return self.state
+
 
 class Stencil:
-    def __init__(self, multi_stages:list):
-        if not isinstance(multi_stages, list):
-            raise TypeError("Expected list, got: {}".format(type(multi_stages).__name__))
-        for x in multi_stages:
-            if not isinstance(x, MultiStage):
-                raise TypeError("Expected MultiStage, got: {}".format(type(x).__name__))
+    def __init__(self, multi_stages: list):
+        self.multi_stages = multi_stages  # list of MultiStage
+        self.flow_controllers = []
+        self.sdfg = None
 
-        self.multi_stages = multi_stages # list of MultiStage
-        self.control_flow = []
+    def offset(self, i: int = 0, j: int = 0, k: int = 0):
+        self.flow_controllers = [x.offset(i, j, k) for x in self.flow_controllers]
+        return self
+
     @property
     def ReadKeys(self):
-        keys = set()
-        for cf in self.control_flow:
-            keys.union(cf.ReadKeys)
-        return keys
+        return set().union(*(x.ReadKeys for x in self.flow_controllers))
+
     @property
     def WriteKeys(self):
-        keys = set()
-        for cf in self.control_flow:
-            keys.union(cf.WriteKeys)
-        return keys
+        return set().union(*(x.WriteKeys for x in self.flow_controllers))
+
+    def Reads(self, id: int) -> OptionalRelMemAcc3D:
+        return OptionalRelMemAcc3D.Fold(x.Reads(id) for x in self.flow_controllers)
+
+    def Writes(self, id: int) -> OptionalRelMemAcc3D:
+        return OptionalRelMemAcc3D.Fold(x.Writes(id) for x in self.flow_controllers)
+
+    def Transations(self, id: int) -> OptionalRelMemAcc3D:
+        return OptionalRelMemAcc3D.Fold([self.Reads(id), self.Writes(id)])
+
+
+##### Visitor / Transformer
 
 D2D_Classes = (
     Stencil,
+    Init,
     Loop,
     Map,
     StencilNode,
@@ -350,6 +512,7 @@ D2D_Classes = (
     K_Section,
     Statement
 )
+
 
 def iter_fields(node):
     """
@@ -362,13 +525,14 @@ def iter_fields(node):
         except AttributeError:
             pass
 
+
 class D2D_Visitor:
     def visit(self, node):
         method = 'visit_' + node.__class__.__name__
         visitor = getattr(self, method, self.generic_visit)
         visitor(node)
 
-    def visit_list(self, node:list):
+    def visit_list(self, node: list):
         for n in node:
             if isinstance(n, D2D_Classes):
                 self.visit(n)
@@ -391,7 +555,7 @@ class D2D_Transformer(D2D_Visitor):
         visitor = getattr(self, method, self.generic_visit)
         return visitor(node)
 
-    def visit_list(self, node:list):
+    def visit_list(self, node: list):
         new_list = []
         for n in node:
             if isinstance(n, D2D_Classes):

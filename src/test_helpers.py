@@ -30,21 +30,21 @@ def Transpose(arr):
     raise TypeError("Expected 2D or 3D array.")
 
 
-def Iota(I, J, K = None, offset = 0):
-    strides = Pad(Any3D(I, J, K))
-    if strides.k is None:
-        return numpy.arange(offset, offset + strides.i * strides.j).astype(dace.float64.type).reshape(strides.i, strides.j)
+def Iota(I, J, K = 0, offset = 0):
+    sizes = Pad(Any3D(I, J, K))
+    if sizes.k is None:
+        return numpy.arange(offset, offset + sizes.i * sizes.j).astype(dace.float64.type).reshape(sizes.i, sizes.j)
     else:
-        strides.k = strides.k + 1
-        return numpy.arange(offset, offset + strides.i * strides.j * strides.k).astype(dace.float64.type).reshape(strides.i, strides.j, strides.k)
+        sizes.k = sizes.k + 1
+        return numpy.arange(offset, offset + sizes.i * sizes.j * sizes.k).astype(dace.float64.type).reshape(sizes.i, sizes.j, sizes.k)
 
 def Zeros(I, J, K = None):
-    strides = Pad(Any3D(I, J, K))
-    if strides.k is None:
-        return numpy.zeros(shape=(strides.i, strides.j), dtype=dace.float64.type)
+    sizes = Pad(Any3D(I, J, K))
+    if sizes.k is None:
+        return numpy.zeros(shape=(sizes.i, sizes.j), dtype=dace.float64.type)
     else:
-        strides.k = strides.k + 1
-        return numpy.zeros(shape=(strides.i, strides.j, strides.k), dtype=dace.float64.type)
+        sizes.k = sizes.k + 1
+        return numpy.zeros(shape=(sizes.i, sizes.j, sizes.k), dtype=dace.float64.type)
 
     
 class LegalSDFG:
