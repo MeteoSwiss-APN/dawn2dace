@@ -15,6 +15,7 @@ from Unparser import Unparser
 from IIR_AST import *
 from stencilflow.stencil.stencil import Stencil as StencilLib
 import itertools
+from Visitor import *
 
 def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
@@ -426,7 +427,7 @@ class FlowControlerAdder(D2D_Transformer):
         all = read_keys | write_keys
         apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
         # Sets up control flow.
-        m.state = self.sdfg.add_state("state_{}".format(CreateUID()))
+        m.state = self.sdfg.add_state("map{}".format(CreateUID()))
         m.sdfg = dace.SDFG("subsdfg{}".format(CreateUID()))
         m.nested_sdfg = m.state.add_nested_sdfg(
             m.sdfg,
@@ -437,16 +438,18 @@ class FlowControlerAdder(D2D_Transformer):
         )
         m.map_entry, m.map_exit = m.state.add_map("kmap", dict(k=str(m.interval)))
         
+        # Add the internal states.
         for sn in m.stencil_nodes:
-            sn.state = m.sdfg.add_state("state_{}".format(CreateUID()))
+            sn.state = m.sdfg.add_state("state{}".format(CreateUID()))
         DaisyChainStates((sn.state for sn in m.stencil_nodes), m.sdfg)
 
         return m
 
     def visit_Loop(self, loop):
+        loop.sdfg = self.sdfg
         for sn in loop.stencil_nodes:
-            sn.state = self.sdfg.add_state("state_{}".format(CreateUID()))
-        DaisyChainStates((sn.state for sn in loop.stencil_nodes), self.sdfg)
+            sn.state = loop.sdfg.add_state("inloop{}".format(CreateUID()))
+        DaisyChainStates((sn.state for sn in loop.stencil_nodes), loop.sdfg)
 
         if loop.ascending:
             initialize_expr = loop.interval.begin_as_str()
@@ -457,10 +460,10 @@ class FlowControlerAdder(D2D_Transformer):
             condition_expr = "k >= {}".format(loop.interval.begin_as_str())
             increment_expr = "k - 1"
 
-        loop.first_state = self.sdfg.add_state("dummy_{}".format(CreateUID()))
-        loop.last_state = self.sdfg.add_state("dummy_{}".format(CreateUID()))
+        loop.first_state = loop.sdfg.add_state("dummy_{}".format(CreateUID()))
+        loop.last_state = loop.sdfg.add_state("dummy_{}".format(CreateUID()))
         
-        _, _, self.last_state = self.sdfg.add_loop(
+        _, _, self.last_state = loop.sdfg.add_loop(
             before_state = loop.first_state,
             loop_state = loop.stencil_nodes[0].state,
             loop_end_state = loop.stencil_nodes[-1].state,
@@ -512,15 +515,14 @@ class DataAdder(D2D_Visitor):
                     total_size=total_size,
                     transient=transient
                 )
-                if __debug__:
-                    print("Added {}array: '{}' to '{}'. size ({}), strides ({}), total size {}".format(
-                        'transient ' if transient else '',
-                        name, node.sdfg.label, sizes, strides, total_size))
+                succeeded = True
             except:
-                if __debug__:
-                    print("Tried add {}array: '{}' to '{}'. size ({}), strides ({}), total size {}".format(
-                        'transient ' if transient else '',
-                        name, node.sdfg.label, sizes, strides, total_size))
+                succeeded = False
+            if __debug__:
+                print("{} {}array: '{}' to '{}'. size ({}), strides ({}), total size {}".format(
+                    'Added' if succeeded else 'Tried adding',
+                    'transient ' if transient else '',
+                    name, node.sdfg.label, sizes, strides, total_size))
 
     def try_add_transient(self, node, ids:list):
         self.try_add_array(node, ids, transient=True)
@@ -582,6 +584,8 @@ class DataAdder(D2D_Visitor):
                 dst_conn = name,
                 propagate = True
             )
+        if len((apis | temporaries) & read_keys) == 0:
+            node.state.add_edge(node.map_entry, None, node.nested_sdfg, None, dace.EmptyMemlet())
         node.nested_sdfg.out_connectors = set(self.id_resolver.GetName(id) for id in (apis | temporaries) & write_keys)
         for id in (apis | temporaries) & write_keys:
             name = self.id_resolver.GetName(id)
@@ -594,6 +598,8 @@ class DataAdder(D2D_Visitor):
                 src_conn = name,
                 propagate = True
             )
+        if len((apis | temporaries) & write_keys) == 0:
+            node.state.add_edge(node.nested_sdfg, None, mnode.map_exit, None, dace.EmptyMemlet())
 
         self.try_add_transient(node, locals)
         
@@ -706,7 +712,6 @@ class MapOperationAdder(OperationAdder):
 class LoopOperationAdder(OperationAdder):
     def __init__(self, id_resolver:IdResolver):
         OperationAdder.__init__(self, id_resolver)
-        self.map_sdfg = None
 
     def visit_Init(self, node):
         pass
@@ -715,12 +720,9 @@ class LoopOperationAdder(OperationAdder):
         pass
 
     def visit_Loop(self, node):
-        self.map_sdfg = node.sdfg
         self.visit(node.stencil_nodes)
-        DaisyChainStates((x.state for x in node.stencil_nodes), node.sdfg)
 
     def visit_StencilNode(self, node):
-        node.state = self.map_sdfg.add_state("state_{}".format(CreateUID()))
         stencil = self.CreateStencilLib(node)
         node.state.add_node(stencil)
         
@@ -760,6 +762,7 @@ class LoopOperationAdder(OperationAdder):
 
 def AddOperations(stencils:list, id_resolver:IdResolver):
     MapOperationAdder(id_resolver).visit(stencils)
+    LoopOperationAdder(id_resolver).visit(stencils)
 
 
 

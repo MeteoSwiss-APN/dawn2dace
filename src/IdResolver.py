@@ -34,8 +34,8 @@ class IdResolver:
         return self.__accessIDToName[id]
 
     def GetDimensions(self, id:int) -> Bool3D:
-        # if self.IsLocal(id): # TODO: Think about this!
-        #     return Int3D(1,1,1)
+        if self.IsLocal(id): # TODO: Think about this!
+            return Int3D(1,1,0)
         dims = self.__fieldIDtoDimensions[id]
         return Bool3D(
             dims.cartesian_horizontal_dimension.mask_cart_i != 0,
