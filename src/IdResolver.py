@@ -18,7 +18,7 @@ class IdResolver:
     def GetDimensions(self, id:int) -> Index3D:
         """ Returns a list containing dimensional information """
         if self.IsLocal(id): # TODO: Think about this!
-            return Index3D(1,1,1)
+            return Index3D(1,1,0)
         dims = self.__fieldIDtoDimensions[id]
         return Index3D(
             dims.cartesian_horizontal_dimension.mask_cart_i,

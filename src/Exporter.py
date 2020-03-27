@@ -261,7 +261,7 @@ class Exporter:
                         halo_j_upper = halo
 
                     boundary_conditions = {
-                        self.id_resolver.GetName(id): {
+                        self.id_resolver.GetName(id)+'_out': {
                             "btype": "shrink",
                             "halo": tuple(chain.from_iterable(
                                 ToMemLayout(
@@ -270,7 +270,7 @@ class Exporter:
                                     (0, 0), # halo in K
                                 )))
                             }
-                            for id in stmt.reads
+                            for id in writes
                         }
 
                     state = sub_sdfg.add_state("state_{}".format(CreateUID()))
@@ -442,7 +442,7 @@ class Exporter:
                         halo_j_upper = halo
 
                     boundary_conditions = {
-                        self.id_resolver.GetName(id): {
+                        self.id_resolver.GetName(id)+'_out': {
                             "btype": "shrink",
                             "halo": tuple(chain.from_iterable(
                                 ToMemLayout(
@@ -451,7 +451,7 @@ class Exporter:
                                     (0, 0), # halo in K
                                 )))
                             }
-                            for id in stmt.reads
+                            for id in stmt.writes.keys()
                         }
 
                     state = self.sdfg.add_state("state_{}".format(CreateUID()))

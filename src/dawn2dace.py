@@ -257,6 +257,7 @@ def UnparseCode(stencils: list, id_resolver:IdResolver):
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
                         stmt.code = Unparser(id_resolver).unparse_body_stmt(stmt.code)
+                        print("code: " + stmt.code)
 
 def IIR_str_to_SDFG(iir: str):
     stencilInstantiation = IIR_pb2.StencilInstantiation()
