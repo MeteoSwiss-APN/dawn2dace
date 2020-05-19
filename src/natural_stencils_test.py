@@ -217,13 +217,17 @@ class laplace(LegalSDFG, Asserts):
         input = Transpose(input)
         output = Transpose(output)
         output_dace = Transpose(output_dace)
+        
+        from dace.transformation.dataflow import MapFission, MapCollapse, MapFusion
+        from dace.transformation.interstate import InlineSDFG, StateFusion
 
         sdfg = get_sdfg(self.file_name + ".0.iir")
         dace.graph.labeling.propagate_labels_sdfg(sdfg)
-        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.save("gen/" + self.__class__.__name__ + "_libnode.sdfg")
         sdfg.expand_library_nodes()
-        sdfg.apply_strict_transformations()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
+        # sdfg.apply_transformations_repeated([InlineSDFG])
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(

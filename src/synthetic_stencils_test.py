@@ -51,7 +51,12 @@ class copy(LegalSDFG, Asserts):
         copy_dace = Transpose(copy_dace)
         
         sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg.save("gen/" + self.__class__.__name__ + "_libnodes.sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
+        sdfg.apply_strict_transformations()
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        # sdfg = dace.SDFG.from_file("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
