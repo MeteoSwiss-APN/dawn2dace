@@ -214,7 +214,7 @@ class Exporter:
             memlets[name + suffix] = self.Export_Accesses(id, mem_acc)
         return memlets
 
-    def Export_parallel(self, multi_stage: MultiStage, interval: K_Interval):
+    def Export_parallel(self, multi_stage: MultiStage, interval):
         multi_stage_state = self.sdfg.add_state("state_{}".format(CreateUID()))
         sub_sdfg = dace.SDFG("ms_subsdfg{}".format(CreateUID()))
         last_state = None
@@ -407,7 +407,7 @@ class Exporter:
 
         return multi_stage_state
 
-    def Export_loop(self, multi_stage: MultiStage, interval: K_Interval, execution_order: ExecutionOrder):
+    def Export_loop(self, multi_stage: MultiStage, interval, execution_order: ExecutionOrder):
         last_state = None
         first_state = None
         # This is the state previous to this ms

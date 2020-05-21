@@ -6,6 +6,7 @@ import pickle
 import sys
 import astunparse
 import IIR_pb2
+import helpers
 from IndexHandling import *
 from Intermediates import *
 from Importer import Importer
@@ -14,21 +15,14 @@ from IdResolver import *
 from Unparser import Unparser
 from IIR_AST import *
 from stencilflow.stencil.stencil import Stencil as StencilLib
-import itertools
 from Visitor import *
-
-def pairwise(iterable):
-    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
-    a, b = itertools.tee(iterable)
-    next(b, None)
-    return zip(a, b)
 
 def MemletSubset(x:OptionalRelMemAcc3D, relative_to_k:bool):
     if relative_to_k:
         k_template = "k+{}:k+{}"
     else:
         k_template = "{}:{}"
-    k_component = k_template.format(x.mem_acc.k.lower, x.mem_acc.k.upper)
+    k_component = k_template.format(x.mem_acc.k.lower, x.mem_acc.k.upper + 1)
 
     subset = ','.join(filter_by_second(Any3D("0:I", "0:J", k_component), x.dim_present))
     if subset:
@@ -219,7 +213,7 @@ def RenameVariables(stencils:list):
 class K_Interval_Collector(D2D_Visitor):
     def __init__(self):
         self.intervals = []
-    def visit_K_Interval(self, k_interval):
+    def visit_HalfOpenInterval(self, k_interval):
         self.intervals.append(k_interval)
 
 def Collect_K_Intervals(ms:MultiStage):
@@ -228,14 +222,14 @@ def Collect_K_Intervals(ms:MultiStage):
     return collector.intervals
 
 class Statement_Collector(D2D_Visitor):
-    def __init__(self, correct:K_Interval):
+    def __init__(self, correct):
         self.correct = correct
         self.statements = []
     def visit_DoMethod(self, do_method):
         if do_method.k_interval == self.correct:
             self.statements.extend(do_method.statements)
 
-def CollectStatements(interval:K_Interval, ms:MultiStage):
+def CollectStatements(interval, ms:MultiStage):
     collector = Statement_Collector(interval)
     collector.visit(ms)
     return collector.statements
@@ -244,7 +238,7 @@ class K_Interval_Grouper(D2D_Transformer):
     def visit_MultiStage(self, ms):
         intervals = list(set(Collect_K_Intervals(ms)))
         intervals.sort(
-            key = lambda intervals: intervals.begin_as_value(K = 1000),
+            key = lambda interval: interval.lower.number + 1000 if isinstance(interval.lower, RelativeNumber) else interval.lower,
             reverse = (ms.execution_order == ExecutionOrder.Backward_Loop)
         )
         ms.k_sections = [K_Section(iv, CollectStatements(iv, ms)) for iv in intervals]
@@ -685,7 +679,7 @@ class MapOperationAdder(OperationAdder):
         # Add stencil-input memlet paths, from state.read to stencil.
         for id in (apis | temporaries | locals) & read_keys:
             name = self.id_resolver.GetName(id)
-            subset = MemletSubset(node.Reads(id), relative_to_k=True)
+            subset = MemletSubset(node.Reads(id), relative_to_k=False)
 
             node.state.add_memlet_path(
                 node.state.add_read(name),
@@ -698,7 +692,7 @@ class MapOperationAdder(OperationAdder):
         # Add stencil-output memlet paths, from stencil to state.write.
         for id in (apis | temporaries | locals) & write_keys:
             name = self.id_resolver.GetName(id)
-            subset = MemletSubset(node.Writes(id), relative_to_k=True)
+            subset = MemletSubset(node.Writes(id), relative_to_k=False)
 
             write = node.state.add_write(name)
             node.state.add_memlet_path(

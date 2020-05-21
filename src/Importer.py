@@ -3,40 +3,35 @@ import astunparse
 from Intermediates import *
 from IdResolver import IdResolver
 from Unparser import *
+from helpers import RelativeNumber, HalfOpenInterval
 
 class Importer:
     def __init__(self, id_resolver:IdResolver):
         self.id_resolver = id_resolver
 
     @staticmethod
-    def Import_Interval(interval) -> K_Interval:
+    def Import_Interval(interval) -> HalfOpenInterval:
         """ Converts a Dawn interval into a Dawn2Dace interval. """
 
         if interval.WhichOneof("LowerLevel") == "special_lower_level":
             if interval.special_lower_level == 0:
-                begin = interval.lower_offset
-                begin_relative_to_K = False
+                lower = interval.lower_offset
             else:
-                begin = interval.lower_offset - 1
-                begin_relative_to_K = True
+                lower = RelativeNumber('K', interval.lower_offset - 1)
         elif interval.WhichOneof("LowerLevel") == "lower_level":
-            begin = interval.lower_level + interval.lower_offset
-            begin_relative_to_K = False
+            lower = interval.lower_level + interval.lower_offset
 
         if interval.WhichOneof("UpperLevel") == "special_upper_level":
             if interval.special_upper_level == 0:
-                end = interval.upper_offset + 1 # +1 to adapt from closed interval to half-open interval
-                end_relative_to_K = False
+                upper = interval.upper_offset
             else:
-                end = interval.upper_offset
-                end_relative_to_K = True
+                upper = RelativeNumber('K', interval.upper_offset - 1)
         elif interval.WhichOneof("UpperLevel") == "upper_level":
-            end = interval.upper_level + interval.upper_offset + 1 # +1 to adapt from closed interval to half-open interval
-            end_relative_to_K = False
+            upper = interval.upper_level + interval.upper_offset
 
-        return K_Interval(HalfOpenInterval(begin, end), begin_relative_to_K, end_relative_to_K)
+        return HalfOpenInterval(lower, upper + 1) # +1 to adapt from closed interval to half-open interval
 
-    def Import_MemoryAccesses(self, access: dict) -> list:
+    def Import_MemoryAccesses(self, access: dict) -> dict:
         ret = {}
         for id, acc in access.items():
             if self.id_resolver.IsALiteral(id):

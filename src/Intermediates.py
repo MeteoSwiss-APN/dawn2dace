@@ -1,14 +1,5 @@
 from enum import Enum
-
-def relative_number_to_str(number: int, relative: bool, literal: str) -> str:
-    if not relative:
-        return str(number)
-    if number > 0:
-        return literal + "+" + str(number)
-    if number < 0:
-        return literal + "-" + str(-number)
-    return literal
-
+from helpers import *
 
 def CreateUID() -> int:
     """ Creates unique identification numbers. """
@@ -16,49 +7,6 @@ def CreateUID() -> int:
         CreateUID.counter = 0
     CreateUID.counter += 1
     return CreateUID.counter
-
-
-class Any3D:
-    def __init__(self, i, j, k):
-        self.i = i
-        self.j = j
-        self.k = k
-
-    def __iter__(self):
-        return (x for x in [self.i, self.j, self.k])
-
-    def __eq__(self, o) -> bool:
-        return self.i == o.i and self.j == o.j and self.k == o.k
-
-    def __ne__(self, o) -> bool:
-        return not self == o
-
-    def __str__(self) -> str:
-        return ', '.join([str(self.i), str(self.j), str(self.k)])
-
-
-class Int3D(Any3D):
-    def __init__(self, i: int, j: int, k: int):
-        Any3D.__init__(self, i, j, k)
-
-
-class Bool3D(Any3D):
-    def __init__(self, i: bool, j: bool, k: bool):
-        Any3D.__init__(self, i, j, k)
-
-    @classmethod
-    def Or(cls, bools) -> bool:
-        # Make list without None
-        bools = [x for x in bools if x]
-        if len(bools) == 0:
-            return None
-        ret = Bool3D(False, False, False)
-        for x in bools:
-            ret.i |= x.i
-            ret.j |= x.j
-            ret.k |= x.k
-        return ret
-
 
 class RelMemAcc1D:
     """ A relative memory access in 1 dimension [lower, upper]. """
@@ -152,59 +100,45 @@ class OptionalRelMemAcc3D():
 #     def __hash__(self):
 #         return hash(self.__dict__.values())
 
-class HalfOpenInterval:
-    """ An interval that does not includ its upper limit [begin, end). """
-
-    def __init__(self, begin: int, end: int):
-        self.begin = begin
-        self.end = end
-
-    def __str__(self) -> str:
-        return "{}:{}".format(self.begin, self.end)
-
-    def __eq__(self, o) -> bool:
-        return self.begin == o.begin and self.end == o.end
-
-    def __ne__(self, o) -> bool:
-        return not self == o
-
-    def __hash__(self):
-        return hash(self.__dict__.values())
 
 
-class K_Interval:
-    """ Represents a half-open interval, possibly relative to K. """
+# class K_Interval:
+#     """ Represents a half-open interval, possibly relative to K. """
 
-    def __init__(self, interval: HalfOpenInterval, begin_relative_to_K: bool, end_relative_to_K: bool):
-        self.__interval = interval
-        self.__begin_relative_to_K = begin_relative_to_K
-        self.__end_relative_to_K = end_relative_to_K
+#     def __init__(self, interval: HalfOpenInterval, begin_relative_to_K: bool, end_relative_to_K: bool):
+#         self.__interval = interval
+#         self.__begin_relative_to_K = begin_relative_to_K
+#         self.__end_relative_to_K = end_relative_to_K
 
-    def begin_as_str(self, offset: int = 0) -> str:
-        return relative_number_to_str(self.__interval.begin + offset, self.__begin_relative_to_K, 'K')
+#     def begin_as_str(self, offset: int = 0) -> str:
+#         if self.__begin_relative_to_K:
+#             return relative_number_to_str(self.__interval.begin + offset, 'K')
+#         return self.__interval.begin + offset
 
-    def end_as_str(self, offset: int = 0) -> str:
-        return relative_number_to_str(self.__interval.end + offset, self.__end_relative_to_K, 'K')
+#     def end_as_str(self, offset: int = 0) -> str:
+#         if self.__end_relative_to_K:
+#             return relative_number_to_str(self.__interval.end + offset, 'K')
+#         return self.__interval.end + offset
 
-    def begin_as_value(self, K: int, offset: int = 0) -> int:
-        return self.__interval.begin + offset + (K if self.__begin_relative_to_K else 0)
+#     def begin_as_value(self, K: int, offset: int = 0) -> int: # TODO: Remove if unused!
+#         return self.__interval.begin + offset + (K if self.__begin_relative_to_K else 0)
 
-    def end_as_value(self, K: int, offset: int = 0) -> int:
-        return self.__interval.end + offset + (K if self.__end_relative_to_K else 0)
+#     def end_as_value(self, K: int, offset: int = 0) -> int: # TODO: Remove if unused!
+#         return self.__interval.end + offset + (K if self.__end_relative_to_K else 0)
 
-    def __str__(self) -> str:
-        return "{}:{}".format(self.begin_as_str(), self.end_as_str())
+#     def __str__(self) -> str:
+#         return "{}:{}".format(self.begin_as_str(), self.end_as_str())
 
-    def __eq__(self, other) -> bool:
-        return self.__interval == other.__interval \
-               and self.__begin_relative_to_K == other.__begin_relative_to_K \
-               and self.__end_relative_to_K == other.__end_relative_to_K
+#     def __eq__(self, other) -> bool:
+#         return self.__interval == other.__interval \
+#                and self.__begin_relative_to_K == other.__begin_relative_to_K \
+#                and self.__end_relative_to_K == other.__end_relative_to_K
 
-    def __ne__(self, other) -> bool:
-        return not self == other
+#     def __ne__(self, other) -> bool:
+#         return not self == other
 
-    def __hash__(self):
-        return hash(self.__dict__.values())
+#     def __hash__(self):
+#         return hash(self.__dict__.values())
 
 
 class MemoryAccess1D:
@@ -284,7 +218,7 @@ class Statement:
 
 
 class K_Section:
-    def __init__(self, interval: K_Interval, statements: list = []):
+    def __init__(self, interval, statements: list = []):
         self.interval = interval
         self.statements = statements
         self.library_nodes = []
@@ -306,7 +240,7 @@ def FuseMemAccDicts(dicts) -> dict:
 
 
 class DoMethod:
-    def __init__(self, k_interval: K_Interval, statements: list):
+    def __init__(self, k_interval, statements: list):
         self.uid = CreateUID()
         self.k_interval = k_interval
         self.statements = statements  # List of Statement
@@ -392,7 +326,7 @@ class StencilNode:
 
 
 class FlowControler:
-    def __init__(self, interval: K_Interval, statements: list = []):
+    def __init__(self, interval, statements: list = []):
         self.interval = interval
         self.statements = statements
         self.stencil_nodes = []
@@ -421,7 +355,7 @@ class FlowControler:
 
 
 class Map(FlowControler):
-    def __init__(self, interval: K_Interval, statements: list = []):
+    def __init__(self, interval, statements: list = []):
         FlowControler.__init__(self, interval, statements)
         self.map_entry = None  # dace MapEntry
         self.map_exit = None  # dace MapExit
@@ -437,7 +371,7 @@ class Map(FlowControler):
         return self.state
 
 class Loop(FlowControler):
-    def __init__(self, interval: K_Interval, ascending: bool, statements: list = []):
+    def __init__(self, interval, ascending: bool, statements: list = []):
         FlowControler.__init__(self, interval, statements)
         self.ascending = ascending
         self.first_state = None

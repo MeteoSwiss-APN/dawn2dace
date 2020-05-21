@@ -1,6 +1,7 @@
 
 from collections.abc import Iterable
 from Intermediates import *
+from helpers import HalfOpenInterval
 
 D2D_Classes = (
     Stencil,
@@ -11,7 +12,7 @@ D2D_Classes = (
     MultiStage,
     Stage,
     DoMethod,
-    K_Interval,
+    HalfOpenInterval,
     K_Section,
     Statement
 )
