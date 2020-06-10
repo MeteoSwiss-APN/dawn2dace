@@ -1,54 +1,54 @@
-# from test_helpers import *
-# from dace.sdfg import SDFG
-# from dace.codegen import codegen, compiler
-# from dace.transformation.interstate import GPUTransformSDFG
-# from dace.transformation.dataflow import MapFusion
+from test_helpers import *
+from dace.sdfg import SDFG
+from dace.codegen import codegen, compiler
+from dace.transformation.interstate import GPUTransformSDFG
+from dace.transformation.dataflow import MapFusion
 
-# class Transcompiler():
-#     def test1_file_exists(self):
-#         self.assertIsNotNone(read_file(self.file_name + ".iir"))
+class Transcompiler():
+    def test1_file_exists(self):
+        self.assertIsNotNone(read_file(self.file_name + ".iir"))
  
-#     def test2_translates_to_sdfg(self):
-#         iir = read_file(self.file_name + ".iir")
-#         sdfg = dawn2dace.IIR_str_to_SDFG(iir)
+    def test2_translates_to_sdfg(self):
+        iir = read_file(self.file_name + ".iir")
+        sdfg = dawn2dace.IIR_str_to_SDFG(iir)
 
-#         sdfg.save("gen/DyCore/Raw/" + self.file_name + ".sdfg")
+        sdfg.save("gen/DyCore/Raw/" + self.file_name + ".sdfg")
 
-#     def test3_strict_trafo(self):
-#         sdfg = SDFG.from_file("gen/DyCore/Raw/" + self.file_name + ".sdfg")
-#         # Don't validate all the time, for performance reasons.
-#         sdfg.apply_strict_transformations(validate=False)
-#         sdfg.validate()
-#         sdfg.save("gen/DyCore/LibraryNodes/" + self.file_name + ".sdfg")
+    def test3_strict_trafo(self):
+        sdfg = SDFG.from_file("gen/DyCore/Raw/" + self.file_name + ".sdfg")
+        # Don't validate all the time, for performance reasons.
+        sdfg.apply_strict_transformations(validate=False)
+        sdfg.validate()
+        sdfg.save("gen/DyCore/LibraryNodes/" + self.file_name + ".sdfg")
 
-#     def test4_expanded(self):
-#         sdfg = SDFG.from_file("gen/DyCore/Raw/" + self.file_name + ".sdfg")
-#         sdfg.expand_library_nodes()
-#         sdfg.save("gen/DyCore/RawExpanded/" + self.file_name + ".sdfg")
+    def test4_expanded(self):
+        sdfg = SDFG.from_file("gen/DyCore/Raw/" + self.file_name + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.save("gen/DyCore/RawExpanded/" + self.file_name + ".sdfg")
 
-#         # Don't validate all the time, for performance reasons.
-#         sdfg.apply_strict_transformations(validate=False)
-#         sdfg.validate()
-#         sdfg.save("gen/DyCore/Expanded/" + self.file_name + ".sdfg")
+        # Don't validate all the time, for performance reasons.
+        sdfg.apply_strict_transformations(validate=False)
+        sdfg.validate()
+        sdfg.save("gen/DyCore/Expanded/" + self.file_name + ".sdfg")
         
-#         program_objects = codegen.generate_code(sdfg)
-#         compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.file_name)
+        program_objects = codegen.generate_code(sdfg)
+        compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.file_name)
 
-#     # def test3_transforms_to_gpu(self):
-#     #     sdfg = SDFG.from_file("gen/" + self.file_name + ".sdfg")
+    # def test3_transforms_to_gpu(self):
+    #     sdfg = SDFG.from_file("gen/" + self.file_name + ".sdfg")
 
-#     #     # Don't validate all the time, for performance reasons.
-#     #     sdfg.apply_transformations(GPUTransformSDFG, apply_once=True, validate=False)
-#     #     sdfg.validate()
+    #     # Don't validate all the time, for performance reasons.
+    #     sdfg.apply_transformations(GPUTransformSDFG, apply_once=True, validate=False)
+    #     sdfg.validate()
 
-#     #     program_objects = codegen.generate_code(sdfg)
-#     #     compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.file_name + "_gpu")
+    #     program_objects = codegen.generate_code(sdfg)
+    #     compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.file_name + "_gpu")
 
-#     #     sdfg.save("gen/" + self.file_name + "_gpu.sdfg")
+    #     sdfg.save("gen/" + self.file_name + "_gpu.sdfg")
 
-#     def test5_compiles(self):
-#         sdfg = SDFG.from_file("gen/DyCore/Expanded/" + self.file_name + ".sdfg")
-#         self.assertIsNotNone(sdfg.compile(optimizer=""))
+    def test5_compiles(self):
+        sdfg = SDFG.from_file("gen/DyCore/Expanded/" + self.file_name + ".sdfg")
+        self.assertIsNotNone(sdfg.compile(optimizer=""))
 
 
 # class advection_pptp_0(Transcompiler, unittest.TestCase):
@@ -120,8 +120,8 @@
 # class horizontal_advection_wwcon_0(Transcompiler, unittest.TestCase):
 #     file_name = "horizontal_advection_wwcon.0"
 
-# class horizontal_diffusion_0(Transcompiler, unittest.TestCase):
-#     file_name = "horizontal_diffusion.0"
+class horizontal_diffusion_0(Transcompiler, unittest.TestCase):
+    file_name = "horizontal_diffusion.0"
 
 # class horizontal_diffusion_limiter_0(Transcompiler, unittest.TestCase):
 #     file_name = "horizontal_diffusion_limiter.0"

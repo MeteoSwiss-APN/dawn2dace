@@ -300,6 +300,7 @@ class StencilNode:
         self.shape = shape
         self.reads = reads  # Dict[id:int, OptionalRelMemAcc3D]
         self.writes = writes  # Dict[id:int, OptionalRelMemAcc3D]
+        self.bcs = bcs
         self.state = None  # dace.state
 
     def offset(self, i: int = 0, j: int = 0, k: int = 0):
