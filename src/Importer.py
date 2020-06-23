@@ -74,7 +74,13 @@ class Importer:
 
     def Import_Stage(self, stage) -> Stage:
         return Stage(
-            do_methods = [self.Import_DoMethod(dm) for dm in stage.doMethods]
+            [self.Import_DoMethod(dm) for dm in stage.doMethods],
+            stage.extents.cartesian_extent.i_extent.minus,
+            stage.extents.cartesian_extent.i_extent.plus,
+            stage.extents.cartesian_extent.j_extent.minus,
+            stage.extents.cartesian_extent.j_extent.plus,
+            stage.extents.vertical_extent.minus,
+            stage.extents.vertical_extent.plus
         )
 
     def Import_MultiStage(self, multi_stage) -> MultiStage:

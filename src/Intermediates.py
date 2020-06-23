@@ -132,9 +132,15 @@ class DoMethod:
         return FuseMemAccDicts((x.GetWriteSpans() for x in self.statements))
 
 class Stage:
-    def __init__(self, do_methods:list):
+    def __init__(self, do_methods:list, i_minus, i_plus, j_minus, j_plus, k_minus, k_plus):
         self.uid = CreateUID()
         self.do_methods = do_methods
+        self.i_minus = i_minus
+        self.i_plus = i_plus
+        self.j_minus = j_minus
+        self.j_plus = j_plus
+        self.k_minus = k_minus
+        self.k_plus = k_plus
 
     def GetReadSpans(self) -> dict:
         return FuseMemAccDicts((x.GetReadSpans() for x in self.do_methods))
