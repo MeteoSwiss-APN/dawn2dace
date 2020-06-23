@@ -2,7 +2,7 @@
 
 using namespace gtclang::dsl;
 
-stencil copy {
+stencil ij_storage {
   storage output;
   storage_ij fill;
 

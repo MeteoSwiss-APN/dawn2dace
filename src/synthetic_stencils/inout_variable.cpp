@@ -2,10 +2,10 @@
 
 using namespace gtclang::dsl;
 
-stencil inout {
+stencil inout_variable {
   storage a;
   
-  void Do() {
+  Do() {
     vertical_region(k_start, k_end) {
       // no offset, thus doublebuffer not needed.
       a = a + 7;

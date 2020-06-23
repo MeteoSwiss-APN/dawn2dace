@@ -20,7 +20,7 @@ stencil_function diffusive_flux_x {
 };
 
 /// Type2 - Diffusion
-stencil type2 {
+stencil diffusion {
   storage output, input;
   var lap;
 

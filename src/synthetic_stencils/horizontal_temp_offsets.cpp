@@ -2,7 +2,7 @@
 
 using namespace gtclang::dsl;
 
-stencil horizontal_temp_offset {
+stencil horizontal_temp_offsets {
   storage output, input;
   var tmp;
 

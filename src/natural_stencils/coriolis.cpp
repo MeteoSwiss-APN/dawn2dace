@@ -2,7 +2,7 @@
 
 using namespace gtclang::dsl;
 
-stencil coriolis_stencil {
+stencil coriolis {
   storage u_tens, v_tens;
   storage u, v;
   storage_ij fc;
