@@ -17,7 +17,7 @@ class set_zero(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -50,7 +50,7 @@ class copy(LegalSDFG, Asserts):
         copy = Transpose(copy)
         copy_dace = Transpose(copy_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + "_libnodes.sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
@@ -84,7 +84,7 @@ class copy_with_halo(LegalSDFG, Asserts):
                 for k in range(0, K):
                     copy[i,j,k] = original[i,j,k]
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -122,7 +122,7 @@ class staggered_k(LegalSDFG, Asserts):
         mid_avg = Transpose(mid_avg)
         mid_avg_dace = Transpose(mid_avg_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -157,7 +157,7 @@ class delta(LegalSDFG, Asserts):
         out = Transpose(out)
         out_dace = Transpose(out_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
@@ -196,7 +196,7 @@ class const_value(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -226,7 +226,7 @@ class i_storage(LegalSDFG, Asserts):
                 for k in range(0, K):
                     output[i,j,k] = fill[i]
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -258,7 +258,7 @@ class j_storage(LegalSDFG, Asserts):
                 for k in range(0, K):
                     output[i,j,k] = fill[j]
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -290,7 +290,7 @@ class k_storage(LegalSDFG, Asserts):
                 for k in range(0, K):
                     output[i,j,k] = fill[k]
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -325,7 +325,7 @@ class ij_storage(LegalSDFG, Asserts):
                 for k in range(0, K):
                     output[i,j,k] = fill[i,j]
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -361,7 +361,7 @@ class inout_variable(LegalSDFG, Asserts):
         a = Transpose(a)
         a_dace = Transpose(a_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -397,7 +397,7 @@ class horizontal_offsets(LegalSDFG, Asserts):
         c = Transpose(c)
         a_dace = Transpose(a_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -437,7 +437,7 @@ class horizontal_temp_offsets(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -477,7 +477,7 @@ class vertical_offsets(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -517,7 +517,7 @@ class parametric_offsets(LegalSDFG, Asserts):
         interpolation = Transpose(interpolation)
         interpolation_dace = Transpose(interpolation_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -560,7 +560,7 @@ class vertical_specification_1(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -587,24 +587,24 @@ class vertical_specification_2(LegalSDFG, Asserts):
         output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
-        # vertical_region(k_start+1, k_end) { output = input2; }
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(1, K):
-                    output[i, j, k] = input2[i, j, k]
-
         # vertical_region(k_start, k_end-1) { output = input1; }
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K-1):
                     output[i, j, k] = input1[i, j, k]
 
+        # vertical_region(k_start+1, k_end) { output = input2; }
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(1, K):
+                    output[i, j, k] = input2[i, j, k]
+
         input1 = Transpose(input1)
         input2 = Transpose(input2)
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -639,7 +639,7 @@ class scope_in_region(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -673,7 +673,7 @@ class scope_in_stencil(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -707,7 +707,7 @@ class scope_in_global(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
@@ -744,7 +744,7 @@ class scopes_mixed(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -779,7 +779,7 @@ class brackets(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -812,7 +812,7 @@ class loop(LegalSDFG, Asserts):
         a = Transpose(a)
         a_dace = Transpose(a_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
@@ -848,7 +848,7 @@ class mathfunctions(LegalSDFG, Asserts):
         y = Transpose(y)
         y_dace = Transpose(y_dace)
         
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -917,7 +917,7 @@ class tridiagonal_solve(LegalSDFG, Asserts):
         c_dace = Transpose(c_dace)
         d_dace = Transpose(d_dace)
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")

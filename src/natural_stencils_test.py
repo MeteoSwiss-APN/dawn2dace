@@ -30,7 +30,7 @@ class coriolis(LegalSDFG, Asserts):
         u_tens_dace = Transpose(u_tens_dace)
         v_tens_dace = Transpose(v_tens_dace)
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
@@ -125,7 +125,7 @@ class thomas(LegalSDFG, Asserts):
         d_dace = Transpose(d_dace)
         data_dace = Transpose(data_dace)
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -180,7 +180,7 @@ class diffusion(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         dace.graph.labeling.propagate_labels_sdfg(sdfg)
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
@@ -221,7 +221,7 @@ class laplace(LegalSDFG, Asserts):
         from dace.transformation.dataflow import MapFission, MapCollapse, MapFusion
         from dace.transformation.interstate import InlineSDFG, StateFusion
 
-        sdfg = get_sdfg(self.file_name + ".0.iir")
+        sdfg = get_sdfg(self.file_name + ".iir")
         dace.graph.labeling.propagate_labels_sdfg(sdfg)
         sdfg.save("gen/" + self.__class__.__name__ + "_libnode.sdfg")
         sdfg.expand_library_nodes()

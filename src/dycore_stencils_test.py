@@ -23,15 +23,15 @@ class Transcompiler():
         sdfg.validate()
         sdfg.save("gen/DyCore/LibraryNodes/" + self.file_name + ".sdfg")
 
-    # def test4_expanded(self):
-    #     sdfg = SDFG.from_file("gen/DyCore/Raw/" + self.file_name + ".sdfg")
-    #     sdfg.expand_library_nodes()
-    #     sdfg.save("gen/DyCore/RawExpanded/" + self.file_name + ".sdfg")
+    def test4_expanded(self):
+        sdfg = SDFG.from_file("gen/DyCore/Raw/" + self.file_name + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.save("gen/DyCore/RawExpanded/" + self.file_name + ".sdfg")
 
-    #     # Don't validate all the time, for performance reasons.
-    #     sdfg.apply_strict_transformations(validate=False)
-    #     sdfg.validate()
-    #     sdfg.save("gen/DyCore/Expanded/" + self.file_name + ".sdfg")
+        # Don't validate all the time, for performance reasons.
+        sdfg.apply_strict_transformations(validate=False)
+        sdfg.validate()
+        sdfg.save("gen/DyCore/Expanded/" + self.file_name + ".sdfg")
 
     def test5_compiles(self):
         sdfg = SDFG.from_file("gen/DyCore/Expanded/" + self.file_name + ".sdfg")
@@ -73,8 +73,8 @@ class Transcompiler():
 # class convert_temp_1(Transcompiler, unittest.TestCase):
 #     file_name = "convert_temp.1"
 
-# class coriolis_stencil_0(Transcompiler, unittest.TestCase):
-#     file_name = "coriolis_stencil.0"
+class coriolis_stencil(Transcompiler, unittest.TestCase):
+    file_name = "coriolis_stencil"
 
 # class diab_latent_heat_0(Transcompiler, unittest.TestCase):
 #     file_name = "diab_latent_heat.0"
@@ -127,8 +127,8 @@ class Transcompiler():
 # class horizontal_advection_wwcon_0(Transcompiler, unittest.TestCase):
 #     file_name = "horizontal_advection_wwcon.0"
 
-class horizontal_diffusion_0(Transcompiler, unittest.TestCase):
-    file_name = "horizontal_diffusion.0"
+class horizontal_diffusion(Transcompiler, unittest.TestCase):
+    file_name = "horizontal_diffusion"
 
 # class horizontal_diffusion_limiter_0(Transcompiler, unittest.TestCase):
 #     file_name = "horizontal_diffusion_limiter.0"
@@ -157,8 +157,8 @@ class horizontal_diffusion_0(Transcompiler, unittest.TestCase):
 # class saturation_adjustment_0(Transcompiler, unittest.TestCase):
 #     file_name = "saturation_adjustment.0"
 
-class vertical_advection_0(Transcompiler, unittest.TestCase):
-    file_name = "vertical_advection.0"
+class vertical_advection(Transcompiler, unittest.TestCase):
+    file_name = "vertical_advection"
 
 # class vertical_advection_1(Transcompiler, unittest.TestCase):
 #     file_name = "vertical_advection.1" 
