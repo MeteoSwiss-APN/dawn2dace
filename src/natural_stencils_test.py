@@ -34,6 +34,8 @@ class coriolis(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -128,7 +130,9 @@ class thomas(LegalSDFG, Asserts):
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -181,9 +185,11 @@ class diffusion(LegalSDFG, Asserts):
         output_dace = Transpose(output_dace)
 
         sdfg = get_sdfg(self.file_name + ".iir")
-        dace.graph.labeling.propagate_labels_sdfg(sdfg)
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -222,12 +228,61 @@ class laplace(LegalSDFG, Asserts):
         from dace.transformation.interstate import InlineSDFG, StateFusion
 
         sdfg = get_sdfg(self.file_name + ".iir")
-        dace.graph.labeling.propagate_labels_sdfg(sdfg)
-        sdfg.save("gen/" + self.__class__.__name__ + "_libnode.sdfg")
+        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        # sdfg.apply_transformations_repeated([InlineSDFG])
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
+        sdfg = sdfg.compile(optimizer="")
+
+        sdfg(
+            input = input,
+            output = output_dace,
+            I = numpy.int32(I),
+            J = numpy.int32(J),
+            K = numpy.int32(K),
+            halo = numpy.int32(halo))
+
+        self.assertIsClose(output, output_dace)
+
+
+class laplap(LegalSDFG, Asserts):
+    file_name = "laplap"
+
+    def test_4_numerically(self):
+        I,J,K = 6,6,6
+        halo = 2
+        input = numpy.sqrt(Iota(I, J, K))
+        output = Zeros(I, J, K)
+        lap = Zeros(I, J, K)
+        output_dace = numpy.copy(output)
+
+        def laplacian(data, i, j, k):
+            return data[i-1,j,k] + data[i+1,j,k] + data[i,j-1,k] + data[i,j+1,k] - 4.0 * data[i,j,k]
+
+        for i in range(halo-1, I-halo+1):
+            for j in range(halo-1, J-halo+1):
+                for k in range(0, K):
+                    lap[i,j,k] = laplacian(input, i, j, k)
+
+        for i in range(halo, I-halo):
+            for j in range(halo, J-halo):
+                for k in range(0, K):
+                    output[i,j,k] = laplacian(lap, i, j, k)
+
+        input = Transpose(input)
+        output = Transpose(output)
+        output_dace = Transpose(output_dace)
+        
+        from dace.transformation.dataflow import MapFission, MapCollapse, MapFusion
+        from dace.transformation.interstate import InlineSDFG, StateFusion
+
+        sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(

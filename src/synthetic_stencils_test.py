@@ -19,6 +19,9 @@ class set_zero(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -51,12 +54,10 @@ class copy(LegalSDFG, Asserts):
         copy_dace = Transpose(copy_dace)
         
         sdfg = get_sdfg(self.file_name + ".iir")
-        sdfg.save("gen/" + self.__class__.__name__ + "_libnodes.sdfg")
-        sdfg.expand_library_nodes()
-        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg.apply_strict_transformations()
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
-        # sdfg = dace.SDFG.from_file("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -86,6 +87,9 @@ class copy_with_halo(LegalSDFG, Asserts):
 
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         original = Transpose(original)
@@ -124,6 +128,9 @@ class staggered_k(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -160,6 +167,7 @@ class delta(LegalSDFG, Asserts):
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -198,6 +206,9 @@ class const_value(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -228,6 +239,9 @@ class i_storage(LegalSDFG, Asserts):
 
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         output = Transpose(output)
@@ -260,6 +274,9 @@ class j_storage(LegalSDFG, Asserts):
 
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         output = Transpose(output)
@@ -327,6 +344,9 @@ class ij_storage(LegalSDFG, Asserts):
 
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         fill = Transpose(fill)
@@ -363,6 +383,9 @@ class inout_variable(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -399,6 +422,9 @@ class horizontal_offsets(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -439,6 +465,9 @@ class horizontal_temp_offsets(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -479,6 +508,9 @@ class vertical_offsets(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -519,6 +551,9 @@ class parametric_offsets(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -562,6 +597,9 @@ class vertical_specification_1(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -606,6 +644,9 @@ class vertical_specification_2(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -641,6 +682,9 @@ class scope_in_region(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -675,6 +719,9 @@ class scope_in_stencil(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -710,6 +757,7 @@ class scope_in_global(LegalSDFG, Asserts):
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -746,6 +794,9 @@ class scopes_mixed(LegalSDFG, Asserts):
 
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -781,6 +832,9 @@ class brackets(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -815,6 +869,7 @@ class loop(LegalSDFG, Asserts):
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
@@ -850,6 +905,9 @@ class mathfunctions(LegalSDFG, Asserts):
         
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+        sdfg.expand_library_nodes()
+        sdfg.apply_strict_transformations()
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(
@@ -920,9 +978,8 @@ class tridiagonal_solve(LegalSDFG, Asserts):
         sdfg = get_sdfg(self.file_name + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
-        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg.apply_strict_transformations()
-        sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
+        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg = sdfg.compile(optimizer="")
 
         sdfg(

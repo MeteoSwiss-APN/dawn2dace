@@ -166,8 +166,8 @@ class vertical_advection(Transcompiler, unittest.TestCase):
 # class vertical_advection_pptp_0(Transcompiler, unittest.TestCase):
 #     file_name = "vertical_advection_pptp.0"
 
-# class vertical_advection_u_0(Transcompiler, unittest.TestCase):
-#     file_name = "vertical_advection_u.0"
+# class vertical_advection_u(Transcompiler, unittest.TestCase):
+#     file_name = "vertical_advection_u"
 
 # class vertical_advection_uv_0(Transcompiler, unittest.TestCase):
 #     file_name = "vertical_advection_uv.0"

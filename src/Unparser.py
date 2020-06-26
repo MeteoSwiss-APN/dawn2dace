@@ -83,10 +83,10 @@ class Unparser:
 
     def _unparse_var_access_expr(self, expr) -> str:
         name = self.id_resolver.GetName(expr.data.accessID.value)
-        if self.id_resolver.IsLocal(expr.data.accessID.value):
-            return name + "[0,0]"
-        else:
-            return name
+        # if self.id_resolver.IsLocal(expr.data.accessID.value):
+        #     return name + "[0,0]"
+        # else:
+        return name
 
     def _unparse_field_access_expr(self, expr) -> str:
         indices = ToMemLayout(
@@ -152,10 +152,10 @@ class Unparser:
 
         # single value initialization. e.g. "a = 3"
         if len(var_decl.init_list) == 1:
-            if self.id_resolver.IsLocal(var_decl.var_decl_stmt_data.accessID.value):
-                return '{}[0,0] {} {}'.format(name, var_decl.op, self._unparse_expr(var_decl.init_list[0]))
-            else:
-                return '{} {} {}'.format(name, var_decl.op, self._unparse_expr(var_decl.init_list[0]))
+            # if self.id_resolver.IsLocal(var_decl.var_decl_stmt_data.accessID.value):
+            #     return '{}[0,0] {} {}'.format(name, var_decl.op, self._unparse_expr(var_decl.init_list[0]))
+            # else:
+            return '{} {} {}'.format(name, var_decl.op, self._unparse_expr(var_decl.init_list[0]))
 
         # array initialization. e.g. "a = (0, 1, 2)"
         return '{} {} ({})'.format(name, var_decl.op, ', '.join(self._unparse_expr(expr) for expr in var_decl.init_list))

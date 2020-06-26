@@ -209,7 +209,8 @@ class Exporter:
         memlets = {}
         for id, mem_acc in transactions.items():
             name = self.id_resolver.GetName(id)
-
+            if self.id_resolver.IsLocal(id):
+                continue
             if self.id_resolver.IsALiteral(id):
                 continue
 
@@ -228,123 +229,121 @@ class Exporter:
                 if do_method.k_interval != interval:
                     continue
 
-                for stmt in do_method.statements:
-                    reads = stmt.reads.keys()
-                    writes = stmt.writes.keys()
-                    all = reads | writes
-                    apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
+                reads = do_method.GetReadSpans().keys()
+                writes = do_method.GetWriteSpans().keys()
+                all = reads | writes
+                apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
 
-                    self.try_add_array(sub_sdfg, all - locals - globals)
-                    self.try_add_transient(sub_sdfg, locals)
-                    self.try_add_scalar(sub_sdfg, reads & globals)
+                self.try_add_array(sub_sdfg, all - locals - globals)
+                # self.try_add_transient(sub_sdfg, locals)
+                self.try_add_scalar(sub_sdfg, reads & globals)
 
-                    self.try_add_transient(self.sdfg, all - locals - globals)
-                    self.try_add_scalar(self.sdfg, reads & globals)
+                self.try_add_transient(self.sdfg, all - locals - globals)
+                self.try_add_scalar(self.sdfg, reads & globals)
 
-                    collected_input_ids.extend(reads - literals - locals)
-                    collected_output_ids.extend(writes - literals - locals)
+                collected_input_ids.extend(reads - literals - locals)
+                collected_output_ids.extend(writes - literals - locals)
 
-                    unoffsetted_read_span = MemoryAccess3D.GetSpan(stmt.unoffsetted_read_spans.values())
-                    unoffsetted_write_span = MemoryAccess3D.GetSpan(stmt.unoffsetted_write_spans.values())
-                    unoffsetted_span = MemoryAccess3D.GetSpan([unoffsetted_read_span, unoffsetted_write_span])
+                unoffsetted_read_span = MemoryAccess3D.GetSpan([x for stmt in do_method.statements for x in stmt.unoffsetted_read_spans.values()])
+                unoffsetted_write_span = MemoryAccess3D.GetSpan([x for stmt in do_method.statements for x in stmt.unoffsetted_write_spans.values()])
+                unoffsetted_span = MemoryAccess3D.GetSpan([unoffsetted_read_span, unoffsetted_write_span])
 
-                    halo_i_lower = -unoffsetted_span.i.lower
-                    halo_i_upper = unoffsetted_span.i.upper
-                    halo_j_lower = -unoffsetted_span.j.lower
-                    halo_j_upper = unoffsetted_span.j.upper
+                halo_i_lower = -unoffsetted_span.i.lower
+                halo_i_upper = unoffsetted_span.i.upper
+                halo_j_lower = -unoffsetted_span.j.lower
+                halo_j_upper = unoffsetted_span.j.upper
 
-                    # Workaround for missing shape inferance information in IIR.
-                    if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
-                        halo_i_lower = halo
-                        halo_i_upper = halo
-                        halo_j_lower = halo
-                        halo_j_upper = halo
-
-                    boundary_conditions = {
-                        self.id_resolver.GetName(id)+'_out': {
-                            "btype": "shrink",
-                            "halo": tuple(chain.from_iterable(
-                                ToMemLayout(
-                                    (halo_i_lower, halo_i_upper), # halo in I
-                                    (halo_j_lower, halo_j_upper), # halo in J
-                                    (0, 0), # halo in K
-                                )))
-                            }
-                            for id in writes
+                boundary_conditions = {
+                    self.id_resolver.GetName(id)+'_out': {
+                        "btype": "shrink",
+                        "halo": tuple(chain.from_iterable(
+                            ToMemLayout(
+                                (halo_i_lower, halo_i_upper), # halo in I
+                                (halo_j_lower, halo_j_upper), # halo in J
+                                (0, 0), # halo in K
+                            )))
                         }
+                        for id in writes - locals
+                    }
 
-                    state = sub_sdfg.add_state("state_{}".format(CreateUID()))
+                state = sub_sdfg.add_state("state_{}".format(CreateUID()))
 
-                    input_fields = self.Create_Variable_Access_map(stmt.reads, '_in')
-                    output_fields = self.Create_Variable_Access_map(stmt.writes, '_out')
+                input_fields = self.Create_Variable_Access_map(do_method.GetReadSpans(), '_in')
+                output_fields = self.Create_Variable_Access_map(do_method.GetWriteSpans(), '_out')
 
-                    stenc = StencilLib(
-                        label = str(stmt),
-                        shape = list(ToMemLayout(I, J, 1)),
-                        accesses = input_fields,
-                        output_fields = output_fields,
-                        boundary_conditions = boundary_conditions,
-                        code = stmt.code
+                stenc = StencilLib(
+                    label = str(do_method),
+                    shape = list(ToMemLayout(I, J, 1)),
+                    accesses = input_fields,
+                    output_fields = output_fields,
+                    boundary_conditions = boundary_conditions,
+                    code = ''.join(stmt.code for stmt in do_method.statements)
+                )
+                state.add_node(stenc)
+                
+                # Add stencil-input memlet paths, from state.read to stencil.
+                for id, mem_acc in do_method.GetReadSpans().items():
+                    name = self.id_resolver.GetName(id)
+                    if self.id_resolver.IsLocal(id):
+                        continue
+
+                    dims = self.id_resolver.GetDimensions(id)
+                    read = state.add_read(name)
+                    input_memlet_subst = ','.join(dim_filter(dims,
+                        "0:I",
+                        "0:J",
+                        "0:{}".format(unoffsetted_read_span.k.lower - unoffsetted_read_span.k.upper + 1),
+                    ))
+                    if not input_memlet_subst:
+                        input_memlet_subst = '0'
+                        
+                    state.add_memlet_path(
+                        read,
+                        stenc,
+                        memlet = dace.Memlet.simple(name, input_memlet_subst),
+                        dst_conn = name + '_in',
+                        propagate=True
                     )
-                    state.add_node(stenc)
-                    
-                    # Add stencil-input memlet paths, from state.read to stencil.
-                    for id, mem_acc in stmt.reads.items():
-                        name = self.id_resolver.GetName(id)
-                        dims = self.id_resolver.GetDimensions(id)
-                        read = state.add_read(name)
-                        input_memlet_subst = ','.join(dim_filter(dims,
-                            "0:I",
-                            "0:J",
-                            "0:{}".format(unoffsetted_read_span.k.lower - unoffsetted_read_span.k.upper + 1),
-                        ))
-                        if not input_memlet_subst:
-                            input_memlet_subst = '0'
-                            
-                        state.add_memlet_path(
-                            read,
-                            stenc,
-                            memlet = dace.Memlet.simple(name, input_memlet_subst),
-                            dst_conn = name + '_in',
-                            propagate=True
-                        )
 
-                    # Add stencil-output memlet paths, from stencil to state.write.
-                    for id, mem_acc in stmt.writes.items():
-                        name = self.id_resolver.GetName(id)
-                        dims = self.id_resolver.GetDimensions(id)
-                        write = state.add_write(name)
-                        output_memlet_subst = ','.join(dim_filter(dims,
-                            "{}:I-{}".format(halo_i_lower, halo_i_upper),
-                            "{}:J-{}".format(halo_j_lower, halo_j_upper),
-                            "{}:{}".format(-unoffsetted_write_span.k.lower, -unoffsetted_write_span.k.upper + 1),
-                        ))
-                        if not output_memlet_subst:
-                            output_memlet_subst = "0"
+                # Add stencil-output memlet paths, from stencil to state.write.
+                for id, mem_acc in do_method.GetWriteSpans().items():
+                    name = self.id_resolver.GetName(id)
+                    if self.id_resolver.IsLocal(id):
+                        continue
 
-                        state.add_memlet_path(
-                            stenc,
-                            write,
-                            memlet = dace.Memlet.simple(name, output_memlet_subst),
-                            src_conn = name + '_out',
-                            propagate=True
-                        )
-                    
-                    # state = sub_sdfg.add_state("state_{}".format(CreateUID()))
-                    # state.add_mapped_tasklet(
-                    #     str(stmt),
-                    #     map_ranges,
-                    #     inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = False),
-                    #     code = stmt.code,
-                    #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = False),
-                    #     external_edges = True,
-                    #     propagate=True
-                    # )
+                    dims = self.id_resolver.GetDimensions(id)
+                    write = state.add_write(name)
+                    output_memlet_subst = ','.join(dim_filter(dims,
+                        "{}:I-{}".format(halo_i_lower, halo_i_upper),
+                        "{}:J-{}".format(halo_j_lower, halo_j_upper),
+                        "{}:{}".format(-unoffsetted_write_span.k.lower, -unoffsetted_write_span.k.upper + 1),
+                    ))
+                    if not output_memlet_subst:
+                        output_memlet_subst = "0"
 
-                    # set the state to be the last one to connect them
-                    if last_state is not None:
-                        sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
-                    last_state = state
+                    state.add_memlet_path(
+                        stenc,
+                        write,
+                        memlet = dace.Memlet.simple(name, output_memlet_subst),
+                        src_conn = name + '_out',
+                        propagate=True
+                    )
+                
+                # state = sub_sdfg.add_state("state_{}".format(CreateUID()))
+                # state.add_mapped_tasklet(
+                #     str(stmt),
+                #     map_ranges,
+                #     inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = False),
+                #     code = stmt.code,
+                #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = False),
+                #     external_edges = True,
+                #     propagate=True
+                # )
+
+                # set the state to be the last one to connect them
+                if last_state is not None:
+                    sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
+                last_state = state
 
         collected_input_names = set(self.id_resolver.GetName(id) for id in collected_input_ids)
         collected_output_names = set(self.id_resolver.GetName(id) for id in collected_output_ids)
@@ -353,7 +352,8 @@ class Exporter:
             sub_sdfg, 
             self.sdfg,
             collected_input_names,
-            collected_output_names
+            collected_output_names,
+            {'halo' : dace.symbol('halo'), 'I' : dace.symbol('I'), 'J' : dace.symbol('J'), 'K' : dace.symbol('K')}
         )
 
         map_entry, map_exit = multi_stage_state.add_map("kmap", dict(k=str(interval)))
@@ -419,117 +419,119 @@ class Exporter:
                 if do_method.k_interval != interval:
                     continue
 
-                for stmt in do_method.statements:
-                    self.try_add_transient(self.sdfg, stmt.reads.keys())
-                    self.try_add_transient(self.sdfg, stmt.writes.keys())
+                reads = do_method.GetReadSpans().keys()
+                writes = do_method.GetWriteSpans().keys()
+                all = reads | writes
+                apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
 
-                    self.try_add_scalar(self.sdfg, (id for id in stmt.reads.keys() if self.id_resolver.IsGlobal(id)))
+                self.try_add_transient(self.sdfg, all - locals)
+                self.try_add_scalar(self.sdfg, reads & globals)
 
-                    unoffsetted_read_span = MemoryAccess3D.GetSpan(stmt.unoffsetted_read_spans.values())
-                    unoffsetted_write_span = MemoryAccess3D.GetSpan(stmt.unoffsetted_write_spans.values())
-                    unoffsetted_span = MemoryAccess3D.GetSpan([unoffsetted_read_span, unoffsetted_write_span])
+                unoffsetted_read_span = MemoryAccess3D.GetSpan([x for stmt in do_method.statements for x in stmt.unoffsetted_read_spans.values()])
+                unoffsetted_write_span = MemoryAccess3D.GetSpan([x for stmt in do_method.statements for x in stmt.unoffsetted_write_spans.values()])
+                unoffsetted_span = MemoryAccess3D.GetSpan([unoffsetted_read_span, unoffsetted_write_span])
 
-                    halo_i_lower = -unoffsetted_span.i.lower
-                    halo_i_upper = unoffsetted_span.i.upper
-                    halo_j_lower = -unoffsetted_span.j.lower
-                    halo_j_upper = unoffsetted_span.j.upper
+                halo_i_lower = -stage.i_minus
+                halo_i_upper = stage.i_plus
+                halo_j_lower = -stage.j_minus
+                halo_j_upper = stage.j_plus
 
-                    # Workaround for missing shape inferance information in IIR.
-                    if any(self.id_resolver.IsInAPI(id) for id in stmt.writes.keys()):
-                        halo_i_lower = halo
-                        halo_i_upper = halo
-                        halo_j_lower = halo
-                        halo_j_upper = halo
-
-                    boundary_conditions = {
-                        self.id_resolver.GetName(id)+'_out': {
-                            "btype": "shrink",
-                            "halo": tuple(chain.from_iterable(
-                                ToMemLayout(
-                                    (halo_i_lower, halo_i_upper), # halo in I
-                                    (halo_j_lower, halo_j_upper), # halo in J
-                                    (0, 0), # halo in K
-                                )))
-                            }
-                            for id in stmt.writes.keys()
+                boundary_conditions = {
+                    self.id_resolver.GetName(id)+'_out': {
+                        "btype": "shrink",
+                        "halo": tuple(chain.from_iterable(
+                            ToMemLayout(
+                                (halo_i_lower, halo_i_upper), # halo in I
+                                (halo_j_lower, halo_j_upper), # halo in J
+                                (0, 0), # halo in K
+                            )))
                         }
+                        for id in writes - locals
+                    }
 
-                    state = self.sdfg.add_state("state_{}".format(CreateUID()))
+                state = self.sdfg.add_state("state_{}".format(CreateUID()))
 
-                    input_fields = self.Create_Variable_Access_map(stmt.reads, '_in')
-                    output_fields = self.Create_Variable_Access_map(stmt.writes, '_out')
+                input_fields = self.Create_Variable_Access_map(do_method.GetReadSpans(), '_in')
+                output_fields = self.Create_Variable_Access_map(do_method.GetWriteSpans(), '_out')
 
-                    stenc = StencilLib(
-                        label = str(stmt),
-                        shape = list(ToMemLayout(I, J, 1)),
-                        accesses = self.Create_Variable_Access_map(stmt.reads, '_in'),
-                        output_fields = self.Create_Variable_Access_map(stmt.writes, '_out'),
-                        boundary_conditions = boundary_conditions,
-                        code = stmt.code
-                        )
+                stenc = StencilLib(
+                    label = str(do_method),
+                    shape = list(ToMemLayout(I, J, 1)),
+                    accesses = input_fields,
+                    output_fields = output_fields,
+                    boundary_conditions = boundary_conditions,
+                    code = ''.join(stmt.code for stmt in do_method.statements)
+                    )
 
-                    state.add_node(stenc)
-                    
-                    # Add stencil-input memlet paths, from state.read to stencil.
-                    for id, mem_acc in stmt.reads.items():
-                        name = self.id_resolver.GetName(id)
-                        dims = self.id_resolver.GetDimensions(id)
-                        read = state.add_read(name)
-                        k_mem_acc = stmt.unoffsetted_read_spans[id].k
-                        input_memlet_subst = ','.join(dim_filter(dims,
-                            "0:I",
-                            "0:J",
-                            "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1),
-                        ))
-                        if not input_memlet_subst:
-                            input_memlet_subst = '0'
+                state.add_node(stenc)
+                
+                # Add stencil-input memlet paths, from state.read to stencil.
+                for id, mem_acc in do_method.GetReadSpans().items():
+                    name = self.id_resolver.GetName(id)
+                    if self.id_resolver.IsLocal(id):
+                        continue
 
-                        state.add_memlet_path(
-                            read,
-                            stenc,
-                            memlet = dace.Memlet.simple(name, input_memlet_subst),
-                            dst_conn = name + '_in',
-                            propagate=True
-                        )
+                    dims = self.id_resolver.GetDimensions(id)
+                    read = state.add_read(name)
+                    k_mem_acc = MemoryAccess3D.GetSpan(stmt.unoffsetted_read_spans.get(id, None) for stmt in do_method.statements).k
+                    input_memlet_subst = ','.join(dim_filter(dims,
+                        "0:I",
+                        "0:J",
+                        "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1),
+                    ))
+                    if not input_memlet_subst:
+                        input_memlet_subst = '0'
 
-                    # Add stencil-output memlet paths, from stencil to state.write.
-                    for id, mem_acc in stmt.writes.items():
-                        name = self.id_resolver.GetName(id)
-                        dims = self.id_resolver.GetDimensions(id)
-                        write = state.add_write(name)
-                        output_memlet_subst = ','.join(dim_filter(dims,
-                            "{}:I-{}".format(halo_i_lower, halo_i_upper),
-                            "{}:J-{}".format(halo_j_lower, halo_j_upper),
-                            "k+{}:k+{}".format(unoffsetted_write_span.k.lower, unoffsetted_write_span.k.upper + 1),
-                        ))
-                        if not output_memlet_subst:
-                            output_memlet_subst = '0'
+                    state.add_memlet_path(
+                        read,
+                        stenc,
+                        memlet = dace.Memlet.simple(name, input_memlet_subst),
+                        dst_conn = name + '_in',
+                        propagate=True
+                    )
 
-                        state.add_memlet_path(
-                            stenc,
-                            write,
-                            memlet = dace.Memlet.simple(name, output_memlet_subst),
-                            src_conn = name + '_out',
-                            propagate=True
-                        )
+                # Add stencil-output memlet paths, from stencil to state.write.
+                for id, mem_acc in do_method.GetWriteSpans().items():
+                    name = self.id_resolver.GetName(id)
+                    if self.id_resolver.IsLocal(id):
+                        continue
 
-                    # Since we're in a sequential loop, we only need a map in i and j
-                    # state = self.sdfg.add_state("state_{}".format(CreateUID()))
-                    # state.add_mapped_tasklet(
-                    #     str(stmt),
-                    #     map_ranges,
-                    #     inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = True),
-                    #     code = stmt.code,
-                    #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = True),
-                    #     external_edges = True, propagate=True
-                    # )
+                    dims = self.id_resolver.GetDimensions(id)
+                    write = state.add_write(name)
+                    k_mem_acc = MemoryAccess3D.GetSpan([stmt.unoffsetted_write_spans.get(id, None) for stmt in do_method.statements]).k
+                    output_memlet_subst = ','.join(dim_filter(dims,
+                        "{}:I-{}".format(halo_i_lower, halo_i_upper),
+                        "{}:J-{}".format(halo_j_lower, halo_j_upper),
+                        "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1),
+                    ))
+                    if not output_memlet_subst:
+                        output_memlet_subst = '0'
 
-                    if first_state is None:
-                        first_state = state
+                    state.add_memlet_path(
+                        stenc,
+                        write,
+                        memlet = dace.Memlet.simple(name, output_memlet_subst),
+                        src_conn = name + '_out',
+                        propagate=True
+                    )
 
-                    if last_state is not None:
-                        self.sdfg.add_edge(last_state, state, dace.InterstateEdge())
-                    last_state = state
+                # Since we're in a sequential loop, we only need a map in i and j
+                # state = self.sdfg.add_state("state_{}".format(CreateUID()))
+                # state.add_mapped_tasklet(
+                #     str(stmt),
+                #     map_ranges,
+                #     inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = True),
+                #     code = stmt.code,
+                #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = True),
+                #     external_edges = True, propagate=True
+                # )
+
+                if first_state is None:
+                    first_state = state
+
+                if last_state is not None:
+                    self.sdfg.add_edge(last_state, state, dace.InterstateEdge())
+                last_state = state
 
         if execution_order == ExecutionOrder.Forward_Loop.value:
             initialize_expr = interval.begin

@@ -44,6 +44,8 @@ class Renamer(ast.NodeTransformer):
             return node
         if node.id == "false":
             return node
+        if node.id.startswith('__local'):
+            return node
         if self.storemode or isinstance(node.ctx, ast.Store):
             node.id += '_out'
         elif isinstance(node.ctx, ast.Load):
