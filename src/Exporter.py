@@ -217,7 +217,7 @@ class Exporter:
             memlets[name + suffix] = self.Export_Accesses(id, mem_acc)
         return memlets
 
-    def Export_parallel(self, multi_stage: MultiStage, interval: K_Interval):
+    def Export_parallel(self, multi_stage: MultiStage, k_interval: HalfOpenInterval):
         multi_stage_state = self.sdfg.add_state("state_{}".format(CreateUID()))
         sub_sdfg = dace.SDFG("ms_subsdfg{}".format(CreateUID()))
         last_state = None
@@ -226,7 +226,7 @@ class Exporter:
         collected_output_ids = []
         for stage in multi_stage.stages:
             for do_method in stage.do_methods:
-                if do_method.k_interval != interval:
+                if do_method.k_interval != k_interval:
                     continue
 
                 reads = do_method.GetReadSpans().keys()
@@ -356,7 +356,7 @@ class Exporter:
             {'halo' : dace.symbol('halo'), 'I' : dace.symbol('I'), 'J' : dace.symbol('J'), 'K' : dace.symbol('K')}
         )
 
-        map_entry, map_exit = multi_stage_state.add_map("kmap", dict(k=str(interval)))
+        map_entry, map_exit = multi_stage_state.add_map("kmap", dict(k=str(k_interval)))
 
         # input memlets
         for id in set(collected_input_ids):
@@ -409,14 +409,14 @@ class Exporter:
 
         return multi_stage_state
 
-    def Export_loop(self, multi_stage: MultiStage, interval: K_Interval, execution_order: ExecutionOrder):
+    def Export_loop(self, multi_stage: MultiStage, k_interval: HalfOpenInterval, execution_order: ExecutionOrder):
         last_state = None
         first_state = None
         # This is the state previous to this ms
 
         for stage in multi_stage.stages:
             for do_method in stage.do_methods:
-                if do_method.k_interval != interval:
+                if do_method.k_interval != k_interval:
                     continue
 
                 reads = do_method.GetReadSpans().keys()
@@ -566,7 +566,7 @@ class Exporter:
         intervals = list(intervals)
         
         intervals.sort(
-            key = lambda interval: interval.sort_key,
+            key = lambda interval: Eval(interval.lower, 'K', 1000),
             reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
         )
 

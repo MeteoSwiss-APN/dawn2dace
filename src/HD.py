@@ -11,20 +11,20 @@ from dace.codegen import codegen, compiler
 # canonicalize_sdfg(sdfg)
 # sdfg.save("/home/dominic/work/dawn2dace/gen/HD_canonicalized.sdfg")
 
-# # sdfg = SDFG.from_file("/home/dominic/work/dawn2dace/gen/HD_canonicalized.sdfg")
+sdfg = SDFG.from_file("/home/dominic/work/dawn2dace/gen/HD_canonicalized.sdfg")
 # sdfg.apply_transformations_repeated([StateFusion, InlineSDFG, StencilFusion])
 # sdfg.save("/home/dominic/work/dawn2dace/gen/HD_canonicalized2.sdfg")
 
 # sdfg = SDFG.from_file("/home/dominic/work/dawn2dace/gen/HD_canonicalized2.sdfg")
-# sdfg.expand_library_nodes()
-# sdfg.apply_transformations_repeated([StateFusion, InlineSDFG, StencilFusion])
-# sdfg.save("/home/dominic/work/dawn2dace/gen/HD_expanded.sdfg")
+sdfg.expand_library_nodes()
+sdfg.apply_transformations_repeated([StateFusion, InlineSDFG, StencilFusion])
+sdfg.save("/home/dominic/work/dawn2dace/gen/HD_expanded.sdfg")
 
 # sdfg = SDFG.from_file("/home/dominic/work/dawn2dace/gen/HD_expanded.sdfg")
 # sdfg.apply_transformations(GPUTransformSDFG, validate=False)
 # sdfg.validate()
 # sdfg.save("/home/dominic/work/dawn2dace/gen/HD_gpu.sdfg")
 
-sdfg = SDFG.from_file("/home/dominic/work/dawn2dace/gen/HD_gpu.sdfg")
-program_objects = codegen.generate_code(sdfg)
-compiler.generate_program_folder(sdfg, program_objects, "/home/dominic/work/dawn2dace/gen/HD")
+# sdfg = SDFG.from_file("/home/dominic/work/dawn2dace/gen/HD_gpu.sdfg")
+# program_objects = codegen.generate_code(sdfg)
+# compiler.generate_program_folder(sdfg, program_objects, "/home/dominic/work/dawn2dace/gen/HD")

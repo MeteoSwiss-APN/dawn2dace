@@ -9,36 +9,30 @@ class Importer:
         self.id_resolver = id_resolver
 
     @staticmethod
-    def Import_Interval(interval) -> K_Interval:
+    def Import_Interval(interval) -> HalfOpenInterval:
         """ Converts a Dawn interval into a Dawn2Dace interval. """
 
         if interval.WhichOneof("LowerLevel") == "special_lower_level":
             if interval.special_lower_level == 0:
-                begin = "0"
-                sort_key = 0
+                begin = 0
             else:
-                begin = "K-1"
-                sort_key = 10000 - 1
+                begin = Symbol('K') - 1
         elif interval.WhichOneof("LowerLevel") == "lower_level":
-            begin = str(interval.lower_level)
-            sort_key = interval.lower_level
+            begin = interval.lower_level
 
-        begin += "+" + str(interval.lower_offset)
-        sort_key += interval.lower_offset
+        begin += interval.lower_offset
 
         if interval.WhichOneof("UpperLevel") == "special_upper_level":
             if interval.special_upper_level == 0:
-                end = "0"
+                end = 0
             else:
-                # intervals are adapted to be inclusive so K-1 is what we want (starting from 0)
-                end = "K-1"
+                end = Symbol('K') - 1
         elif interval.WhichOneof("UpperLevel") == "upper_level":
-            end = str(interval.upper_level)
+            end = interval.upper_level
 
-        end += "+" + str(interval.upper_offset)
-        end += "+1" # since python interval are open we need to add 1.
+        end += interval.upper_offset
 
-        return K_Interval(begin, end, sort_key)
+        return HalfOpenInterval(begin, end + 1)
 
     def Import_MemoryAccesses(self, access: dict) -> list:
         ret = {}

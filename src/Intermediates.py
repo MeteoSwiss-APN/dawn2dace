@@ -1,4 +1,6 @@
 from enum import Enum
+from helpers import *
+
 
 def CreateUID() -> int:
     """ Creates unique identification numbers. """
@@ -6,26 +8,6 @@ def CreateUID() -> int:
         CreateUID.counter = 0
     CreateUID.counter += 1
     return CreateUID.counter
-
-class K_Interval:
-    """ Represents an interval [begin, end) in dimention K """
-
-    def __init__(self, begin, end, sort_key:int):
-        self.begin = begin
-        self.end = end
-        self.sort_key = sort_key
-
-    def __str__(self) -> str:
-        return "{}:{}".format(self.begin, self.end)
-
-    def __eq__(self, other) -> bool:
-        return self.begin == other.begin and self.end == other.end
-
-    def __ne__(self, other) -> bool:
-        return not self == other
-
-    def __hash__(self):
-        return hash(self.__dict__.values())
 
 
 class RelMemAcc1D:
@@ -43,7 +25,7 @@ class RelMemAcc1D:
     @classmethod
     def BoundingBox(cls, mem_accs):
         # Make list without None
-        mem_accs = [x for x in mem_accs if x]
+        mem_accs = [x for x in mem_accs if x is not None]
         if len(mem_accs) == 0:
             return None
         return cls(
@@ -74,7 +56,7 @@ class RelMemAcc3D(Any3D):
     @classmethod
     def BoundingBox(cls, mem_accs):
         # Make list without None
-        mem_accs = [x for x in mem_accs if x]
+        mem_accs = [x for x in mem_accs if x is not None]
         if len(mem_accs) == 0:
             return None
         i = RelMemAcc1D.BoundingBox(m.i for m in mem_accs)
@@ -188,7 +170,7 @@ def FuseMemAccDicts(dicts) -> dict:
 
 
 class DoMethod:
-    def __init__(self, k_interval:K_Interval, statements:list):
+    def __init__(self, k_interval:HalfOpenInterval, statements:list):
         self.uid = CreateUID()
         self.k_interval = k_interval
         self.statements = statements # List of Statement
