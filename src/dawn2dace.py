@@ -159,7 +159,6 @@ def AccountForKMapMemlets(stencils: list, id_resolver):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             if multi_stage.execution_order == 2: # parallel
-                multi_stage.SaveSpans()
                 for stage in multi_stage.stages:
                     for do_method in stage.do_methods:
                         for stmt in do_method.statements:
@@ -196,8 +195,6 @@ def AccountForIJMapMemlets(stencils: list):
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        stmt.SaveSpans()
-
                         # Taking care of the reads.
                         k_read_offset_dict = { id: -mem_acc.k.lower for id, mem_acc in stmt.unoffsetted_read_spans.items() if id in stmt.reads }
                         stmt.code = K_Offsetter(k_read_offset_dict).visit(stmt.code) # Offsetting the code.

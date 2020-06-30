@@ -8,118 +8,7 @@ def CreateUID() -> int:
         CreateUID.counter = 0
     CreateUID.counter += 1
     return CreateUID.counter
-
-
-class RelMemAcc1D:
-    """ A relative memory access in 1 dimension [lower, upper]. """
-
-    def __init__(self, interval:ClosedInterval):
-        self.interval = interval
-
-    def offset(self, value: int = 0):
-        self.lower += value
-        self.upper += value
-        return self
-
-    @classmethod
-    def BoundingBox(cls, mem_accs):
-        # Make list without None
-        mem_accs = [x for x in mem_accs if x is not None]
-        if len(mem_accs) == 0:
-            return None
-        return cls(
-            min(m.lower for m in mem_accs),
-            max(m.upper for m in mem_accs)
-        )
-
-
-class RelMemAcc3D(Any3D):
-    """ A relativ memory access in 3 dimensions. """
-
-    def __init__(self, i_lower, i_upper, j_lower, j_upper, k_lower, k_upper):
-        Any3D.__init__(self,
-                       RelMemAcc1D(i_lower, i_upper),
-                       RelMemAcc1D(j_lower, j_upper),
-                       RelMemAcc1D(k_lower, k_upper)
-                       )
-
-    def offset(self, i: int = 0, j: int = 0, k: int = 0):
-        self.i.offset(i)
-        self.j.offset(j)
-        self.k.offset(k)
-        return self
-
-    def to_list(self) -> list:
-        return [self.i.lower, self.i.upper, self.j.lower, self.j.upper, self.k.lower, self.k.upper]
-
-    @classmethod
-    def BoundingBox(cls, mem_accs):
-        # Make list without None
-        mem_accs = [x for x in mem_accs if x is not None]
-        if len(mem_accs) == 0:
-            return None
-        i = RelMemAcc1D.BoundingBox(m.i for m in mem_accs)
-        j = RelMemAcc1D.BoundingBox(m.j for m in mem_accs)
-        k = RelMemAcc1D.BoundingBox(m.k for m in mem_accs)
-        return cls(i.lower, i.upper, j.lower, j.upper, k.lower, k.upper)
-
-
-class MemoryAccess1D:
-    """ Represents a relativ interval [lower, upper] """
-
-    def __init__(self, lower:int, upper:int):
-        self.lower = lower
-        self.upper = upper
-        
-    @classmethod
-    def GetSpan(cls, mem_accs):
-        """
-        Returns the hull of intervals or None if empty.
-        mem_accs: May include None. Nones are ignored.
-        """
-
-        mem_accs = [m for m in mem_accs if m is not None]
-        
-        if mem_accs:
-            return cls(
-                min((m.lower for m in mem_accs)),
-                max((m.upper for m in mem_accs))
-            )
-        return None
-
-    def offset(self, value:int):
-        self.lower += value
-        self.upper += value
-
-
-class MemoryAccess3D:
-    def __init__(self, i:MemoryAccess1D, j:MemoryAccess1D, k:MemoryAccess1D):
-        self.i = i
-        self.j = j
-        self.k = k
-
-    @classmethod
-    def GetSpan(cls, mem_accs):
-        """
-        Returns the hull of intervals or None if empty.
-        mem_accs: May include None. Nones are ignored.
-        """
-
-        mem_accs = [m for m in mem_accs if m is not None]
-
-        if mem_accs:
-            return cls(
-                MemoryAccess1D.GetSpan((m.i for m in mem_accs)),
-                MemoryAccess1D.GetSpan((m.j for m in mem_accs)),
-                MemoryAccess1D.GetSpan((m.k for m in mem_accs))
-            )
-        return None
-
-    def offset(self, i:int = 0, j:int = 0, k:int = 0):
-        self.i.offset(i)
-        self.j.offset(j)
-        self.k.offset(k)
-    
+ 
 
 class Statement:
     def __init__(self, code, line:int, reads:dict, writes:dict):
@@ -127,8 +16,8 @@ class Statement:
         self.line = CreateUID()
         self.reads = reads # dict[id, RelMemAcc3D]
         self.writes = writes # dict[id, RelMemAcc3D]
-        self.unoffsetted_read_spans = None #dict[id, RelMemAcc3D]
-        self.unoffsetted_write_spans = None #dict[id, RelMemAcc3D]
+        self.unoffsetted_read_spans = copy.deepcopy(self.reads) #dict[id, RelMemAcc3D]
+        self.unoffsetted_write_spans = copy.deepcopy(self.writes) #dict[id, RelMemAcc3D]
     
     def __str__(self):
         return "Line{}".format(self.line)
@@ -137,11 +26,6 @@ class Statement:
         return self.reads
     def GetWriteSpans(self) -> dict:
         return self.writes
-
-    def SaveSpans(self):
-        import copy
-        self.unoffsetted_read_spans = copy.deepcopy(self.GetReadSpans())
-        self.unoffsetted_write_spans = copy.deepcopy(self.GetWriteSpans())
         
 
 def FuseMemAccDicts(dicts) -> dict:
@@ -166,9 +50,9 @@ class DoMethod:
         return "Line{}".format(self.uid)
 
     def GetReadSpans(self) -> dict:
-        return FuseMemAccDicts((x.GetReadSpans() for x in self.statements))
+        return FuseMemAccDicts(x.GetReadSpans() for x in self.statements)
     def GetWriteSpans(self) -> dict:
-        return FuseMemAccDicts((x.GetWriteSpans() for x in self.statements))
+        return FuseMemAccDicts(x.GetWriteSpans() for x in self.statements)
 
 class Stage:
     def __init__(self, do_methods:list, i_minus, i_plus, j_minus, j_plus, k_minus, k_plus):
@@ -205,22 +89,16 @@ class MultiStage:
         self.uid = CreateUID()
         self.execution_order = execution_order
         self.stages = stages
-        self.unoffsetted_read_spans = None #dict[id, mem_acc_3D]
-        self.unoffsetted_write_spans = None #dict[id, mem_acc_3D]
+        self.unoffsetted_read_spans = copy.deepcopy(self.GetReadSpans())
+        self.unoffsetted_write_spans = copy.deepcopy(self.GetWriteSpans())
 
     def __str__(self):
         return "state_{}".format(self.uid)
 
     def GetReadSpans(self) -> dict:
-        return FuseMemAccDicts((x.GetReadSpans() for x in self.stages))
+        return FuseMemAccDicts(x.GetReadSpans() for x in self.stages)
     def GetWriteSpans(self) -> dict:
-        return FuseMemAccDicts((x.GetWriteSpans() for x in self.stages))
-
-    def SaveSpans(self):
-        import copy
-        self.unoffsetted_read_spans = copy.deepcopy(self.GetReadSpans())
-        self.unoffsetted_write_spans = copy.deepcopy(self.GetWriteSpans())
-
+        return FuseMemAccDicts(x.GetWriteSpans() for x in self.stages)
 
 
 class Stencil:
