@@ -35,7 +35,7 @@ def ReplaceKeywords(stencils: list):
                     for stmt in do_method.statements:
                         stmt.code = KeywordReplacer().visit(stmt.code)
 
-class Renamer(ast.NodeTransformer):
+class InOut_Renamer(ast.NodeTransformer):
     def __init__(self):
         self.storemode = False
 
@@ -46,6 +46,7 @@ class Renamer(ast.NodeTransformer):
             return node
         if node.id.startswith('__local'):
             return node
+
         if self.storemode or isinstance(node.ctx, ast.Store):
             node.id += '_out'
         elif isinstance(node.ctx, ast.Load):
@@ -75,7 +76,7 @@ class Renamer(ast.NodeTransformer):
             self.visit(arg)
         return node
 
-def RenameVariables(stencils: list):
+def RenameVariables_InOut(stencils: list):
     """
     Renames all variables that are read from by adding a suffix '_in'.
     Renames all variables that are written to by adding a suffix '_out'.
@@ -86,7 +87,7 @@ def RenameVariables(stencils: list):
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
                         tree = ast.parse(stmt.code)
-                        stmt.code = astunparse.unparse(Renamer().visit(tree))
+                        stmt.code = astunparse.unparse(InOut_Renamer().visit(tree))
                         print(stmt.code)
 
 
@@ -141,9 +142,9 @@ def AccountForIJMap(stencils: list):
 
 
 class K_Offsetter(IIR_Transformer):
-    """ Ofsets the k-index by a given value per id. """
+    """ Offsets the k-index by a given value per id. """
     def __init__(self, k_offsets:dict):
-        self.k_offsets = k_offsets # dict[id, int]
+        self.k_offsets = k_offsets # dict[id, offset]
 
     def visit_FieldAccessExpr(self, expr):
         id = expr.data.accessID.value
@@ -207,7 +208,7 @@ def AccountForIJMapMemlets(stencils: list):
 
 
 class DimensionalReducer(IIR_Transformer):
-    def __init__(self, id_resolver:IdResolver, transfer:dict):
+    def __init__(self, id_resolver:IdResolver, transfer:set):
         self.id_resolver = id_resolver
         self.transfer = transfer
 
@@ -216,7 +217,6 @@ class DimensionalReducer(IIR_Transformer):
         if id in self.transfer:
             name = self.id_resolver.GetName(id)
             dims = self.id_resolver.GetDimensions(id)
-            mem_acc = self.transfer[id]
 
             if not dims.i:
                 expr.cartesian_offset.i_offset = -1000
@@ -227,7 +227,7 @@ class DimensionalReducer(IIR_Transformer):
         return expr
 
 class DimensionalReducerRead(DimensionalReducer):
-    def __init__(self, id_resolver:IdResolver, reads:dict):
+    def __init__(self, id_resolver:IdResolver, reads:set):
         super().__init__(id_resolver, reads)
 
     def visit_AssignmentExpr(self, expr):
@@ -235,7 +235,7 @@ class DimensionalReducerRead(DimensionalReducer):
         return expr
 
 class DimensionalReducerWrite(DimensionalReducer):
-    def __init__(self, id_resolver:IdResolver, writes:dict):
+    def __init__(self, id_resolver:IdResolver, writes:set):
         super().__init__(id_resolver, writes)
 
     def visit_AssignmentExpr(self, expr):
@@ -248,8 +248,8 @@ def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        stmt.code = DimensionalReducerRead(id_resolver, stmt.reads).visit(stmt.code)
-                        stmt.code = DimensionalReducerWrite(id_resolver, stmt.writes).visit(stmt.code)
+                        stmt.code = DimensionalReducerRead(id_resolver, stmt.reads.keys()).visit(stmt.code)
+                        stmt.code = DimensionalReducerWrite(id_resolver, stmt.writes.keys()).visit(stmt.code)
 
 
 def UnparseCode(stencils: list, id_resolver:IdResolver):
@@ -286,7 +286,7 @@ def IIR_str_to_SDFG(iir: str):
     #AccountForIJMap(stencils)
     RemoveUnusedDimensions(id_resolver, stencils)
     UnparseCode(stencils, id_resolver)
-    RenameVariables(stencils)
+    RenameVariables_InOut(stencils)
 
     exp = Exporter(id_resolver, sdfg)
 

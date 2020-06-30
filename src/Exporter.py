@@ -164,39 +164,22 @@ class Exporter:
             if x != 0:
                 return x * first_order_stride
 
-    def Export_MemoryAccess3D(self, id:int, mem_acc:MemoryAccess3D, relative_to_k) -> str:
-        if not isinstance(mem_acc, MemoryAccess3D):
-            raise TypeError("Expected MemoryAccess3D, got: {}".format(type(mem_acc).__name__))
-        
-        dims = self.id_resolver.GetDimensions(id)
-        if (dims.i == 0) and (dims.j == 0) and (dims.k == 0):
-            return "0"
-
-        i_str = "i+{}:i+{}".format(mem_acc.i.lower, mem_acc.i.upper + 1)
-        j_str = "j+{}:j+{}".format(mem_acc.j.lower, mem_acc.j.upper + 1)
-        if relative_to_k:
-            k_str = "k+{}:k+{}".format(mem_acc.k.lower, mem_acc.k.upper + 1)
-        else:
-            k_str = "{}:{}".format(mem_acc.k.lower, mem_acc.k.upper + 1)
-        
-        return ', '.join(dim_filter(dims, i_str, j_str, k_str))
-
-    def Export_Accesses(self, id:int, mem_acc:MemoryAccess3D):
+    def Export_Accesses(self, id:int, mem_acc:ClosedInterval3D):
         """
         Returns a pair containing the following two things:
         - A 3-tuple of bools to denote wich dimensions are non-degenerated.
         - A list of accesses where the array is accessed.
         """
 
-        if not isinstance(mem_acc, MemoryAccess3D):
-            raise TypeError("Expected MemoryAccess3D, got: {}".format(type(mem_acc).__name__))
+        if not isinstance(mem_acc, ClosedInterval3D):
+            raise TypeError("Expected ClosedInterval3D, got: {}".format(type(mem_acc).__name__))
 
         dims = self.id_resolver.GetDimensions(id)
 
         # TODO: This is the bounding box of all memory accesses, thus suboptimal and can be improved to not include unused data.
-        accs = [dim_filter(dims, i, j, k) for i in range(mem_acc.i.lower, mem_acc.i.upper + 1)
-                                          for j in range(mem_acc.j.lower, mem_acc.j.upper + 1)
-                                          for k in range(0, mem_acc.k.upper + 1 - mem_acc.k.lower)]
+        accs = [dim_filter(dims, i, j, k) for i in mem_acc.i.range()
+                                          for j in mem_acc.j.range()
+                                          for k in mem_acc.k.range()]
         dimensions_present = ToMemLayout(
             dims.i != 0,
             dims.j != 0,
@@ -205,10 +188,11 @@ class Exporter:
         return (dimensions_present, accs)
 
     def Create_Variable_Access_map(self, transactions:dict, suffix:str) -> dict:
-        """ Returns a map of variable names (suffixed) and its saccesses. """
+        """ Returns a map of variable names (suffixed) and its accesses. """
         memlets = {}
         for id, mem_acc in transactions.items():
             name = self.id_resolver.GetName(id)
+
             if self.id_resolver.IsLocal(id):
                 continue
             if self.id_resolver.IsALiteral(id):
@@ -235,7 +219,6 @@ class Exporter:
                 apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
 
                 self.try_add_array(sub_sdfg, all - locals - globals)
-                # self.try_add_transient(sub_sdfg, locals)
                 self.try_add_scalar(sub_sdfg, reads & globals)
 
                 self.try_add_transient(self.sdfg, all - locals - globals)
@@ -244,9 +227,9 @@ class Exporter:
                 collected_input_ids.extend(reads - literals - locals)
                 collected_output_ids.extend(writes - literals - locals)
 
-                unoffsetted_read_span = MemoryAccess3D.GetSpan([x for stmt in do_method.statements for x in stmt.unoffsetted_read_spans.values()])
-                unoffsetted_write_span = MemoryAccess3D.GetSpan([x for stmt in do_method.statements for x in stmt.unoffsetted_write_spans.values()])
-                unoffsetted_span = MemoryAccess3D.GetSpan([unoffsetted_read_span, unoffsetted_write_span])
+                unoffsetted_read_span = Hull([x for stmt in do_method.statements for x in stmt.unoffsetted_read_spans.values()])
+                unoffsetted_write_span = Hull([x for stmt in do_method.statements for x in stmt.unoffsetted_write_spans.values()])
+                unoffsetted_span = Hull([unoffsetted_read_span, unoffsetted_write_span])
 
                 halo_i_lower = -unoffsetted_span.i.lower
                 halo_i_upper = unoffsetted_span.i.upper
@@ -427,9 +410,9 @@ class Exporter:
                 self.try_add_transient(self.sdfg, all - locals)
                 self.try_add_scalar(self.sdfg, reads & globals)
 
-                unoffsetted_read_span = MemoryAccess3D.GetSpan([x for stmt in do_method.statements for x in stmt.unoffsetted_read_spans.values()])
-                unoffsetted_write_span = MemoryAccess3D.GetSpan([x for stmt in do_method.statements for x in stmt.unoffsetted_write_spans.values()])
-                unoffsetted_span = MemoryAccess3D.GetSpan([unoffsetted_read_span, unoffsetted_write_span])
+                unoffsetted_read_span = Hull([x for stmt in do_method.statements for x in stmt.unoffsetted_read_spans.values()])
+                unoffsetted_write_span = Hull([x for stmt in do_method.statements for x in stmt.unoffsetted_write_spans.values()])
+                unoffsetted_span = Hull([unoffsetted_read_span, unoffsetted_write_span])
 
                 halo_i_lower = -stage.i_minus
                 halo_i_upper = stage.i_plus
@@ -473,7 +456,7 @@ class Exporter:
 
                     dims = self.id_resolver.GetDimensions(id)
                     read = state.add_read(name)
-                    k_mem_acc = MemoryAccess3D.GetSpan(stmt.unoffsetted_read_spans.get(id, None) for stmt in do_method.statements).k
+                    k_mem_acc = Hull(stmt.unoffsetted_read_spans[id] for stmt in do_method.statements if id in stmt.unoffsetted_read_spans).k
                     input_memlet_subst = ','.join(dim_filter(dims,
                         "0:I",
                         "0:J",
@@ -498,7 +481,7 @@ class Exporter:
 
                     dims = self.id_resolver.GetDimensions(id)
                     write = state.add_write(name)
-                    k_mem_acc = MemoryAccess3D.GetSpan([stmt.unoffsetted_write_spans.get(id, None) for stmt in do_method.statements]).k
+                    k_mem_acc = Hull(stmt.unoffsetted_write_spans[id] for stmt in do_method.statements if id in stmt.unoffsetted_write_spans).k
                     output_memlet_subst = ','.join(dim_filter(dims,
                         "{}:I-{}".format(halo_i_lower, halo_i_upper),
                         "{}:J-{}".format(halo_j_lower, halo_j_upper),
@@ -534,12 +517,12 @@ class Exporter:
                 last_state = state
 
         if execution_order == ExecutionOrder.Forward_Loop.value:
-            initialize_expr = interval.begin
-            condition_expr = "k < {}".format(interval.end)
+            initialize_expr = k_interval.lower
+            condition_expr = "k < {}".format(k_interval.upper)
             increment_expr = "k + 1"
         else:
-            initialize_expr = interval.end + "-1"
-            condition_expr = "k >= {}".format(interval.begin)
+            initialize_expr = k_interval.upper + "-1"
+            condition_expr = "k >= {}".format(k_interval.lower)
             increment_expr = "k - 1"
 
         _, _, last_state  = self.sdfg.add_loop(
@@ -566,7 +549,7 @@ class Exporter:
         intervals = list(intervals)
         
         intervals.sort(
-            key = lambda interval: Eval(interval.lower, 'K', 1000),
+            key = lambda interval: FullEval(interval.lower, 'K', 1000),
             reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
         )
 

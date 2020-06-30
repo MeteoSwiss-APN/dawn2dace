@@ -137,16 +137,18 @@ class SymbolicSum:
             else:
                 symbols.append(s)
                 positive.append(p)
-                
-        if self.IsInteger():
-            return self.integer + sum
-        return SymbolicSum(symbols, positive, self.integer + sum)
+
+        self.symbols = symbols
+        self.positive = positive
+        self.integer += sum
+        return self
 
 
-def Eval(expr, symbol, value):
+def FullEval(expr, symbol, value) -> int:
     if isinstance(expr, int):
         return expr
-    return expr.Eval(symbol, value)
+    expr = copy.deepcopy(expr)
+    return expr.Eval(symbol, value).integer
 
 
 class HalfOpenInterval:
@@ -174,8 +176,16 @@ class HalfOpenInterval:
     def __hash__(self):
         return hash(self.__dict__.values())
 
+    def offset(self, offset:int):
+        self.lower += offset
+        self.upper += offset
+        return self
+
     def to_closed_interval(self):
         return ClosedInterval(self.lower, self.upper - 1)
+
+    def range(self):
+        return range(self.lower, self.upper)
 
 
 class ClosedInterval:
@@ -203,5 +213,54 @@ class ClosedInterval:
     def __hash__(self):
         return hash(self.__dict__.values())
 
+    def offset(self, offset:int):
+        self.lower += offset
+        self.upper += offset
+        return self
+
     def to_halfopen_interval(self):
         return HalfOpenInterval(self.lower, self.upper + 1)
+
+    def range(self):
+        return range(self.lower, self.upper + 1)
+
+
+class ClosedInterval3D(Any3D):
+    def __init__(self, i_lower, i_upper, j_lower, j_upper, k_lower, k_upper):
+        Any3D.__init__(self,
+            ClosedInterval(i_lower, i_upper),
+            ClosedInterval(j_lower, j_upper),
+            ClosedInterval(k_lower, k_upper),
+        )
+
+    def offset(self, i: int = 0, j: int = 0, k: int = 0):
+        self.i.offset(i)
+        self.j.offset(j)
+        self.k.offset(k)
+        return self
+
+    # def to_list(self) -> list:
+    #     return [self.i.lower, self.i.upper, self.j.lower, self.j.upper, self.k.lower, self.k.upper]
+
+    def range(self):
+        for i in self.i.range():
+            for j in self.j.range():
+                for k in self.k.range():
+                    yield i,j,k
+
+
+
+def Hull(intervals):
+    intervals = list(x for x in intervals if x is not None)
+    if len(intervals) == 0:
+        return None
+    if isinstance(intervals[0], ClosedInterval):
+        return ClosedInterval(min(x.lower for x in intervals), max(x.upper for x in intervals))
+    if isinstance(intervals[0], HalfOpenInterval):
+        return HalfOpenInterval(min(x.lower for x in intervals), max(x.upper for x in intervals))
+    if isinstance(intervals[0], ClosedInterval3D):
+        return ClosedInterval3D(
+            min(x.i.lower for x in intervals), max(x.i.upper for x in intervals),
+            min(x.j.lower for x in intervals), max(x.j.upper for x in intervals),
+            min(x.k.lower for x in intervals), max(x.k.upper for x in intervals)
+        )

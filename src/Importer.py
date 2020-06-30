@@ -40,15 +40,14 @@ class Importer:
             if self.id_resolver.IsALiteral(id):
                 continue # Literals don't need processing.
 
-            i_extent = acc.cartesian_extent.i_extent
-            j_extent = acc.cartesian_extent.j_extent
-            k_extent = acc.vertical_extent
-
-            i = MemoryAccess1D(i_extent.minus, i_extent.plus)
-            j = MemoryAccess1D(j_extent.minus, j_extent.plus)
-            k = MemoryAccess1D(k_extent.minus, k_extent.plus)
-
-            ret[id] = MemoryAccess3D(i, j, k)
+            ret[id] = ClosedInterval3D(
+                acc.cartesian_extent.i_extent.minus,
+                acc.cartesian_extent.i_extent.plus,
+                acc.cartesian_extent.j_extent.minus,
+                acc.cartesian_extent.j_extent.plus,
+                acc.vertical_extent.minus,
+                acc.vertical_extent.plus,
+            )
         return ret
 
     def Import_Statement(self, stmt) -> Statement:
@@ -67,13 +66,20 @@ class Importer:
         )
 
     def Import_Stage(self, stage) -> Stage:
+        assert stage.extents.cartesian_extent.i_extent.minus <= 0
+        assert stage.extents.cartesian_extent.i_extent.plus >= 0
+        assert stage.extents.cartesian_extent.j_extent.minus <= 0
+        assert stage.extents.cartesian_extent.j_extent.plus >= 0
+        assert stage.extents.vertical_extent.minus <= 0
+        assert stage.extents.vertical_extent.plus >= 0
+        
         return Stage(
             [self.Import_DoMethod(dm) for dm in stage.doMethods],
-            stage.extents.cartesian_extent.i_extent.minus,
+            -stage.extents.cartesian_extent.i_extent.minus,
             stage.extents.cartesian_extent.i_extent.plus,
-            stage.extents.cartesian_extent.j_extent.minus,
+            -stage.extents.cartesian_extent.j_extent.minus,
             stage.extents.cartesian_extent.j_extent.plus,
-            stage.extents.vertical_extent.minus,
+            -stage.extents.vertical_extent.minus,
             stage.extents.vertical_extent.plus
         )
 

@@ -13,9 +13,8 @@ def CreateUID() -> int:
 class RelMemAcc1D:
     """ A relative memory access in 1 dimension [lower, upper]. """
 
-    def __init__(self, lower: int, upper: int):
-        self.lower = lower
-        self.upper = upper
+    def __init__(self, interval:ClosedInterval):
+        self.interval = interval
 
     def offset(self, value: int = 0):
         self.lower += value
@@ -120,28 +119,16 @@ class MemoryAccess3D:
         self.i.offset(i)
         self.j.offset(j)
         self.k.offset(k)
-
-
-def MergeMemAccDicts(dicts) -> dict:
-    """ dicts: An iteratable of dicts. """
-    ret = {}
-    for d in dicts:
-        for id, mem_acc in d.items():
-            if id in ret:
-                ret[id] = MemoryAccess3D.GetSpan([ret[id], mem_acc])  # Hull of old an new.
-            else:
-                ret[id] = mem_acc
-    return ret
     
 
 class Statement:
     def __init__(self, code, line:int, reads:dict, writes:dict):
         self.code = code
         self.line = CreateUID()
-        self.reads = reads # dict[id, MemoryAccess3D]
-        self.writes = writes # dict[id, MemoryAccess3D]
-        self.unoffsetted_read_spans = None #dict[id, mem_acc_3D]
-        self.unoffsetted_write_spans = None #dict[id, mem_acc_3D]
+        self.reads = reads # dict[id, RelMemAcc3D]
+        self.writes = writes # dict[id, RelMemAcc3D]
+        self.unoffsetted_read_spans = None #dict[id, RelMemAcc3D]
+        self.unoffsetted_write_spans = None #dict[id, RelMemAcc3D]
     
     def __str__(self):
         return "Line{}".format(self.line)
@@ -163,7 +150,7 @@ def FuseMemAccDicts(dicts) -> dict:
     for d in dicts:
         for id, mem_acc in d.items():
             if id in ret:
-                ret[id] = MemoryAccess3D.GetSpan([ret[id], mem_acc]) # Hull of old an new.
+                ret[id] = Hull([ret[id], mem_acc]) # Hull of old an new.
             else:
                 ret[id] = mem_acc
     return ret
@@ -185,6 +172,13 @@ class DoMethod:
 
 class Stage:
     def __init__(self, do_methods:list, i_minus, i_plus, j_minus, j_plus, k_minus, k_plus):
+        assert i_minus >= 0
+        assert i_plus >= 0
+        assert j_minus >= 0
+        assert j_plus >= 0
+        assert k_minus >= 0
+        assert k_plus >= 0
+
         self.uid = CreateUID()
         self.do_methods = do_methods
         self.i_minus = i_minus
