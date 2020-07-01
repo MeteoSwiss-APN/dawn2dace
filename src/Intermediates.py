@@ -54,9 +54,9 @@ class Statement:
         return self.__original_reads
     def OriginalWrites(self) -> dict:
         return self.__original_writes
-    def ReadKeys(self) -> set:
+    def ReadIds(self) -> set:
         return self.code_reads.keys()
-    def WriteKeys(self) -> set:
+    def WriteIds(self) -> set:
         return self.code_writes.keys()
 
     def offset_reads(self, k_offsets:dict):
@@ -87,10 +87,10 @@ class DoMethod:
         return FuseIntervalDicts(x.OriginalReads() for x in self.statements)
     def OriginalWrites(self) -> dict:
         return FuseIntervalDicts(x.OriginalWrites() for x in self.statements)
-    def ReadKeys(self) -> set:
-        return set().union(*[x.ReadKeys() for x in self.statements])
-    def WriteKeys(self) -> set:
-        return set().union(*[x.WriteKeys() for x in self.statements])
+    def ReadIds(self) -> set:
+        return set().union(*[x.ReadIds() for x in self.statements])
+    def WriteIds(self) -> set:
+        return set().union(*[x.WriteIds() for x in self.statements])
 
 class Stage:
     def __init__(self, do_methods:list, i_minus, i_plus, j_minus, j_plus, k_minus, k_plus):
@@ -118,10 +118,10 @@ class Stage:
         return FuseIntervalDicts(x.OriginalReads() for x in self.do_methods)
     def OriginalWrites(self) -> dict:
         return FuseIntervalDicts(x.OriginalWrites() for x in self.do_methods)
-    def ReadKeys(self) -> set:
-        return set().union(*[x.ReadKeys() for x in self.do_methods])
-    def WriteKeys(self) -> set:
-        return set().union(*[x.WriteKeys() for x in self.do_methods])
+    def ReadIds(self) -> set:
+        return set().union(*[x.ReadIds() for x in self.do_methods])
+    def WriteIds(self) -> set:
+        return set().union(*[x.WriteIds() for x in self.do_methods])
 
 
 class ExecutionOrder(Enum):
@@ -147,10 +147,10 @@ class MultiStage:
         return FuseIntervalDicts(x.OriginalReads() for x in self.stages)
     def OriginalWrites(self) -> dict:
         return FuseIntervalDicts(x.OriginalWrites() for x in self.stages)
-    def ReadKeys(self) -> set:
-        return set().union(*[x.ReadKeys() for x in self.stages])
-    def WriteKeys(self) -> set:
-        return set().union(*[x.WriteKeys() for x in self.stages])
+    def ReadIds(self) -> set:
+        return set().union(*[x.ReadIds() for x in self.stages])
+    def WriteIds(self) -> set:
+        return set().union(*[x.WriteIds() for x in self.stages])
 
 
 class Stencil:

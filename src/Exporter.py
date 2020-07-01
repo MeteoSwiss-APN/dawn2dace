@@ -213,8 +213,8 @@ class Exporter:
                 if do_method.k_interval != k_interval:
                     continue
 
-                reads = do_method.ReadKeys()
-                writes = do_method.WriteKeys()
+                reads = do_method.ReadIds()
+                writes = do_method.WriteIds()
                 all = reads | writes
                 apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
                 assert len(literals) == 0
@@ -404,8 +404,8 @@ class Exporter:
                 if do_method.k_interval != k_interval:
                     continue
 
-                reads = do_method.ReadKeys()
-                writes = do_method.WriteKeys()
+                reads = do_method.ReadIds()
+                writes = do_method.WriteIds()
                 all = reads | writes
                 apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
                 assert len(literals) == 0
