@@ -205,9 +205,7 @@ class Exporter:
         multi_stage_state = self.sdfg.add_state("state_{}".format(CreateUID()))
         sub_sdfg = dace.SDFG("ms_subsdfg{}".format(CreateUID()))
         last_state = None
-        # to connect them we need all input and output names
-        collected_input_ids = []
-        collected_output_ids = []
+        
         for stage in multi_stage.stages:
             for do_method in stage.do_methods:
                 if do_method.k_interval != k_interval:
@@ -220,14 +218,11 @@ class Exporter:
                 assert len(literals) == 0
                 assert len(locals) == 0
 
-                self.try_add_array(sub_sdfg, all - locals - globals)
+                self.try_add_array(sub_sdfg, all - globals)
                 self.try_add_scalar(sub_sdfg, reads & globals)
 
-                self.try_add_transient(self.sdfg, all - locals - globals)
+                self.try_add_transient(self.sdfg, all - globals)
                 self.try_add_scalar(self.sdfg, reads & globals)
-
-                collected_input_ids.extend(reads - literals - locals)
-                collected_output_ids.extend(writes - literals - locals)
 
                 unoffsetted_read_span = Hull(x for stmt in do_method.statements for x in stmt.CodeReads().values())
                 unoffsetted_write_span = Hull(x for stmt in do_method.statements for x in stmt.CodeWrites().values())
@@ -330,21 +325,24 @@ class Exporter:
                     sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                 last_state = state
 
-        collected_input_names = set(self.id_resolver.GetName(id) for id in collected_input_ids)
-        collected_output_names = set(self.id_resolver.GetName(id) for id in collected_output_ids)
+        read_ids = multi_stage.ReadIds(k_interval)
+        write_ids = multi_stage.WriteIds(k_interval)
+
+        read_names = set(self.id_resolver.GetName(id) for id in read_ids)
+        write_names = set(self.id_resolver.GetName(id) for id in write_ids)
 
         nested_sdfg = multi_stage_state.add_nested_sdfg(
             sub_sdfg, 
             self.sdfg,
-            collected_input_names,
-            collected_output_names,
+            read_names,
+            write_names,
             {'halo' : dace.symbol('halo'), 'I' : dace.symbol('I'), 'J' : dace.symbol('J'), 'K' : dace.symbol('K')}
         )
 
         map_entry, map_exit = multi_stage_state.add_map("kmap", dict(k=str(k_interval)))
 
         # input memlets
-        for id in set(collected_input_ids):
+        for id in read_ids:
             name = self.id_resolver.GetName(id)
             dims = self.id_resolver.GetDimensions(id)
 
@@ -363,13 +361,13 @@ class Exporter:
                 dst_conn = name,
                 propagate=True
             )
-        if len(collected_input_ids) == 0:
+        if len(read_ids) == 0:
             # If there are no inputs to this SDFG, connect it to the map with an empty memlet
             # to keep it in the scope.
             multi_stage_state.add_edge(map_entry, None, nested_sdfg, None, dace.EmptyMemlet())
 
         # output memlets
-        for id in set(collected_output_ids):
+        for id in write_ids:
             name = self.id_resolver.GetName(id)
             dims = self.id_resolver.GetDimensions(id)
 

@@ -48,14 +48,19 @@ class Statement:
 
     def CodeReads(self) -> dict:
         return self.code_reads
+
     def CodeWrites(self) -> dict:
         return self.code_writes
+
     def OriginalReads(self) -> dict:
         return self.__original_reads
+
     def OriginalWrites(self) -> dict:
         return self.__original_writes
+
     def ReadIds(self) -> set:
         return self.code_reads.keys()
+
     def WriteIds(self) -> set:
         return self.code_writes.keys()
 
@@ -81,16 +86,25 @@ class DoMethod:
 
     def CodeReads(self) -> dict:
         return FuseIntervalDicts(x.CodeReads() for x in self.statements)
+
     def CodeWrites(self) -> dict:
         return FuseIntervalDicts(x.CodeWrites() for x in self.statements)
+
     def OriginalReads(self) -> dict:
         return FuseIntervalDicts(x.OriginalReads() for x in self.statements)
+
     def OriginalWrites(self) -> dict:
         return FuseIntervalDicts(x.OriginalWrites() for x in self.statements)
-    def ReadIds(self) -> set:
-        return set().union(*[x.ReadIds() for x in self.statements])
-    def WriteIds(self) -> set:
-        return set().union(*[x.WriteIds() for x in self.statements])
+
+    def ReadIds(self, k_interval:HalfOpenInterval=None) -> set:
+        if (k_interval is None) or (self.k_interval == k_interval):
+            return set().union(*[x.ReadIds() for x in self.statements])
+        return set()
+
+    def WriteIds(self, k_interval:HalfOpenInterval=None) -> set:
+        if (k_interval is None) or (self.k_interval == k_interval):
+            return set().union(*[x.WriteIds() for x in self.statements])
+        return set()
 
 class Stage:
     def __init__(self, do_methods:list, i_minus, i_plus, j_minus, j_plus, k_minus, k_plus):
@@ -112,16 +126,21 @@ class Stage:
 
     def CodeReads(self) -> dict:
         return FuseIntervalDicts(x.CodeReads() for x in self.do_methods)
+
     def CodeWrites(self) -> dict:
         return FuseIntervalDicts(x.CodeWrites() for x in self.do_methods)
+
     def OriginalReads(self) -> dict:
         return FuseIntervalDicts(x.OriginalReads() for x in self.do_methods)
+
     def OriginalWrites(self) -> dict:
         return FuseIntervalDicts(x.OriginalWrites() for x in self.do_methods)
-    def ReadIds(self) -> set:
-        return set().union(*[x.ReadIds() for x in self.do_methods])
-    def WriteIds(self) -> set:
-        return set().union(*[x.WriteIds() for x in self.do_methods])
+
+    def ReadIds(self, k_interval:HalfOpenInterval=None) -> set:
+        return set().union(*[x.ReadIds(k_interval) for x in self.do_methods])
+
+    def WriteIds(self, k_interval:HalfOpenInterval=None) -> set:
+        return set().union(*[x.WriteIds(k_interval) for x in self.do_methods])
 
 
 class ExecutionOrder(Enum):
@@ -141,16 +160,21 @@ class MultiStage:
 
     def CodeReads(self) -> dict:
         return FuseIntervalDicts(x.CodeReads() for x in self.stages)
+
     def CodeWrites(self) -> dict:
         return FuseIntervalDicts(x.CodeWrites() for x in self.stages)
+
     def OriginalReads(self) -> dict:
         return FuseIntervalDicts(x.OriginalReads() for x in self.stages)
+
     def OriginalWrites(self) -> dict:
         return FuseIntervalDicts(x.OriginalWrites() for x in self.stages)
-    def ReadIds(self) -> set:
-        return set().union(*[x.ReadIds() for x in self.stages])
-    def WriteIds(self) -> set:
-        return set().union(*[x.WriteIds() for x in self.stages])
+
+    def ReadIds(self, k_interval:HalfOpenInterval=None) -> set:
+        return set().union(*[x.ReadIds(k_interval) for x in self.stages])
+
+    def WriteIds(self, k_interval:HalfOpenInterval=None) -> set:
+        return set().union(*[x.WriteIds(k_interval) for x in self.stages])
 
 
 class Stencil:
