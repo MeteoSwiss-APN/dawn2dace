@@ -213,10 +213,12 @@ class Exporter:
                 if do_method.k_interval != k_interval:
                     continue
 
-                reads = do_method.GetReadSpans().keys()
-                writes = do_method.GetWriteSpans().keys()
+                reads = do_method.ReadKeys()
+                writes = do_method.WriteKeys()
                 all = reads | writes
                 apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
+                assert len(literals) == 0
+                assert len(locals) == 0
 
                 self.try_add_array(sub_sdfg, all - locals - globals)
                 self.try_add_scalar(sub_sdfg, reads & globals)
@@ -227,8 +229,8 @@ class Exporter:
                 collected_input_ids.extend(reads - literals - locals)
                 collected_output_ids.extend(writes - literals - locals)
 
-                unoffsetted_read_span = Hull([x for stmt in do_method.statements for x in stmt.unoffsetted_read_spans.values()])
-                unoffsetted_write_span = Hull([x for stmt in do_method.statements for x in stmt.unoffsetted_write_spans.values()])
+                unoffsetted_read_span = Hull(x for stmt in do_method.statements for x in stmt.CodeReads().values())
+                unoffsetted_write_span = Hull(x for stmt in do_method.statements for x in stmt.CodeWrites().values())
                 unoffsetted_span = Hull([unoffsetted_read_span, unoffsetted_write_span])
 
                 halo_i_lower = -unoffsetted_span.i.lower
@@ -251,8 +253,8 @@ class Exporter:
 
                 state = sub_sdfg.add_state("state_{}".format(CreateUID()))
 
-                input_fields = self.Create_Variable_Access_map(do_method.GetReadSpans(), '_in')
-                output_fields = self.Create_Variable_Access_map(do_method.GetWriteSpans(), '_out')
+                input_fields = self.Create_Variable_Access_map(do_method.CodeReads(), '_in')
+                output_fields = self.Create_Variable_Access_map(do_method.CodeWrites(), '_out')
 
                 stenc = StencilLib(
                     label = str(do_method),
@@ -265,7 +267,7 @@ class Exporter:
                 state.add_node(stenc)
                 
                 # Add stencil-input memlet paths, from state.read to stencil.
-                for id, mem_acc in do_method.GetReadSpans().items():
+                for id, mem_acc in do_method.CodeReads().items():
                     name = self.id_resolver.GetName(id)
                     if self.id_resolver.IsLocal(id):
                         continue
@@ -289,7 +291,7 @@ class Exporter:
                     )
 
                 # Add stencil-output memlet paths, from stencil to state.write.
-                for id, mem_acc in do_method.GetWriteSpans().items():
+                for id, mem_acc in do_method.CodeWrites().items():
                     name = self.id_resolver.GetName(id)
                     if self.id_resolver.IsLocal(id):
                         continue
@@ -347,7 +349,7 @@ class Exporter:
             dims = self.id_resolver.GetDimensions(id)
 
             read = multi_stage_state.add_read(name)
-            k_mem_acc = multi_stage.unoffsetted_read_spans[id].k
+            k_mem_acc = multi_stage.CodeReads()[id].k
             subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1)))
             if not subset_str:
                 subset_str = "0"
@@ -372,7 +374,7 @@ class Exporter:
             dims = self.id_resolver.GetDimensions(id)
 
             write = multi_stage_state.add_write(name)
-            k_mem_acc = multi_stage.unoffsetted_write_spans[id].k
+            k_mem_acc = multi_stage.CodeWrites()[id].k
             subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1)))
             if not subset_str:
                 subset_str = "0"
@@ -402,16 +404,18 @@ class Exporter:
                 if do_method.k_interval != k_interval:
                     continue
 
-                reads = do_method.GetReadSpans().keys()
-                writes = do_method.GetWriteSpans().keys()
+                reads = do_method.ReadKeys()
+                writes = do_method.WriteKeys()
                 all = reads | writes
                 apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
+                assert len(literals) == 0
+                assert len(locals) == 0
 
                 self.try_add_transient(self.sdfg, all - locals)
                 self.try_add_scalar(self.sdfg, reads & globals)
 
-                unoffsetted_read_span = Hull([x for stmt in do_method.statements for x in stmt.unoffsetted_read_spans.values()])
-                unoffsetted_write_span = Hull([x for stmt in do_method.statements for x in stmt.unoffsetted_write_spans.values()])
+                unoffsetted_read_span = Hull(x for stmt in do_method.statements for x in stmt.OriginalReads().values())
+                unoffsetted_write_span = Hull(x for stmt in do_method.statements for x in stmt.OriginalWrites().values())
                 unoffsetted_span = Hull([unoffsetted_read_span, unoffsetted_write_span])
 
                 halo_i_lower = -stage.i_minus
@@ -434,8 +438,8 @@ class Exporter:
 
                 state = self.sdfg.add_state("state_{}".format(CreateUID()))
 
-                input_fields = self.Create_Variable_Access_map(do_method.GetReadSpans(), '_in')
-                output_fields = self.Create_Variable_Access_map(do_method.GetWriteSpans(), '_out')
+                input_fields = self.Create_Variable_Access_map(do_method.CodeReads(), '_in')
+                output_fields = self.Create_Variable_Access_map(do_method.CodeWrites(), '_out')
 
                 stenc = StencilLib(
                     label = str(do_method),
@@ -449,14 +453,14 @@ class Exporter:
                 state.add_node(stenc)
                 
                 # Add stencil-input memlet paths, from state.read to stencil.
-                for id, mem_acc in do_method.GetReadSpans().items():
+                for id, mem_acc in do_method.CodeReads().items():
                     name = self.id_resolver.GetName(id)
                     if self.id_resolver.IsLocal(id):
                         continue
 
                     dims = self.id_resolver.GetDimensions(id)
                     read = state.add_read(name)
-                    k_mem_acc = Hull(stmt.unoffsetted_read_spans[id] for stmt in do_method.statements if id in stmt.unoffsetted_read_spans).k
+                    k_mem_acc = Hull(stmt.CodeReads()[id] for stmt in do_method.statements if id in stmt.CodeReads()).k
                     input_memlet_subst = ','.join(dim_filter(dims,
                         "0:I",
                         "0:J",
@@ -474,14 +478,14 @@ class Exporter:
                     )
 
                 # Add stencil-output memlet paths, from stencil to state.write.
-                for id, mem_acc in do_method.GetWriteSpans().items():
+                for id, mem_acc in do_method.CodeWrites().items():
                     name = self.id_resolver.GetName(id)
                     if self.id_resolver.IsLocal(id):
                         continue
 
                     dims = self.id_resolver.GetDimensions(id)
                     write = state.add_write(name)
-                    k_mem_acc = Hull(stmt.unoffsetted_write_spans[id] for stmt in do_method.statements if id in stmt.unoffsetted_write_spans).k
+                    k_mem_acc = Hull(stmt.CodeWrites()[id] for stmt in do_method.statements if id in stmt.CodeWrites()).k
                     output_memlet_subst = ','.join(dim_filter(dims,
                         "{}:I-{}".format(halo_i_lower, halo_i_upper),
                         "{}:J-{}".format(halo_j_lower, halo_j_upper),

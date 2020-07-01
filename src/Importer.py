@@ -34,11 +34,13 @@ class Importer:
 
         return HalfOpenInterval(begin, end + 1)
 
-    def Import_MemoryAccesses(self, access: dict) -> list:
+    def Import_MemoryAccesses(self, access: dict) -> dict:
         ret = {}
         for id, acc in access.items():
             if self.id_resolver.IsALiteral(id):
-                continue # Literals don't need processing.
+                continue # Literals are irrelevant.
+            if self.id_resolver.IsLocal(id):
+                continue # Locals are irrelevant.
 
             ret[id] = ClosedInterval3D(
                 acc.cartesian_extent.i_extent.minus,

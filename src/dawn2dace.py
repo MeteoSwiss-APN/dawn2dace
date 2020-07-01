@@ -116,40 +116,30 @@ def ExpandAssignmentOperator(stencils: list):
                         stmt.code = AssignmentExpander().visit(stmt.code)
 
 
-class IJ_Mapper(IIR_Transformer):
-    """ Offsets the i and j-index when there's a span. """
-    def __init__(self, transfer:dict):
-        self.transfer = transfer
+# class IJ_Mapper(IIR_Transformer):
+#     """ Offsets the i and j-index when there's a span. """
+#     def __init__(self, transfer:dict):
+#         self.transfer = transfer
 
-    def visit_FieldAccessExpr(self, expr):
-        id = expr.data.accessID.value
-        if id in self.transfer:
-            mem_acc = self.transfer[id]
-            if mem_acc.i.lower != mem_acc.i.upper:
-                expr.cartesian_offset.i_offset -= mem_acc.i.lower
-            if mem_acc.j.lower != mem_acc.j.upper:
-                expr.cartesian_offset.j_offset -= mem_acc.j.lower
-        return expr
+#     def visit_FieldAccessExpr(self, expr):
+#         id = expr.data.accessID.value
+#         if id in self.transfer:
+#             mem_acc = self.transfer[id]
+#             if mem_acc.i.lower != mem_acc.i.upper:
+#                 expr.cartesian_offset.i_offset -= mem_acc.i.lower
+#             if mem_acc.j.lower != mem_acc.j.upper:
+#                 expr.cartesian_offset.j_offset -= mem_acc.j.lower
+#         return expr
 
-def AccountForIJMap(stencils: list):
-    """ Offsets the i and j-index when there's a span. """
-    for stencil in stencils:
-        for multi_stage in stencil.multi_stages:
-            for stage in multi_stage.stages:
-                for do_method in stage.do_methods:
-                    for stmt in do_method.statements:
-                        stmt.code = IJ_Mapper(stmt.reads).visit(stmt.code)
+# def AccountForIJMap(stencils: list):
+#     """ Offsets the i and j-index when there's a span. """
+#     for stencil in stencils:
+#         for multi_stage in stencil.multi_stages:
+#             for stage in multi_stage.stages:
+#                 for do_method in stage.do_methods:
+#                     for stmt in do_method.statements:
+#                         stmt.code = IJ_Mapper(stmt.CodeReads()).visit(stmt.code)
 
-
-class K_Offsetter(IIR_Transformer):
-    """ Offsets the k-index by a given value per id. """
-    def __init__(self, k_offsets:dict):
-        self.k_offsets = k_offsets # dict[id, offset]
-
-    def visit_FieldAccessExpr(self, expr):
-        id = expr.data.accessID.value
-        expr.vertical_offset += self.k_offsets.get(id, 0) # offsets by 0 if not in dict.
-        return expr
 
 def AccountForKMapMemlets(stencils: list, id_resolver):
     """
@@ -159,33 +149,18 @@ def AccountForKMapMemlets(stencils: list, id_resolver):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             if multi_stage.execution_order == 2: # parallel
+                #define the slice of memory that will be mapped inside this multistage's scope.
+                original_reads = multi_stage.OriginalReads()
+                original_writes = multi_stage.OriginalWrites()
+
                 for stage in multi_stage.stages:
                     for do_method in stage.do_methods:
                         for stmt in do_method.statements:
-                            # Taking care of the reads.
-                            k_read_offset_dict = { # a dict{id:k_offset} where k_offset states how much an access to a variable needs to be offsetted.
-                                id: -mem_acc.k.lower 
-                                for id, mem_acc in multi_stage.unoffsetted_read_spans.items() 
-                                if id in stmt.reads and not id_resolver.IsLocal(id) # locals don't need offsetting
-                                }
-                            stmt.code = K_Offsetter(k_read_offset_dict).visit(stmt.code) # Offsetting the code.
+                            k_read_offsets = { id: -acc.k.lower for id, acc in original_reads.items() if id in stmt.CodeReads() }
+                            stmt.offset_reads(k_read_offsets)
 
-                            # Offsetting the AST.
-                            for id, offset in k_read_offset_dict.items():
-                                stmt.reads[id].offset(k = offset)
-
-
-                            # Taking care of the writes.
-                            k_write_offset_dict = { 
-                                id: -mem_acc.k.lower
-                                for id, mem_acc in multi_stage.unoffsetted_write_spans.items()
-                                if id in stmt.writes and not id_resolver.IsLocal(id) # locals don't need offsetting
-                                }
-                            stmt.code = K_Offsetter(k_write_offset_dict).visit(stmt.code) # Offsetting the code.
-
-                            # Offsetting the AST.
-                            for id, offset in k_write_offset_dict.items():
-                                stmt.writes[id].offset(k = offset)
+                            k_write_offsets = { id: -acc.k.lower for id, acc in original_writes.items() if id in stmt.CodeWrites() }
+                            stmt.offset_writes(k_write_offsets)
 
 
 def AccountForIJMapMemlets(stencils: list):
@@ -195,13 +170,11 @@ def AccountForIJMapMemlets(stencils: list):
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        # Taking care of the reads.
-                        k_read_offset_dict = { id: -mem_acc.k.lower for id, mem_acc in stmt.unoffsetted_read_spans.items() if id in stmt.reads }
-                        stmt.code = K_Offsetter(k_read_offset_dict).visit(stmt.code) # Offsetting the code.
+                        k_read_offsets = { id: -acc.k.lower for id, acc in stmt.CodeReads().items() }
+                        stmt.offset_reads(k_read_offsets)
 
-                        # Taking care of the writes.
-                        k_write_offset_dict = { id: -mem_acc.k.lower for id, mem_acc in stmt.unoffsetted_write_spans.items() if id in stmt.writes }
-                        stmt.code = K_Offsetter(k_write_offset_dict).visit(stmt.code) # Offsetting the code.
+                        k_write_offsets = { id: -acc.k.lower for id, acc in stmt.CodeWrites().items() }
+                        stmt.offset_writes(k_write_offsets)
 
 
 class DimensionalReducer(IIR_Transformer):
@@ -245,8 +218,8 @@ def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        stmt.code = DimensionalReducerRead(id_resolver, stmt.reads.keys()).visit(stmt.code)
-                        stmt.code = DimensionalReducerWrite(id_resolver, stmt.writes.keys()).visit(stmt.code)
+                        stmt.code = DimensionalReducerRead(id_resolver, stmt.CodeReads().keys()).visit(stmt.code)
+                        stmt.code = DimensionalReducerWrite(id_resolver, stmt.CodeWrites().keys()).visit(stmt.code)
 
 
 def UnparseCode(stencils: list, id_resolver:IdResolver):
