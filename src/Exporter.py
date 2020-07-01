@@ -177,29 +177,19 @@ class Exporter:
         dims = self.id_resolver.GetDimensions(id)
 
         # TODO: This is the bounding box of all memory accesses, thus suboptimal and can be improved to not include unused data.
-        accs = [dim_filter(dims, i, j, k) for i in mem_acc.i.range()
-                                          for j in mem_acc.j.range()
-                                          for k in mem_acc.k.range()]
+        accs = [ dim_filter(dims, i, j, k) for i,j,k in mem_acc.range() ]
         dimensions_present = ToMemLayout(
             dims.i != 0,
             dims.j != 0,
             dims.k != 0,
         )
-        return (dimensions_present, accs)
+        return dimensions_present, accs
 
     def Create_Variable_Access_map(self, transactions:dict, suffix:str) -> dict:
         """ Returns a map of variable names (suffixed) and its accesses. """
-        memlets = {}
-        for id, mem_acc in transactions.items():
-            name = self.id_resolver.GetName(id)
-
-            if self.id_resolver.IsLocal(id):
-                continue
-            if self.id_resolver.IsALiteral(id):
-                continue
-
-            memlets[name + suffix] = self.Export_Accesses(id, mem_acc)
-        return memlets
+        return { self.id_resolver.GetName(id) + suffix : self.Export_Accesses(id, acc)
+            for id, acc in transactions.items()
+            }
 
     def Export_parallel(self, multi_stage: MultiStage, k_interval: HalfOpenInterval):
         multi_stage_state = self.sdfg.add_state("state_{}".format(CreateUID()))
@@ -544,11 +534,10 @@ class Exporter:
         if not isinstance(multi_stage, MultiStage):
             raise TypeError("Expected MultiStage, got: {}".format(type(multi_stage).__name__))
 
-        intervals = set()
-        for stage in multi_stage.stages:
-            for do_method in stage.do_methods:
-                intervals.add(do_method.k_interval)
-        intervals = list(intervals)
+        intervals = list(set(do_method.k_interval
+            for stage in multi_stage.stages
+            for do_method in stage.do_methods
+            ))
         
         intervals.sort(
             key = lambda interval: FullEval(interval.lower, 'K', 1000),
