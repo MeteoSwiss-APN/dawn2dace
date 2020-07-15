@@ -77,15 +77,20 @@ class Importer:
         
         return Stage(
             [self.Import_DoMethod(dm) for dm in stage.doMethods],
-            -stage.extents.cartesian_extent.i_extent.minus,
-            stage.extents.cartesian_extent.i_extent.plus,
-            -stage.extents.cartesian_extent.j_extent.minus,
-            stage.extents.cartesian_extent.j_extent.plus,
-            -stage.extents.vertical_extent.minus,
-            stage.extents.vertical_extent.plus
-        )
+            ClosedInterval3D(
+                -stage.extents.cartesian_extent.i_extent.minus, # TODO: Fix the sign mess!
+                stage.extents.cartesian_extent.i_extent.plus,
+                -stage.extents.cartesian_extent.j_extent.minus,
+                stage.extents.cartesian_extent.j_extent.plus,
+                -stage.extents.vertical_extent.minus,
+                stage.extents.vertical_extent.plus
+        ))
 
     def Import_MultiStage(self, multi_stage) -> MultiStage:
+        if multi_stage.loopOrder == ExecutionOrder.Parallel.value:
+            for s in multi_stage.stages:
+                if len(s.doMethods) > 1:
+                    print('This parallel MS has a Stage with {} DoMethods!'.format(len(s.doMethods)))
         return MultiStage(
             execution_order = multi_stage.loopOrder,
             stages = [self.Import_Stage(s) for s in multi_stage.stages]

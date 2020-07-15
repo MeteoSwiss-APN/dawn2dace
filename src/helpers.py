@@ -79,6 +79,17 @@ class SymbolicSum:
         self.positive = positive
         self.integer = integer
 
+    def __eq__(self, o):
+        if isinstance(o, int):
+            return (len(self.symbols) == 0) and (len(self.positive) == 0) and (self.integer == o)
+        return (self.symbols == o.symbols) and (self.positive == o.positive) and (self.integer == o.integer)
+
+    def __ne__(self, o):
+        return not self == o
+
+    def __hash__(self):
+        return hash((self.symbols, self.positive, self.integer))
+
     def __str__(self):
         symbols = ''
         for s, p in zip(self.symbols, self.positive):
@@ -205,10 +216,10 @@ class ClosedInterval:
         return not self == o
 
     def __add__(self, o):
-        return ClosedInterval(self.lower + o, self.upper + o)
+        return ClosedInterval(self.lower + o.lower, self.upper + o.upper)
 
     def __sub__(self, o):
-        return ClosedInterval(self.lower - o, self.upper - o)
+        return ClosedInterval(self.lower - o.lower, self.upper - o.upper)
 
     def __hash__(self):
         return hash(self.__dict__.values())
@@ -224,6 +235,12 @@ class ClosedInterval:
     def range(self):
         return range(self.lower, self.upper + 1)
 
+def HalfOpenIntervalStr(interval) -> str:
+    if isinstance(interval, HalfOpenInterval):
+        return str(interval)
+    if isinstance(interval, ClosedInterval):
+        return str(interval.to_halfopen_interval())
+
 
 class ClosedInterval3D(Any3D):
     def __init__(self, i_lower, i_upper, j_lower, j_upper, k_lower, k_upper):
@@ -233,21 +250,32 @@ class ClosedInterval3D(Any3D):
             ClosedInterval(k_lower, k_upper),
         )
 
+    def __add__(self, o):
+        return ClosedInterval3D(
+            self.i.lower + o.i.lower, self.i.upper + o.i.upper,
+            self.j.lower + o.j.lower, self.j.upper + o.j.upper,
+            self.k.lower + o.k.lower, self.k.upper + o.k.upper)
+
+    def __sub__(self, o):
+        return ClosedInterval3D(
+            self.i.lower - o.i.lower, self.i.upper - o.i.upper,
+            self.j.lower - o.j.lower, self.j.upper - o.j.upper,
+            self.k.lower - o.k.lower, self.k.upper - o.k.upper)
+
     def offset(self, i: int = 0, j: int = 0, k: int = 0):
         self.i.offset(i)
         self.j.offset(j)
         self.k.offset(k)
         return self
 
-    # def to_list(self) -> list:
-    #     return [self.i.lower, self.i.upper, self.j.lower, self.j.upper, self.k.lower, self.k.upper]
+    def to_6_tuple(self) -> tuple:
+        return (self.i.lower, self.i.upper, self.j.lower, self.j.upper, self.k.lower, self.k.upper)
 
     def range(self):
         for i in self.i.range():
             for j in self.j.range():
                 for k in self.k.range():
                     yield i,j,k
-
 
 
 def Hull(intervals):

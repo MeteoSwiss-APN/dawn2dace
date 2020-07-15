@@ -138,42 +138,65 @@ def ExpandAssignmentOperator(stencils: list):
 #             for stage in multi_stage.stages:
 #                 for do_method in stage.do_methods:
 #                     for stmt in do_method.statements:
-#                         stmt.code = IJ_Mapper(stmt.CodeReads()).visit(stmt.code)
+#                         stmt.code = IJ_Mapper(stmt.Reads()).visit(stmt.code)
+
+def SplitMultiStages(stencils: list):
+    for stencil in stencils:
+        new_ms = []
+        for multi_stage in stencil.multi_stages:
+            intervals = list(set(do_method.k_interval
+                for stage in multi_stage.stages
+                for do_method in stage.do_methods
+                ))
+            intervals.sort(
+                key = lambda interval: FullEval(interval.lower, 'K', 1000),
+                reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
+            )
+            for interval in intervals:
+                new_stages = []
+                for stage in multi_stage.stages:
+                    new_stages.append(Stage([dm for dm in stage.do_methods if dm.k_interval == interval], stage.extents))
+                new_ms.append(MultiStage(multi_stage.execution_order, new_stages))
+        stencil.multi_stages = new_ms
 
 
-def AccountForKMapMemlets(stencils: list, id_resolver):
+
+def AddMsMemlets(stencils: list, id_resolver):
     """
     For every parallel multi-stage we introduce a k-map.
     Thus the k-accesses need to be offsetted.
     """
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
-            if multi_stage.execution_order == 2: # parallel
-                #define the slice of memory that will be mapped inside this multistage's scope.
-                original_reads = multi_stage.OriginalReads()
-                original_writes = multi_stage.OriginalWrites()
+            if multi_stage.execution_order == ExecutionOrder.Parallel.value:
+                # defines the slices of memory that will be mapped inside this multistage's scope.
+                multi_stage.read_memlets = copy.deepcopy(multi_stage.Reads())
+                multi_stage.write_memlets = copy.deepcopy(multi_stage.Writes())
 
                 for stage in multi_stage.stages:
                     for do_method in stage.do_methods:
                         for stmt in do_method.statements:
-                            k_read_offsets = { id: -acc.k.lower for id, acc in original_reads.items() if id in stmt.CodeReads() }
+                            k_read_offsets = { id: -acc.k.lower for id, acc in multi_stage.read_memlets.items() if id in stmt.ReadIds() }
                             stmt.offset_reads(k_read_offsets)
 
-                            k_write_offsets = { id: -acc.k.lower for id, acc in original_writes.items() if id in stmt.CodeWrites() }
+                            k_write_offsets = { id: -acc.k.lower for id, acc in multi_stage.write_memlets.items() if id in stmt.WriteIds() }
                             stmt.offset_writes(k_write_offsets)
 
 
-def AccountForIJMapMemlets(stencils: list):
-    """ Offsets the k-index that each tasklet accesses [0,?]. """
+def AddStencilMemlets(stencils: list):
+    """ Offsets the k-index that each stencil accesses. """
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
+                    do_method.read_memlets = copy.deepcopy(do_method.Reads())
+                    do_method.write_memlets = copy.deepcopy(do_method.Writes())
+
                     for stmt in do_method.statements:
-                        k_read_offsets = { id: -acc.k.lower for id, acc in stmt.CodeReads().items() }
+                        k_read_offsets = { id: -acc.k.lower for id, acc in do_method.read_memlets.items() if id in stmt.ReadIds() }
                         stmt.offset_reads(k_read_offsets)
 
-                        k_write_offsets = { id: -acc.k.lower for id, acc in stmt.CodeWrites().items() }
+                        k_write_offsets = { id: -acc.k.lower for id, acc in do_method.write_memlets.items() if id in stmt.WriteIds() }
                         stmt.offset_writes(k_write_offsets)
 
 
@@ -218,8 +241,8 @@ def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        stmt.code = DimensionalReducerRead(id_resolver, stmt.CodeReads().keys()).visit(stmt.code)
-                        stmt.code = DimensionalReducerWrite(id_resolver, stmt.CodeWrites().keys()).visit(stmt.code)
+                        stmt.code = DimensionalReducerRead(id_resolver, stmt.ReadIds()).visit(stmt.code)
+                        stmt.code = DimensionalReducerWrite(id_resolver, stmt.WriteIds()).visit(stmt.code)
 
 
 def UnparseCode(stencils: list, id_resolver:IdResolver):
@@ -251,8 +274,9 @@ def IIR_str_to_SDFG(iir: str):
 
     ReplaceKeywords(stencils)
     ExpandAssignmentOperator(stencils)
-    AccountForKMapMemlets(stencils, id_resolver)
-    AccountForIJMapMemlets(stencils)
+    SplitMultiStages(stencils)
+    AddMsMemlets(stencils, id_resolver)
+    AddStencilMemlets(stencils)
     #AccountForIJMap(stencils)
     RemoveUnusedDimensions(id_resolver, stencils)
     UnparseCode(stencils, id_resolver)

@@ -1,8 +1,6 @@
 from test_helpers import *
 
 class set_zero(LegalSDFG, Asserts):
-    file_name = "set_zero"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -17,7 +15,7 @@ class set_zero(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -35,8 +33,6 @@ class set_zero(LegalSDFG, Asserts):
 
 
 class copy(LegalSDFG, Asserts):
-    file_name = "copy"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -53,7 +49,7 @@ class copy(LegalSDFG, Asserts):
         copy = Transpose(copy)
         copy_dace = Transpose(copy_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -71,8 +67,6 @@ class copy(LegalSDFG, Asserts):
         self.assertEqual(copy, copy_dace)
 
 class copy_with_halo(LegalSDFG, Asserts):
-    file_name = "copy"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 1
@@ -85,7 +79,7 @@ class copy_with_halo(LegalSDFG, Asserts):
                 for k in range(0, K):
                     copy[i,j,k] = original[i,j,k]
 
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -108,8 +102,6 @@ class copy_with_halo(LegalSDFG, Asserts):
 
 
 class staggered_k(LegalSDFG, Asserts):
-    file_name = "staggered_k"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -126,7 +118,7 @@ class staggered_k(LegalSDFG, Asserts):
         mid_avg = Transpose(mid_avg)
         mid_avg_dace = Transpose(mid_avg_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -145,8 +137,6 @@ class staggered_k(LegalSDFG, Asserts):
 
 
 class delta(LegalSDFG, Asserts):
-    file_name = "delta"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -164,7 +154,7 @@ class delta(LegalSDFG, Asserts):
         out = Transpose(out)
         out_dace = Transpose(out_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -182,8 +172,6 @@ class delta(LegalSDFG, Asserts):
         self.assertEqual(out, out_dace)
 
 class const_value(LegalSDFG, Asserts):
-    file_name = "const_value"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -204,7 +192,7 @@ class const_value(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -223,8 +211,6 @@ class const_value(LegalSDFG, Asserts):
 
 
 class i_storage(LegalSDFG, Asserts):
-    file_name = "i_storage"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -237,7 +223,7 @@ class i_storage(LegalSDFG, Asserts):
                 for k in range(0, K):
                     output[i,j,k] = fill[i]
 
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -258,8 +244,6 @@ class i_storage(LegalSDFG, Asserts):
         self.assertEqual(output, output_dace)
 
 class j_storage(LegalSDFG, Asserts):
-    file_name = "j_storage"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -272,7 +256,7 @@ class j_storage(LegalSDFG, Asserts):
                 for k in range(0, K):
                     output[i,j,k] = fill[j]
 
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -293,8 +277,6 @@ class j_storage(LegalSDFG, Asserts):
         self.assertEqual(output, output_dace)
 
 class k_storage(LegalSDFG, Asserts):
-    file_name = "k_storage"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -307,7 +289,7 @@ class k_storage(LegalSDFG, Asserts):
                 for k in range(0, K):
                     output[i,j,k] = fill[k]
 
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -328,8 +310,6 @@ class k_storage(LegalSDFG, Asserts):
         self.assertEqual(output, output_dace)
 
 class ij_storage(LegalSDFG, Asserts):
-    file_name = "ij_storage"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -342,7 +322,7 @@ class ij_storage(LegalSDFG, Asserts):
                 for k in range(0, K):
                     output[i,j,k] = fill[i,j]
 
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -365,8 +345,6 @@ class ij_storage(LegalSDFG, Asserts):
 
 
 class inout_variable(LegalSDFG, Asserts):
-    file_name = "inout_variable"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -381,7 +359,7 @@ class inout_variable(LegalSDFG, Asserts):
         a = Transpose(a)
         a_dace = Transpose(a_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -399,8 +377,6 @@ class inout_variable(LegalSDFG, Asserts):
 
 
 class horizontal_offsets(LegalSDFG, Asserts):
-    file_name = "horizontal_offsets"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 1
@@ -420,7 +396,7 @@ class horizontal_offsets(LegalSDFG, Asserts):
         c = Transpose(c)
         a_dace = Transpose(a_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -440,8 +416,6 @@ class horizontal_offsets(LegalSDFG, Asserts):
 
 
 class horizontal_temp_offsets(LegalSDFG, Asserts):
-    file_name = "horizontal_temp_offsets"
-
     def test_3_numerically(self):
         I,J,K = 4,4,3
         halo = 1
@@ -463,7 +437,7 @@ class horizontal_temp_offsets(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -482,8 +456,6 @@ class horizontal_temp_offsets(LegalSDFG, Asserts):
 
 
 class vertical_offsets(LegalSDFG, Asserts):
-    file_name = "vertical_offsets"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -506,7 +478,7 @@ class vertical_offsets(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -524,8 +496,6 @@ class vertical_offsets(LegalSDFG, Asserts):
         self.assertEqual(output, output_dace)
 
 class parametric_offsets(LegalSDFG, Asserts):
-    file_name = "parametric_offsets"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 1
@@ -549,7 +519,7 @@ class parametric_offsets(LegalSDFG, Asserts):
         interpolation = Transpose(interpolation)
         interpolation_dace = Transpose(interpolation_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -567,8 +537,6 @@ class parametric_offsets(LegalSDFG, Asserts):
         self.assertEqual(interpolation, interpolation_dace)
 
 class vertical_specification_1(LegalSDFG, Asserts):
-    file_name = "vertical_specification_1"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -595,7 +563,7 @@ class vertical_specification_1(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -615,8 +583,6 @@ class vertical_specification_1(LegalSDFG, Asserts):
 
 
 class vertical_specification_2(LegalSDFG, Asserts):
-    file_name = "vertical_specification_2"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -642,7 +608,7 @@ class vertical_specification_2(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -662,8 +628,6 @@ class vertical_specification_2(LegalSDFG, Asserts):
 
 
 class scope_in_region(LegalSDFG, Asserts):
-    file_name = "scope_in_region"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -680,7 +644,7 @@ class scope_in_region(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -699,8 +663,6 @@ class scope_in_region(LegalSDFG, Asserts):
 
 
 class scope_in_stencil(LegalSDFG, Asserts):
-    file_name = "scope_in_stencil"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -717,7 +679,7 @@ class scope_in_stencil(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -736,8 +698,6 @@ class scope_in_stencil(LegalSDFG, Asserts):
 
 
 class scope_in_global(LegalSDFG, Asserts):
-    file_name = "scope_in_global"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -754,7 +714,7 @@ class scope_in_global(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -773,8 +733,6 @@ class scope_in_global(LegalSDFG, Asserts):
 
 
 class scopes_mixed(LegalSDFG, Asserts):
-    file_name = "scopes_mixed"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -792,7 +750,7 @@ class scopes_mixed(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
 
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -811,8 +769,6 @@ class scopes_mixed(LegalSDFG, Asserts):
 
 
 class brackets(LegalSDFG, Asserts):
-    file_name = "brackets"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -830,7 +786,7 @@ class brackets(LegalSDFG, Asserts):
         output = Transpose(output)
         output_dace = Transpose(output_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -849,8 +805,6 @@ class brackets(LegalSDFG, Asserts):
 
 
 class loop(LegalSDFG, Asserts):
-    file_name = "loop"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -866,7 +820,7 @@ class loop(LegalSDFG, Asserts):
         a = Transpose(a)
         a_dace = Transpose(a_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -884,8 +838,6 @@ class loop(LegalSDFG, Asserts):
 
 
 class mathfunctions(LegalSDFG, Asserts):
-    file_name = "mathfunctions"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -903,7 +855,7 @@ class mathfunctions(LegalSDFG, Asserts):
         y = Transpose(y)
         y_dace = Transpose(y_dace)
         
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
@@ -922,8 +874,6 @@ class mathfunctions(LegalSDFG, Asserts):
 
 
 class tridiagonal_solve(LegalSDFG, Asserts):
-    file_name = "tridiagonal_solve"
-
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
@@ -975,7 +925,7 @@ class tridiagonal_solve(LegalSDFG, Asserts):
         c_dace = Transpose(c_dace)
         d_dace = Transpose(d_dace)
 
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()

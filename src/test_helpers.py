@@ -48,10 +48,10 @@ def Zeros(I, J, K = None):
     
 class LegalSDFG:
     # def test_1_file_exists(self):
-    #     self.assertIsNotNone(read_file(self.file_name + ".iir"))
+    #     self.assertIsNotNone(read_file(self.__class__.__name__ + ".iir"))
 
     def test_2_sdfg_is_valid(self):
-        sdfg = get_sdfg(self.file_name + ".iir")
+        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
         sdfg.validate()

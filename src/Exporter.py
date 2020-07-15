@@ -191,115 +191,89 @@ class Exporter:
             for id, acc in transactions.items()
             }
 
-    def Export_parallel(self, multi_stage: MultiStage, k_interval: HalfOpenInterval):
-        multi_stage_state = self.sdfg.add_state("state_{}".format(CreateUID()))
-        sub_sdfg = dace.SDFG("ms_subsdfg{}".format(CreateUID()))
+    def Export_parallel(self, multi_stage: MultiStage):
+        ms_state = self.sdfg.add_state("ms_state_{}".format(CreateUID()))
+        ms_sdfg = dace.SDFG("ms_sdfg_{}".format(CreateUID()))
         last_state = None
         
         for stage in multi_stage.stages:
             for do_method in stage.do_methods:
-                if do_method.k_interval != k_interval:
-                    continue
-
                 reads = do_method.ReadIds()
                 writes = do_method.WriteIds()
                 all = reads | writes
-                apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
-                assert len(literals) == 0
-                assert len(locals) == 0
+                globals = { id for id in all if self.id_resolver.IsGlobal(id) }
 
-                self.try_add_array(sub_sdfg, all - globals)
-                self.try_add_scalar(sub_sdfg, reads & globals)
+                self.try_add_array(ms_sdfg, all - globals)
+                self.try_add_scalar(ms_sdfg, reads & globals)
 
                 self.try_add_transient(self.sdfg, all - globals)
                 self.try_add_scalar(self.sdfg, reads & globals)
 
-                unoffsetted_read_span = Hull(x for stmt in do_method.statements for x in stmt.CodeReads().values())
-                unoffsetted_write_span = Hull(x for stmt in do_method.statements for x in stmt.CodeWrites().values())
-                unoffsetted_span = Hull([unoffsetted_read_span, unoffsetted_write_span])
-
-                halo_i_lower = -unoffsetted_span.i.lower
-                halo_i_upper = unoffsetted_span.i.upper
-                halo_j_lower = -unoffsetted_span.j.lower
-                halo_j_upper = unoffsetted_span.j.upper
-
-                boundary_conditions = {
-                    self.id_resolver.GetName(id)+'_out': {
-                        "btype": "shrink",
-                        "halo": tuple(chain.from_iterable(
-                            ToMemLayout(
-                                (halo_i_lower, halo_i_upper), # halo in I
-                                (halo_j_lower, halo_j_upper), # halo in J
-                                (0, 0), # halo in K
-                            )))
+                boundary_conditions = {}
+                for id in writes:
+                    name = self.id_resolver.GetName(id) + '_out'
+                    halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0) - stage.extents
+                    x,y,z = ToMemLayout(halo.i, halo.j, halo.k)
+                    boundary_conditions[name] = {
+                        "btype" : "shrink",
+                        "halo" : (x.lower, x.upper, y.lower, y.upper, z.lower, z.upper)
                         }
-                        for id in writes - locals
-                    }
 
-                state = sub_sdfg.add_state("state_{}".format(CreateUID()))
-
-                input_fields = self.Create_Variable_Access_map(do_method.CodeReads(), '_in')
-                output_fields = self.Create_Variable_Access_map(do_method.CodeWrites(), '_out')
+                state = ms_sdfg.add_state(str(do_method))
 
                 stenc = StencilLib(
                     label = str(do_method),
                     shape = list(ToMemLayout(I, J, 1)),
-                    accesses = input_fields,
-                    output_fields = output_fields,
+                    accesses = self.Create_Variable_Access_map(do_method.Reads(), '_in'), # input fields
+                    output_fields = self.Create_Variable_Access_map(do_method.Writes(), '_out'), # output fields
                     boundary_conditions = boundary_conditions,
-                    code = ''.join(stmt.code for stmt in do_method.statements)
+                    code = do_method.Code()
                 )
                 state.add_node(stenc)
                 
-                # Add stencil-input memlet paths, from state.read to stencil.
-                for id, mem_acc in do_method.CodeReads().items():
+                # Add memlet path from state.read to stencil.
+                for id, acc in do_method.read_memlets.items():
                     name = self.id_resolver.GetName(id)
-                    if self.id_resolver.IsLocal(id):
-                        continue
-
                     dims = self.id_resolver.GetDimensions(id)
-                    read = state.add_read(name)
-                    input_memlet_subst = ','.join(dim_filter(dims,
+                    subset = ','.join(dim_filter(dims,
                         "0:I",
                         "0:J",
-                        "0:{}".format(unoffsetted_read_span.k.lower - unoffsetted_read_span.k.upper + 1),
+                        HalfOpenIntervalStr(acc.k),
                     ))
-                    if not input_memlet_subst:
-                        input_memlet_subst = '0'
+                    if not subset:
+                        subset = '0'
                         
                     state.add_memlet_path(
-                        read,
+                        state.add_read(name),
                         stenc,
-                        memlet = dace.Memlet.simple(name, input_memlet_subst),
+                        memlet = dace.Memlet.simple(name, subset),
                         dst_conn = name + '_in',
                         propagate=True
                     )
 
-                # Add stencil-output memlet paths, from stencil to state.write.
-                for id, mem_acc in do_method.CodeWrites().items():
+                # Add memlet path from stencil to state.write.
+                for id, acc in do_method.write_memlets.items():
                     name = self.id_resolver.GetName(id)
-                    if self.id_resolver.IsLocal(id):
-                        continue
-
                     dims = self.id_resolver.GetDimensions(id)
-                    write = state.add_write(name)
-                    output_memlet_subst = ','.join(dim_filter(dims,
-                        "{}:I-{}".format(halo_i_lower, halo_i_upper),
-                        "{}:J-{}".format(halo_j_lower, halo_j_upper),
-                        "{}:{}".format(-unoffsetted_write_span.k.lower, -unoffsetted_write_span.k.upper + 1),
+                    subset = ','.join(dim_filter(dims,
+                        "0:I",
+                        "0:J",
+                        # "{}:{}".format(-acc.i.lower, Symbol('I') - acc.i.upper),
+                        # "{}:{}".format(-acc.j.lower, Symbol('J') - acc.j.upper),
+                        HalfOpenIntervalStr(acc.k),
                     ))
-                    if not output_memlet_subst:
-                        output_memlet_subst = "0"
+                    if not subset:
+                        subset = "0"
 
                     state.add_memlet_path(
                         stenc,
-                        write,
-                        memlet = dace.Memlet.simple(name, output_memlet_subst),
+                        state.add_write(name),
+                        memlet = dace.Memlet.simple(name, subset),
                         src_conn = name + '_out',
                         propagate=True
                     )
                 
-                # state = sub_sdfg.add_state("state_{}".format(CreateUID()))
+                # state = ms_sdfg.add_state("state_{}".format(CreateUID()))
                 # state.add_mapped_tasklet(
                 #     str(stmt),
                 #     map_ranges,
@@ -312,180 +286,146 @@ class Exporter:
 
                 # set the state to be the last one to connect them
                 if last_state is not None:
-                    sub_sdfg.add_edge(last_state, state, dace.InterstateEdge())
+                    ms_sdfg.add_edge(last_state, state, dace.InterstateEdge())
                 last_state = state
 
-        read_ids = multi_stage.ReadIds(k_interval)
-        write_ids = multi_stage.WriteIds(k_interval)
+        read_ids = multi_stage.ReadIds()
+        write_ids = multi_stage.WriteIds()
 
         read_names = set(self.id_resolver.GetName(id) for id in read_ids)
         write_names = set(self.id_resolver.GetName(id) for id in write_ids)
 
-        nested_sdfg = multi_stage_state.add_nested_sdfg(
-            sub_sdfg, 
+        nested_sdfg = ms_state.add_nested_sdfg(
+            ms_sdfg, 
             self.sdfg,
             read_names,
             write_names,
             {'halo' : dace.symbol('halo'), 'I' : dace.symbol('I'), 'J' : dace.symbol('J'), 'K' : dace.symbol('K')}
         )
 
-        map_entry, map_exit = multi_stage_state.add_map("kmap", dict(k=str(k_interval)))
+        map_entry, map_exit = ms_state.add_map("kmap", { 'k' : str(do_method.k_interval) })
 
-        # input memlets
-        for id in read_ids:
+        for id, acc in multi_stage.read_memlets.items():
+            if id not in read_ids:
+                continue
             name = self.id_resolver.GetName(id)
             dims = self.id_resolver.GetDimensions(id)
-
-            read = multi_stage_state.add_read(name)
-            k_mem_acc = multi_stage.CodeReads()[id].k
-            subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1)))
-            if not subset_str:
-                subset_str = "0"
+            subset = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(acc.k.lower, acc.k.upper + 1)))
+            if not subset:
+                subset = "0"
 
             # add the reads and the input memlet path : read -> map_entry -> nested_sdfg
-            multi_stage_state.add_memlet_path(
-                read,
+            ms_state.add_memlet_path(
+                ms_state.add_read(name),
                 map_entry,
                 nested_sdfg,
-                memlet = dace.Memlet.simple(name, subset_str),
+                memlet = dace.Memlet.simple(name, subset),
                 dst_conn = name,
                 propagate=True
             )
         if len(read_ids) == 0:
             # If there are no inputs to this SDFG, connect it to the map with an empty memlet
             # to keep it in the scope.
-            multi_stage_state.add_edge(map_entry, None, nested_sdfg, None, dace.EmptyMemlet())
+            ms_state.add_edge(map_entry, None, nested_sdfg, None, dace.EmptyMemlet())
 
         # output memlets
-        for id in write_ids:
+        for id, acc in multi_stage.write_memlets.items():
+            if id not in write_ids:
+                continue
             name = self.id_resolver.GetName(id)
             dims = self.id_resolver.GetDimensions(id)
-
-            write = multi_stage_state.add_write(name)
-            k_mem_acc = multi_stage.CodeWrites()[id].k
-            subset_str = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1)))
-            if not subset_str:
-                subset_str = "0"
+            subset = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(acc.k.lower, acc.k.upper + 1)))
+            if not subset:
+                subset = "0"
             
             # add the writes and the output memlet path : nested_sdfg -> map_exit -> write
-            multi_stage_state.add_memlet_path(
+            ms_state.add_memlet_path(
                 nested_sdfg,
                 map_exit,
-                write,
-                memlet=dace.Memlet.simple(name, subset_str),
+                ms_state.add_write(name),
+                memlet=dace.Memlet.simple(name, subset),
                 src_conn = name,
                 propagate=True
             )
 
         if self.last_state_ is not None:
-            self.sdfg.add_edge(self.last_state_, multi_stage_state, dace.InterstateEdge())
+            self.sdfg.add_edge(self.last_state_, ms_state, dace.InterstateEdge())
 
-        return multi_stage_state
+        return ms_state
 
-    def Export_loop(self, multi_stage: MultiStage, k_interval: HalfOpenInterval, execution_order: ExecutionOrder):
+    def Export_loop(self, multi_stage: MultiStage, execution_order: ExecutionOrder):
         last_state = None
         first_state = None
         # This is the state previous to this ms
 
         for stage in multi_stage.stages:
             for do_method in stage.do_methods:
-                if do_method.k_interval != k_interval:
-                    continue
-
                 reads = do_method.ReadIds()
                 writes = do_method.WriteIds()
                 all = reads | writes
-                apis, temporaries, globals, literals, locals = self.id_resolver.Classify(all)
-                assert len(literals) == 0
-                assert len(locals) == 0
+                globals = { id for id in all if self.id_resolver.IsGlobal(id) }
 
-                self.try_add_transient(self.sdfg, all - locals)
+                self.try_add_transient(self.sdfg, all - globals)
                 self.try_add_scalar(self.sdfg, reads & globals)
 
-                unoffsetted_read_span = Hull(x for stmt in do_method.statements for x in stmt.OriginalReads().values())
-                unoffsetted_write_span = Hull(x for stmt in do_method.statements for x in stmt.OriginalWrites().values())
-                unoffsetted_span = Hull([unoffsetted_read_span, unoffsetted_write_span])
-
-                halo_i_lower = -stage.i_minus
-                halo_i_upper = stage.i_plus
-                halo_j_lower = -stage.j_minus
-                halo_j_upper = stage.j_plus
-
-                boundary_conditions = {
-                    self.id_resolver.GetName(id)+'_out': {
-                        "btype": "shrink",
-                        "halo": tuple(chain.from_iterable(
-                            ToMemLayout(
-                                (halo_i_lower, halo_i_upper), # halo in I
-                                (halo_j_lower, halo_j_upper), # halo in J
-                                (0, 0), # halo in K
-                            )))
+                boundary_conditions = {}
+                for id in writes:
+                    name = self.id_resolver.GetName(id) + '_out'
+                    halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0) - stage.extents
+                    x,y,z = ToMemLayout(halo.i, halo.j, halo.k)
+                    boundary_conditions[name] = {
+                        "btype" : "shrink",
+                        "halo" : (x.lower, x.upper, y.lower, y.upper, z.lower, z.upper)
                         }
-                        for id in writes - locals
-                    }
 
-                state = self.sdfg.add_state("state_{}".format(CreateUID()))
-
-                input_fields = self.Create_Variable_Access_map(do_method.CodeReads(), '_in')
-                output_fields = self.Create_Variable_Access_map(do_method.CodeWrites(), '_out')
+                state = self.sdfg.add_state(str(do_method))
 
                 stenc = StencilLib(
                     label = str(do_method),
                     shape = list(ToMemLayout(I, J, 1)),
-                    accesses = input_fields,
-                    output_fields = output_fields,
+                    accesses = self.Create_Variable_Access_map(do_method.Reads(), '_in'), # input fields
+                    output_fields = self.Create_Variable_Access_map(do_method.Writes(), '_out'), # output fields
                     boundary_conditions = boundary_conditions,
                     code = ''.join(stmt.code for stmt in do_method.statements)
-                    )
-
+                )
                 state.add_node(stenc)
                 
-                # Add stencil-input memlet paths, from state.read to stencil.
-                for id, mem_acc in do_method.CodeReads().items():
+                # Add memlet path from state.read to stencil.
+                for id, acc in do_method.read_memlets.items():
                     name = self.id_resolver.GetName(id)
-                    if self.id_resolver.IsLocal(id):
-                        continue
-
                     dims = self.id_resolver.GetDimensions(id)
-                    read = state.add_read(name)
-                    k_mem_acc = Hull(stmt.CodeReads()[id] for stmt in do_method.statements if id in stmt.CodeReads()).k
-                    input_memlet_subst = ','.join(dim_filter(dims,
+                    subset = ','.join(dim_filter(dims,
                         "0:I",
                         "0:J",
-                        "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1),
+                        "k+{}:k+{}".format(acc.k.lower, acc.k.upper + 1),
                     ))
-                    if not input_memlet_subst:
-                        input_memlet_subst = '0'
+                    if not subset:
+                        subset = '0'
 
                     state.add_memlet_path(
-                        read,
+                        state.add_read(name),
                         stenc,
-                        memlet = dace.Memlet.simple(name, input_memlet_subst),
+                        memlet = dace.Memlet.simple(name, subset),
                         dst_conn = name + '_in',
                         propagate=True
                     )
 
-                # Add stencil-output memlet paths, from stencil to state.write.
-                for id, mem_acc in do_method.CodeWrites().items():
+                # Add memlet path from stencil to state.write.
+                for id, acc in do_method.write_memlets.items():
                     name = self.id_resolver.GetName(id)
-                    if self.id_resolver.IsLocal(id):
-                        continue
-
                     dims = self.id_resolver.GetDimensions(id)
-                    write = state.add_write(name)
-                    k_mem_acc = Hull(stmt.CodeWrites()[id] for stmt in do_method.statements if id in stmt.CodeWrites()).k
-                    output_memlet_subst = ','.join(dim_filter(dims,
-                        "{}:I-{}".format(halo_i_lower, halo_i_upper),
-                        "{}:J-{}".format(halo_j_lower, halo_j_upper),
-                        "k+{}:k+{}".format(k_mem_acc.lower, k_mem_acc.upper + 1),
+                    subset = ','.join(dim_filter(dims,
+                        "0:I",
+                        "0:J",
+                        "k+{}:k+{}".format(acc.k.lower, acc.k.upper + 1),
                     ))
-                    if not output_memlet_subst:
-                        output_memlet_subst = '0'
+                    if not subset:
+                        subset = '0'
 
                     state.add_memlet_path(
                         stenc,
-                        write,
-                        memlet = dace.Memlet.simple(name, output_memlet_subst),
+                        state.add_write(name),
+                        memlet = dace.Memlet.simple(name, subset),
                         src_conn = name + '_out',
                         propagate=True
                     )
@@ -509,12 +449,12 @@ class Exporter:
                 last_state = state
 
         if execution_order == ExecutionOrder.Forward_Loop.value:
-            initialize_expr = k_interval.lower
-            condition_expr = "k < {}".format(k_interval.upper)
+            initialize_expr = str(do_method.k_interval.lower)
+            condition_expr = "k < {}".format(do_method.k_interval.upper)
             increment_expr = "k + 1"
         else:
-            initialize_expr = k_interval.upper + "-1"
-            condition_expr = "k >= {}".format(k_interval.lower)
+            initialize_expr = str(do_method.k_interval.upper - 1)
+            condition_expr = "k >= {}".format(do_method.k_interval.lower)
             increment_expr = "k - 1"
 
         _, _, last_state  = self.sdfg.add_loop(
@@ -534,27 +474,27 @@ class Exporter:
         if not isinstance(multi_stage, MultiStage):
             raise TypeError("Expected MultiStage, got: {}".format(type(multi_stage).__name__))
 
-        intervals = list(set(do_method.k_interval
-            for stage in multi_stage.stages
-            for do_method in stage.do_methods
-            ))
+        # intervals = list(set(do_method.k_interval
+        #     for stage in multi_stage.stages
+        #     for do_method in stage.do_methods
+        #     ))
         
-        intervals.sort(
-            key = lambda interval: FullEval(interval.lower, 'K', 1000),
-            reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
-        )
+        # intervals.sort(
+        #     key = lambda interval: FullEval(interval.lower, 'K', 1000),
+        #     reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
+        # )
 
-        if __debug__:
-            print("list of all the intervals:")
-            for i in intervals:
-                print(i)
+        # if __debug__:
+        #     print("list of all the intervals:")
+        #     for i in intervals:
+        #         print(i)
 
-        # export the MultiStage for every interval (in loop order)
-        for interval in intervals:
-            if multi_stage.execution_order == ExecutionOrder.Parallel.value:
-            	self.last_state_ = self.Export_parallel(multi_stage, interval)
-            else:
-            	self.last_state_ = self.Export_loop(multi_stage, interval, multi_stage.execution_order)
+        # # export the MultiStage for every interval (in loop order)
+        # for interval in intervals:
+        if multi_stage.execution_order == ExecutionOrder.Parallel.value:
+            self.last_state_ = self.Export_parallel(multi_stage)
+        else:
+            self.last_state_ = self.Export_loop(multi_stage, multi_stage.execution_order)
 
     def Export_Stencil(self, stenc:Stencil):
         assert type(stenc) is Stencil
