@@ -268,6 +268,10 @@ def IIR_str_to_SDFG(iir: str):
         )
 
     sdfg = dace.SDFG(metadata.stencilName)
+    sdfg.add_scalar('I', dtype=int)
+    sdfg.add_scalar('J', dtype=int)
+    sdfg.add_scalar('K', dtype=int)
+    sdfg.add_scalar('halo', dtype=int)
 
     imp = Importer(id_resolver)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)

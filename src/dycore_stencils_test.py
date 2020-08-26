@@ -26,6 +26,7 @@ class Transcompiler():
     def test4_expanded(self):
         sdfg = SDFG.from_file("gen/DyCore/Raw/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/DyCore/RawExpanded/" + self.__class__.__name__ + ".sdfg")
 
         # Don't validate all the time, for performance reasons.
@@ -37,25 +38,26 @@ class Transcompiler():
         sdfg = SDFG.from_file("gen/DyCore/Expanded/" + self.__class__.__name__ + ".sdfg")
         program_objects = codegen.generate_code(sdfg)
         compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.__class__.__name__)
-        self.assertIsNotNone(sdfg.compile(optimizer=""))
+        self.assertIsNotNone(sdfg.compile())
 
-    def test6_transforms_to_gpu(self):
-        sdfg = SDFG.from_file("gen/DyCore/LibraryNodes/" + self.__class__.__name__ + ".sdfg")
+    # def test6_transforms_to_gpu(self):
+    #     sdfg = SDFG.from_file("gen/DyCore/LibraryNodes/" + self.__class__.__name__ + ".sdfg")
 
-        canonicalize_sdfg(sdfg)
-        sdfg.save("gen/" + self.__class__.__name__ + "_canonicalize.sdfg")
+    #     canonicalize_sdfg(sdfg)
+    #     sdfg.save("gen/" + self.__class__.__name__ + "_canonicalize.sdfg")
         
-        sdfg.apply_transformations_repeated([StateFusion, InlineSDFG, StencilFusion])
-        sdfg.save("gen/" + self.__class__.__name__ + "_fused.sdfg")
-        sdfg = SDFG.from_file("gen/" + self.__class__.__name__ + "_fused.sdfg")
-        sdfg.expand_library_nodes()
-        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = SDFG.from_file("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg.apply_transformations(GPUTransformSDFG, validate=False)
-        sdfg.validate()
-        sdfg.save("gen/DyCore/GPU/" + self.__class__.__name__ + ".sdfg")
-        program_objects = codegen.generate_code(sdfg)
-        compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.__class__.__name__)
+    #     sdfg.apply_transformations_repeated([StateFusion, InlineSDFG, StencilFusion])
+    #     sdfg.save("gen/" + self.__class__.__name__ + "_fused.sdfg")
+    #     sdfg = SDFG.from_file("gen/" + self.__class__.__name__ + "_fused.sdfg")
+    #     sdfg.expand_library_nodes()
+    #     sdfg.apply_transformations_repeated([InlineSDFG])
+    #     sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
+    #     sdfg = SDFG.from_file("gen/" + self.__class__.__name__ + "_expanded.sdfg")
+    #     sdfg.apply_transformations(GPUTransformSDFG, validate=False)
+    #     sdfg.validate()
+    #     sdfg.save("gen/DyCore/GPU/" + self.__class__.__name__ + ".sdfg")
+    #     program_objects = codegen.generate_code(sdfg)
+    #     compiler.generate_program_folder(sdfg, program_objects, "gen/" + self.__class__.__name__)
 
 
 class advection_pptp(Transcompiler, unittest.TestCase):

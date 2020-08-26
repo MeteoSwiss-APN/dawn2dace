@@ -101,14 +101,18 @@ class Exporter:
             name = self.id_resolver.GetName(id)
             self.sdfg.add_scalar(name, dtype=data_type, transient=True)
 
-            op2 = init_state.add_write(name)
-            tasklet = init_state.add_tasklet(name,
-                inputs=None,
-                outputs={name},
-                code="{} = {}".format(name, value)
+            tasklet = init_state.add_tasklet(
+                name,
+                inputs = None,
+                outputs = { name + '_out' },
+                code = "{}_out = {}".format(name, value)
             )
-            out_memlet = dace.Memlet.simple(name, '0')
-            init_state.add_edge(tasklet, name, op2, None, out_memlet)
+            init_state.add_memlet_path(
+                tasklet,
+                init_state.add_write(name),
+                memlet = dace.Memlet(name),
+                src_conn = name + '_out',
+                propagate = True)
 
         if self.last_state_ is not None:
             self.sdfg.add_edge(self.last_state_, init_state, dace.InterstateEdge())
@@ -246,7 +250,7 @@ class Exporter:
                     state.add_memlet_path(
                         state.add_read(name),
                         stenc,
-                        memlet = dace.Memlet.simple(name, subset),
+                        memlet = dace.Memlet('{}[{}]'.format(name, subset)),
                         dst_conn = name + '_in',
                         propagate=True
                     )
@@ -268,7 +272,7 @@ class Exporter:
                     state.add_memlet_path(
                         stenc,
                         state.add_write(name),
-                        memlet = dace.Memlet.simple(name, subset),
+                        memlet = dace.Memlet('{}[{}]'.format(name, subset)),
                         src_conn = name + '_out',
                         propagate=True
                     )
@@ -319,14 +323,14 @@ class Exporter:
                 ms_state.add_read(name),
                 map_entry,
                 nested_sdfg,
-                memlet = dace.Memlet.simple(name, subset),
+                memlet = dace.Memlet('{}[{}]'.format(name, subset)),
                 dst_conn = name,
                 propagate=True
             )
         if len(read_ids) == 0:
             # If there are no inputs to this SDFG, connect it to the map with an empty memlet
             # to keep it in the scope.
-            ms_state.add_edge(map_entry, None, nested_sdfg, None, dace.EmptyMemlet())
+            ms_state.add_edge(map_entry, None, nested_sdfg, None, dace.memlet.Memlet())
 
         # output memlets
         for id, acc in multi_stage.write_memlets.items():
@@ -343,7 +347,7 @@ class Exporter:
                 nested_sdfg,
                 map_exit,
                 ms_state.add_write(name),
-                memlet=dace.Memlet.simple(name, subset),
+                memlet = dace.Memlet('{}[{}]'.format(name, subset)),
                 src_conn = name,
                 propagate=True
             )
@@ -386,7 +390,7 @@ class Exporter:
                     accesses = self.Create_Variable_Access_map(do_method.Reads(), '_in'), # input fields
                     output_fields = self.Create_Variable_Access_map(do_method.Writes(), '_out'), # output fields
                     boundary_conditions = boundary_conditions,
-                    code = ''.join(stmt.code for stmt in do_method.statements)
+                    code = do_method.Code()
                 )
                 state.add_node(stenc)
                 
@@ -405,7 +409,7 @@ class Exporter:
                     state.add_memlet_path(
                         state.add_read(name),
                         stenc,
-                        memlet = dace.Memlet.simple(name, subset),
+                        memlet = dace.Memlet('{}[{}]'.format(name, subset)),
                         dst_conn = name + '_in',
                         propagate=True
                     )
@@ -425,7 +429,7 @@ class Exporter:
                     state.add_memlet_path(
                         stenc,
                         state.add_write(name),
-                        memlet = dace.Memlet.simple(name, subset),
+                        memlet = dace.Memlet('{}[{}]'.format(name, subset)),
                         src_conn = name + '_out',
                         propagate=True
                     )

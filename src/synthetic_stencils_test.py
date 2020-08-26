@@ -1,4 +1,5 @@
 from test_helpers import *
+from dace.transformation.interstate import StateFusion, InlineSDFG
 
 class set_zero(LegalSDFG, Asserts):
     def test_3_numerically(self):
@@ -19,8 +20,9 @@ class set_zero(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             output = output_dace,
@@ -53,8 +55,9 @@ class copy(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             original = original,
@@ -83,8 +86,9 @@ class copy_with_halo(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         original = Transpose(original)
         copy = Transpose(copy)
@@ -122,8 +126,9 @@ class staggered_k(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             data = data,
@@ -158,8 +163,9 @@ class delta(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             inp = inp,
@@ -196,8 +202,9 @@ class const_value(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input = input,
@@ -214,7 +221,7 @@ class i_storage(LegalSDFG, Asserts):
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
-        fill = numpy.arange(I).astype(dace.float64.type).reshape(I)
+        fill = Iota(I)
         output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
@@ -227,8 +234,9 @@ class i_storage(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         output = Transpose(output)
         output_dace = Transpose(output_dace)
@@ -247,7 +255,7 @@ class j_storage(LegalSDFG, Asserts):
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
-        fill = numpy.arange(J).astype(dace.float64.type).reshape(J)
+        fill = Iota(J=J)
         output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
@@ -260,8 +268,9 @@ class j_storage(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         output = Transpose(output)
         output_dace = Transpose(output_dace)
@@ -280,7 +289,7 @@ class k_storage(LegalSDFG, Asserts):
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
-        fill = numpy.arange(K).astype(dace.float64.type).reshape(K)
+        fill = Iota(K=K)
         output = Zeros(I,J,K)
         output_dace = numpy.copy(output)
 
@@ -293,8 +302,9 @@ class k_storage(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         output = Transpose(output)
         output_dace = Transpose(output_dace)
@@ -326,8 +336,9 @@ class ij_storage(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         fill = Transpose(fill)
         output = Transpose(output)
@@ -363,8 +374,9 @@ class inout_variable(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             a = a_dace,
@@ -400,8 +412,9 @@ class horizontal_offsets(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             a = a_dace,
@@ -441,8 +454,9 @@ class horizontal_temp_offsets(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input = input,
@@ -482,8 +496,9 @@ class vertical_offsets(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input = input,
@@ -523,8 +538,9 @@ class parametric_offsets(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             support = support,
@@ -567,8 +583,9 @@ class vertical_specification_1(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input1 = input1,
@@ -612,8 +629,9 @@ class vertical_specification_2(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input1 = input1,
@@ -648,8 +666,9 @@ class scope_in_region(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input = input,
@@ -683,8 +702,9 @@ class scope_in_stencil(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input = input,
@@ -718,8 +738,9 @@ class scope_in_global(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input = input,
@@ -754,8 +775,9 @@ class scopes_mixed(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input = input,
@@ -790,8 +812,9 @@ class brackets(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             input = input,
@@ -824,8 +847,9 @@ class loop(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             a = a_dace,
@@ -841,36 +865,37 @@ class mathfunctions(LegalSDFG, Asserts):
     def test_3_numerically(self):
         I,J,K = 4,4,4
         halo = 0
-        x = Iota(I,J,K)
-        y = Zeros(I,J,K)
-        y_dace = numpy.copy(y)
+        a = Iota(I,J,K)
+        b = Zeros(I,J,K)
+        b_dace = numpy.copy(b)
 
-        # vertical_region(k_start, k_end) { y = min(10.0, max(5.0, x)); }
+        # vertical_region(k_start, k_end) { b = min(10.0, max(5.0, a)); }
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    y[i,j,k] = min(10.0, max(5.0, x[i,j,k]))
+                    b[i,j,k] = min(10.0, max(5.0, a[i,j,k]))
 
-        x = Transpose(x)
-        y = Transpose(y)
-        y_dace = Transpose(y_dace)
+        a = Transpose(a)
+        b = Transpose(b)
+        b_dace = Transpose(b_dace)
         
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
-            x = x,
-            y = y_dace,
+            a = a,
+            b = b_dace,
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
             halo = numpy.int32(halo))
 
-        self.assertEqual(y, y_dace)
+        self.assertEqual(b, b_dace)
 
 
 class tridiagonal_solve(LegalSDFG, Asserts):
@@ -929,8 +954,9 @@ class tridiagonal_solve(LegalSDFG, Asserts):
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.apply_strict_transformations()
+        sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile(optimizer="")
+        sdfg = sdfg.compile()
 
         sdfg(
             a = a_dace,

@@ -7,7 +7,7 @@ for fullfile in /home/work/dawn2dace/src/*_stencils/*.cpp
 do
 	echo "Processing $fullfile ..."
 	filename="${fullfile##*/}"
-	$GTCLANG $fullfile -finline -write-iir -fno-codegen -iir-format=byte -o /home/work/dawn2dace/gen/$filename
+	$GTCLANG $fullfile -finline -write-iir -fno-codegen -iir-format=byte -o /home/work/dawn2dace/gen/$filename --config=/home/work/clang-gridtools/benchmarks/globals_benchmarks.json
 done
 
 

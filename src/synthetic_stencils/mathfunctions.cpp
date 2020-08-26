@@ -4,12 +4,12 @@
 using namespace gtclang::dsl;
 
 stencil mathfunctions {
-  storage x, y;
+  storage a, b;
 
   Do {
     vertical_region(k_start, k_end) {
-      const double tmp = x;
-      y = math::min(10.0, math::max(5.0, tmp));
+      const double tmp = a;
+      b = math::min(10.0, math::max(5.0, tmp));
     }
   }
 };
