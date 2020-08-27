@@ -65,6 +65,9 @@ class Statement:
     def __str__(self):
         return "Line{}".format(self.line)
 
+    def Code(self):
+        return self.code
+
     def Reads(self) -> dict:
         return self.reads
 
