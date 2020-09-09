@@ -414,23 +414,23 @@ class smagorinsky(LegalSDFG, Asserts):
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, u_in[j,k,i])
+                    print(i,j,k, u_in[ToMemLayout(i,j,k)])
         print("v_in")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, v_in[j,k,i])
+                    print(i,j,k, v_in[ToMemLayout(i,j,k)])
 
         print("u_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, u_out[j,k,i], u_out_dace[j,k,i], u_out[j,k,i] - u_out_dace[j,k,i])
+                    print(i,j,k, u_out[ToMemLayout(i,j,k)], u_out_dace[ToMemLayout(i,j,k)], u_out[ToMemLayout(i,j,k)] - u_out_dace[ToMemLayout(i,j,k)])
         print("v_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, v_out[j,k,i], v_out_dace[j,k,i], v_out[j,k,i] - v_out_dace[j,k,i])
+                    print(i,j,k, v_out[ToMemLayout(i,j,k)], v_out_dace[ToMemLayout(i,j,k)], v_out[ToMemLayout(i,j,k)] - v_out_dace[ToMemLayout(i,j,k)])
 
         self.assertIsClose(u_out, u_out_dace)
         self.assertIsClose(v_out, v_out_dace)
@@ -517,44 +517,44 @@ class horizontal_diffusion(LegalSDFG, Asserts):
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, u_in[j,k,i])
+                    print(i,j,k, u_in[ToMemLayout(i,j,k)])
         print("v_in")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, v_in[j,k,i])
+                    print(i,j,k, v_in[ToMemLayout(i,j,k)])
         print("w_in")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, w_in[j,k,i])
+                    print(i,j,k, w_in[ToMemLayout(i,j,k)])
         print("pp_in")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, pp_in[j,k,i])
+                    print(i,j,k, pp_in[ToMemLayout(i,j,k)])
 
 
         print("u_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, u_out[j,k,i], u_out_dace[j,k,i], u_out[j,k,i] - u_out_dace[j,k,i])
+                    print(i,j,k, u_out[ToMemLayout(i,j,k)], u_out_dace[ToMemLayout(i,j,k)], u_out[ToMemLayout(i,j,k)] - u_out_dace[ToMemLayout(i,j,k)])
         print("v_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, v_out[j,k,i], v_out_dace[j,k,i], v_out[j,k,i] - v_out_dace[j,k,i])
+                    print(i,j,k, v_out[ToMemLayout(i,j,k)], v_out_dace[ToMemLayout(i,j,k)], v_out[ToMemLayout(i,j,k)] - v_out_dace[ToMemLayout(i,j,k)])
         print("w_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, w_out[j,k,i], w_out_dace[j,k,i], w_out[j,k,i] - w_out_dace[j,k,i])
+                    print(i,j,k, w_out[ToMemLayout(i,j,k)], w_out_dace[ToMemLayout(i,j,k)], w_out[ToMemLayout(i,j,k)] - w_out_dace[ToMemLayout(i,j,k)])
         print("pp_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, pp_out[j,k,i], pp_out_dace[j,k,i], pp_out[j,k,i] - pp_out_dace[j,k,i])
+                    print(i,j,k, pp_out[ToMemLayout(i,j,k)], pp_out_dace[ToMemLayout(i,j,k)], pp_out[ToMemLayout(i,j,k)] - pp_out_dace[ToMemLayout(i,j,k)])
 
         self.assertIsClose(w_out, w_out_dace)
         self.assertIsClose(pp_out, pp_out_dace)
@@ -641,44 +641,44 @@ class type2_diffusion(LegalSDFG, Asserts):
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, u_in[j,k,i])
+                    print(i,j,k, u_in[ToMemLayout(i,j,k)])
         print("v_in")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, v_in[j,k,i])
+                    print(i,j,k, v_in[ToMemLayout(i,j,k)])
         print("w_in")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, w_in[j,k,i])
+                    print(i,j,k, w_in[ToMemLayout(i,j,k)])
         print("pp_in")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, pp_in[j,k,i])
+                    print(i,j,k, pp_in[ToMemLayout(i,j,k)])
 
 
         print("u_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, u_out[j,k,i], u_out_dace[j,k,i], u_out[j,k,i] - u_out_dace[j,k,i])
+                    print(i,j,k, u_out[ToMemLayout(i,j,k)], u_out_dace[ToMemLayout(i,j,k)], u_out[ToMemLayout(i,j,k)] - u_out_dace[ToMemLayout(i,j,k)])
         print("v_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, v_out[j,k,i], v_out_dace[j,k,i], v_out[j,k,i] - v_out_dace[j,k,i])
+                    print(i,j,k, v_out[ToMemLayout(i,j,k)], v_out_dace[ToMemLayout(i,j,k)], v_out[ToMemLayout(i,j,k)] - v_out_dace[ToMemLayout(i,j,k)])
         print("w_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, w_out[j,k,i], w_out_dace[j,k,i], w_out[j,k,i] - w_out_dace[j,k,i])
+                    print(i,j,k, w_out[ToMemLayout(i,j,k)], w_out_dace[ToMemLayout(i,j,k)], w_out[ToMemLayout(i,j,k)] - w_out_dace[ToMemLayout(i,j,k)])
         print("pp_out")
         for i in range(halo, I-halo):
             for j in range(halo, J-halo):
                 for k in range(0, K):
-                    print(i,j,k, pp_out[j,k,i], pp_out_dace[j,k,i], pp_out[j,k,i] - pp_out_dace[j,k,i])
+                    print(i,j,k, pp_out[ToMemLayout(i,j,k)], pp_out_dace[ToMemLayout(i,j,k)], pp_out[ToMemLayout(i,j,k)] - pp_out_dace[ToMemLayout(i,j,k)])
 
         self.assertIsClose(w_out, w_out_dace)
         self.assertIsClose(pp_out, pp_out_dace)
