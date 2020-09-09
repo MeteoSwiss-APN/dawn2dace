@@ -180,16 +180,12 @@ class Exporter:
 
                 self.try_add_transient(self.sdfg, all - globals)
                 self.try_add_scalar(self.sdfg, reads & globals)
-
-                boundary_conditions = {}
-                for id in writes:
-                    name = self.Name(id) + '_out'
-                    halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0) - stage.extents
-                    halo = ToMemLayout(halo)
-                    boundary_conditions[name] = {
-                        "btype" : "shrink",
-                        "halo" : halo.to_6_tuple()
-                        }
+                
+                halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0)
+                halo -= stage.extents
+                halo = ToMemLayout(halo)
+                bc_dict = { "btype" : "shrink", "halo" : halo.to_6_tuple() }
+                boundary_conditions = { f'{self.Name(id)}_out' : bc_dict for id in writes }
 
                 state = ms_sdfg.add_state(str(do_method))
 
@@ -311,15 +307,11 @@ class Exporter:
                 self.try_add_transient(self.sdfg, all - globals)
                 self.try_add_scalar(self.sdfg, reads & globals)
 
-                boundary_conditions = {}
-                for id in writes:
-                    name = self.Name(id) + '_out'
-                    halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0) - stage.extents
-                    halo = ToMemLayout(halo)
-                    boundary_conditions[name] = {
-                        "btype" : "shrink",
-                        "halo" : halo.to_6_tuple()
-                        }
+                halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0)
+                halo -= stage.extents
+                halo = ToMemLayout(halo)
+                bc_dict = { "btype" : "shrink", "halo" : halo.to_6_tuple() }
+                boundary_conditions = { f'{self.Name(id)}_out' : bc_dict for id in writes }
 
                 state = self.sdfg.add_state(str(do_method))
 
