@@ -40,11 +40,9 @@ class InOut_Renamer(ast.NodeTransformer):
         self.storemode = False
 
     def visit_Name(self, node):
-        if node.id == "true":
-            return node
-        if node.id == "false":
-            return node
         if node.id.startswith('__local'):
+            return node
+        if node.id in {"true", "false"}:
             return node
 
         if self.storemode or isinstance(node.ctx, ast.Store):
@@ -114,31 +112,6 @@ def ExpandAssignmentOperator(stencils: list):
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
                         stmt.code = AssignmentExpander().visit(stmt.code)
-
-
-# class IJ_Mapper(IIR_Transformer):
-#     """ Offsets the i and j-index when there's a span. """
-#     def __init__(self, transfer:dict):
-#         self.transfer = transfer
-
-#     def visit_FieldAccessExpr(self, expr):
-#         id = expr.data.accessID.value
-#         if id in self.transfer:
-#             mem_acc = self.transfer[id]
-#             if mem_acc.i.lower != mem_acc.i.upper:
-#                 expr.cartesian_offset.i_offset -= mem_acc.i.lower
-#             if mem_acc.j.lower != mem_acc.j.upper:
-#                 expr.cartesian_offset.j_offset -= mem_acc.j.lower
-#         return expr
-
-# def AccountForIJMap(stencils: list):
-#     """ Offsets the i and j-index when there's a span. """
-#     for stencil in stencils:
-#         for multi_stage in stencil.multi_stages:
-#             for stage in multi_stage.stages:
-#                 for do_method in stage.do_methods:
-#                     for stmt in do_method.statements:
-#                         stmt.code = IJ_Mapper(stmt.Reads()).visit(stmt.code)
 
 def SplitMultiStages(stencils: list):
     for stencil in stencils:
@@ -252,7 +225,6 @@ def UnparseCode(stencils: list, id_resolver:IdResolver):
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
                         stmt.code = Unparser(id_resolver).unparse_body_stmt(stmt.code)
-                        print("code: " + stmt.code)
 
 def IIR_str_to_SDFG(iir: str):
     stencilInstantiation = IIR_pb2.StencilInstantiation()
@@ -267,12 +239,6 @@ def IIR_str_to_SDFG(iir: str):
         metadata.fieldIDtoDimensions
         )
 
-    sdfg = dace.SDFG(metadata.stencilName)
-    sdfg.add_scalar('I', dtype=dace.int32)
-    sdfg.add_scalar('J', dtype=dace.int32)
-    sdfg.add_scalar('K', dtype=dace.int32)
-    sdfg.add_scalar('halo', dtype=dace.int32)
-
     imp = Importer(id_resolver)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
@@ -281,21 +247,18 @@ def IIR_str_to_SDFG(iir: str):
     SplitMultiStages(stencils)
     AddMsMemlets(stencils, id_resolver)
     AddStencilMemlets(stencils)
-    #AccountForIJMap(stencils)
     RemoveUnusedDimensions(id_resolver, stencils)
     UnparseCode(stencils, id_resolver)
     RenameVariables_InOut(stencils)
-
-    exp = Exporter(id_resolver, sdfg)
-
-    exp.try_add_array(sdfg, metadata.APIFieldIDs)
-    exp.try_add_transient(sdfg, metadata.temporaryFieldIDs)
     
+    exp = Exporter(id_resolver, name=metadata.stencilName)
+    exp.Export_ApiFields(metadata.APIFieldIDs)
+    exp.Export_TemporaryFields(metadata.temporaryFieldIDs)    
     exp.Export_Globals({ id : stencilInstantiation.internalIR.globalVariableToValue[id_resolver.GetName(id)].value for id in metadata.globalVariableIDs })
     exp.Export_Stencils(stencils)
 
-    sdfg.fill_scope_connectors()
-    return sdfg
+    exp.sdfg.fill_scope_connectors()
+    return exp.sdfg
 
 def IIR_file_to_SDFG_file(iir_file: str, sdfg_file: str):
     with open(iir_file) as f:

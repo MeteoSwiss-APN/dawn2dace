@@ -18,42 +18,31 @@ def dim_filter(dimensions:Index3D, i, j, k) -> tuple:
     return tuple(elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim)
 
 class Exporter:
-    def __init__(self, id_resolver:IdResolver, sdfg):
+    def __init__(self, id_resolver:IdResolver, name:str):
         self.id_resolver = id_resolver
-        self.sdfg = sdfg
+        self.sdfg = dace.SDFG(name)
+        self.sdfg.add_scalar('I', dtype=dace.int32)
+        self.sdfg.add_scalar('J', dtype=dace.int32)
+        self.sdfg.add_scalar('K', dtype=dace.int32)
+        self.sdfg.add_scalar('halo', dtype=dace.int32)
         self.last_state_ = None
 
     def try_add_scalar(self, sdfg, ids):
-        if not isinstance(ids, list):
-            ids = list(ids)
-        
         for id in ids:
             name = self.id_resolver.GetName(id)
 
-            if self.id_resolver.IsALiteral(id):
-                continue
-
-            print("Try add scalar: {}".format(name))
-
             try:
                 sdfg.add_scalar(name, dtype=data_type)
+                print(f'Added scalar: {name}')
             except:
                 pass
 
     def try_add_array(self, sdfg, ids):
-        if not isinstance(ids, list):
-            ids = list(ids)
-        
         for id in ids:
             name = self.id_resolver.GetName(id)
             shape = self.GetShape(id)
             strides = self.GetStrides(id)
             total_size = self.GetTotalSize(id)
-
-            if self.id_resolver.IsALiteral(id):
-                continue
-
-            print("Try add array: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
                 sdfg.add_array(
@@ -63,23 +52,16 @@ class Exporter:
                     strides=strides, 
                     total_size=total_size
                 )
+                print(f'Added array: {name} of size {shape} with strides {strides} and total size {total_size}')
             except:
                 pass
 
     def try_add_transient(self, sdfg, ids):
-        if not isinstance(ids, list):
-            ids = list(ids)
-        
         for id in ids:
             name = self.id_resolver.GetName(id)
             shape = self.GetShape(id)
             strides = self.GetStrides(id)
             total_size = self.GetTotalSize(id)
-
-            if self.id_resolver.IsALiteral(id):
-                continue
-
-            print("Try add transient: {} of size {} with strides {} and total size {}".format(name, shape, strides, total_size))
 
             try:
                 sdfg.add_transient(
@@ -89,36 +71,20 @@ class Exporter:
                     strides=strides, 
                     total_size=total_size
                 )
+                print(f'Added transient: {name} of size {shape} with strides {strides} and total size {total_size}')
             except:
                 pass
 
+    def Export_ApiFields(self, ids):
+        self.try_add_array(self.sdfg, ids)
+
+    def Export_TemporaryFields(self, ids):
+        self.try_add_transient(self.sdfg, ids)
+
     def Export_Globals(self, id_value: dict):
-        if not id_value:
-            return
-
-        #init_state = self.sdfg.add_state("GlobalInit")
-
         for id, value in id_value.items():
             name = self.id_resolver.GetName(id)
             self.sdfg.add_constant(name, value, dtype=dace.data.Scalar(data_type))
-            # self.sdfg.add_scalar(name, dtype=data_type, transient=True)
-
-            # tasklet = init_state.add_tasklet(
-            #     name,
-            #     inputs = None,
-            #     outputs = { name + '_out' },
-            #     code = "{}_out = {}".format(name, value)
-            # )
-            # init_state.add_memlet_path(
-            #     tasklet,
-            #     init_state.add_write(name),
-            #     memlet = dace.Memlet(name),
-            #     src_conn = name + '_out',
-            #     propagate = True)
-
-        #if self.last_state_ is not None:
-        #    self.sdfg.add_edge(self.last_state_, init_state, dace.InterstateEdge())
-        #self.last_state_ = init_state
 
     def GetShape(self, id:int) -> list:
         ret = dim_filter(self.id_resolver.GetDimensions(id), I, J, K + 1)
