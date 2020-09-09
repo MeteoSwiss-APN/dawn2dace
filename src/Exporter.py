@@ -11,7 +11,7 @@ I = dace.symbol("I", dtype=dace.int32)
 J = dace.symbol("J", dtype=dace.int32)
 K = dace.symbol("K", dtype=dace.int32)
 halo = dace.symbol("halo", dtype=dace.int32)
-data_type = dace.float64
+float_type = dace.float64
 
 def dim_filter(dimensions:Any3D, i, j, k) -> tuple:
     dim_mem = ToMemLayout(dimensions.i, dimensions.j, dimensions.k)
@@ -89,7 +89,7 @@ class Exporter:
             name = self.Name(id)
 
             try:
-                sdfg.add_scalar(name, dtype=data_type)
+                sdfg.add_scalar(name, dtype=float_type)
                 print(f'Added scalar: {name}')
             except:
                 pass
@@ -105,7 +105,7 @@ class Exporter:
                 sdfg.add_array(
                     name, 
                     shape, 
-                    dtype=data_type,
+                    dtype=float_type,
                     strides=strides, 
                     total_size=total_size
                 )
@@ -124,7 +124,7 @@ class Exporter:
                 sdfg.add_transient(
                     name, 
                     shape,
-                    dtype=data_type,
+                    dtype=float_type,
                     strides=strides, 
                     total_size=total_size
                 )
@@ -141,7 +141,7 @@ class Exporter:
     def Export_Globals(self, id_value: dict):
         for id, value in id_value.items():
             name = self.Name(id)
-            self.sdfg.add_constant(name, value, dtype=dace.data.Scalar(data_type))
+            self.sdfg.add_constant(name, value, dtype=dace.data.Scalar(float_type))
 
     def Export_Accesses(self, id:int, mem_acc:ClosedInterval3D):
         """
