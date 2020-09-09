@@ -1,4 +1,5 @@
 import dace
+import dace.data
 from stencilflow.stencil.stencil import Stencil as StencilLib
 import sympy
 from itertools import chain
@@ -6,10 +7,10 @@ from IndexHandling import *
 from Intermediates import *
 from IdResolver import IdResolver
 
-I = dace.symbol("I")
-J = dace.symbol("J")
-K = dace.symbol("K")
-halo = dace.symbol("halo")
+I = dace.symbol("I", dtype=dace.int32)
+J = dace.symbol("J", dtype=dace.int32)
+K = dace.symbol("K", dtype=dace.int32)
+halo = dace.symbol("halo", dtype=dace.int32)
 data_type = dace.float64
 
 def dim_filter(dimensions:Index3D, i, j, k) -> tuple:
@@ -95,28 +96,29 @@ class Exporter:
         if not id_value:
             return
 
-        init_state = self.sdfg.add_state("GlobalInit")
+        #init_state = self.sdfg.add_state("GlobalInit")
 
         for id, value in id_value.items():
             name = self.id_resolver.GetName(id)
-            self.sdfg.add_scalar(name, dtype=data_type, transient=True)
+            self.sdfg.add_constant(name, value, dtype=dace.data.Scalar(data_type))
+            # self.sdfg.add_scalar(name, dtype=data_type, transient=True)
 
-            tasklet = init_state.add_tasklet(
-                name,
-                inputs = None,
-                outputs = { name + '_out' },
-                code = "{}_out = {}".format(name, value)
-            )
-            init_state.add_memlet_path(
-                tasklet,
-                init_state.add_write(name),
-                memlet = dace.Memlet(name),
-                src_conn = name + '_out',
-                propagate = True)
+            # tasklet = init_state.add_tasklet(
+            #     name,
+            #     inputs = None,
+            #     outputs = { name + '_out' },
+            #     code = "{}_out = {}".format(name, value)
+            # )
+            # init_state.add_memlet_path(
+            #     tasklet,
+            #     init_state.add_write(name),
+            #     memlet = dace.Memlet(name),
+            #     src_conn = name + '_out',
+            #     propagate = True)
 
-        if self.last_state_ is not None:
-            self.sdfg.add_edge(self.last_state_, init_state, dace.InterstateEdge())
-        self.last_state_ = init_state
+        #if self.last_state_ is not None:
+        #    self.sdfg.add_edge(self.last_state_, init_state, dace.InterstateEdge())
+        #self.last_state_ = init_state
 
     def GetShape(self, id:int) -> list:
         ret = dim_filter(self.id_resolver.GetDimensions(id), I, J, K + 1)

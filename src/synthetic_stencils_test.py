@@ -748,7 +748,8 @@ class scope_in_global(LegalSDFG, Asserts):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo = numpy.int32(halo))
+            halo = numpy.int32(halo),
+            global_var=3.14)
 
         self.assertEqual(output, output_dace)
 
@@ -785,7 +786,8 @@ class scopes_mixed(LegalSDFG, Asserts):
             I = numpy.int32(I),
             J = numpy.int32(J),
             K = numpy.int32(K),
-            halo = numpy.int32(halo))
+            halo = numpy.int32(halo),
+            global_var=3.14)
 
         self.assertEqual(output, output_dace)
 
