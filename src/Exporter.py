@@ -34,13 +34,10 @@ class Exporter:
         """ Returns if the dimensions (i,j,k) are present in this field. """
         return self.id_resolver.GetDimensions(id)
 
-    def GetShape(self, id:int) -> list:
-        ret = dim_filter(self.Dimensions(id), I, J, K+1)
-        if ret:
-            return list(ret)
-        return [1]
+    def Shape(self, id:int) -> list:
+        return list(dim_filter(self.Dimensions(id), I, J, K+1) or 1)
 
-    def GetStrides(self, id:int) -> list:
+    def Strides(self, id:int) -> list:
         dim = self.Dimensions(id)
         highest, middle, lowest = ToMemLayout(*ToStridePolicy3D(
             I if dim.i else 0,
@@ -71,7 +68,7 @@ class Exporter:
                     return [1]
 
     def GetTotalSize(self, id:int) -> int:
-        first_order_stride = self.GetStrides(id)[0]
+        first_order_stride = self.Strides(id)[0]
 
         dim = self.Dimensions(id)
         highest, middle, lowest = ToMemLayout(
@@ -97,8 +94,8 @@ class Exporter:
     def try_add_array(self, sdfg, ids):
         for id in ids:
             name = self.Name(id)
-            shape = self.GetShape(id)
-            strides = self.GetStrides(id)
+            shape = self.Shape(id)
+            strides = self.Strides(id)
             total_size = self.GetTotalSize(id)
 
             try:
@@ -116,8 +113,8 @@ class Exporter:
     def try_add_transient(self, sdfg, ids):
         for id in ids:
             name = self.Name(id)
-            shape = self.GetShape(id)
-            strides = self.GetStrides(id)
+            shape = self.Shape(id)
+            strides = self.Strides(id)
             total_size = self.GetTotalSize(id)
 
             try:
