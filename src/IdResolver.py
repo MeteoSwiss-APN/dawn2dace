@@ -11,19 +11,17 @@ class IdResolver:
         self.__fieldIDtoDimensions = fieldIDtoDimensions
     
     def GetName(self, id:int) -> str:
-        if isinstance(id, int):
-            return self.__accessIDToName[id]
-        raise Exception('Unexpected type')
+        return self.__accessIDToName[id]
 
-    def GetDimensions(self, id:int) -> Index3D:
-        """ Returns a list containing dimensional information """
-        if self.IsLocal(id): # TODO: Think about this!
-            return Index3D(1,1,0)
+    def GetDimensions(self, id:int) -> Bool3D:
+        """ Returns if the dimensions (i,j,k) are present in this field. """
+        if self.IsLocal(id):
+            return Bool3D(True, True, False)
         dims = self.__fieldIDtoDimensions[id]
-        return Index3D(
-            dims.cartesian_horizontal_dimension.mask_cart_i,
-            dims.cartesian_horizontal_dimension.mask_cart_j,
-            dims.mask_k
+        return Bool3D(
+            dims.cartesian_horizontal_dimension.mask_cart_i != 0,
+            dims.cartesian_horizontal_dimension.mask_cart_j != 0,
+            dims.mask_k != 0
             )
     
     def IsInAPI(self, id:int) -> bool:

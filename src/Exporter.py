@@ -13,7 +13,7 @@ K = dace.symbol("K", dtype=dace.int32)
 halo = dace.symbol("halo", dtype=dace.int32)
 data_type = dace.float64
 
-def dim_filter(dimensions:Index3D, i, j, k) -> tuple:
+def dim_filter(dimensions:Any3D, i, j, k) -> tuple:
     dim_mem = ToMemLayout(dimensions.i, dimensions.j, dimensions.k)
     return tuple(elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim)
 
@@ -27,73 +27,21 @@ class Exporter:
         self.sdfg.add_scalar('halo', dtype=dace.int32)
         self.last_state_ = None
 
-    def try_add_scalar(self, sdfg, ids):
-        for id in ids:
-            name = self.id_resolver.GetName(id)
+    def Name(self, id:int) -> str:
+        return self.id_resolver.GetName(id)
 
-            try:
-                sdfg.add_scalar(name, dtype=data_type)
-                print(f'Added scalar: {name}')
-            except:
-                pass
-
-    def try_add_array(self, sdfg, ids):
-        for id in ids:
-            name = self.id_resolver.GetName(id)
-            shape = self.GetShape(id)
-            strides = self.GetStrides(id)
-            total_size = self.GetTotalSize(id)
-
-            try:
-                sdfg.add_array(
-                    name, 
-                    shape, 
-                    dtype=data_type,
-                    strides=strides, 
-                    total_size=total_size
-                )
-                print(f'Added array: {name} of size {shape} with strides {strides} and total size {total_size}')
-            except:
-                pass
-
-    def try_add_transient(self, sdfg, ids):
-        for id in ids:
-            name = self.id_resolver.GetName(id)
-            shape = self.GetShape(id)
-            strides = self.GetStrides(id)
-            total_size = self.GetTotalSize(id)
-
-            try:
-                sdfg.add_transient(
-                    name, 
-                    shape,
-                    dtype=data_type,
-                    strides=strides, 
-                    total_size=total_size
-                )
-                print(f'Added transient: {name} of size {shape} with strides {strides} and total size {total_size}')
-            except:
-                pass
-
-    def Export_ApiFields(self, ids):
-        self.try_add_array(self.sdfg, ids)
-
-    def Export_TemporaryFields(self, ids):
-        self.try_add_transient(self.sdfg, ids)
-
-    def Export_Globals(self, id_value: dict):
-        for id, value in id_value.items():
-            name = self.id_resolver.GetName(id)
-            self.sdfg.add_constant(name, value, dtype=dace.data.Scalar(data_type))
+    def Dimensions(self, id:int) -> Bool3D:
+        """ Returns if the dimensions (i,j,k) are present in this field. """
+        return self.id_resolver.GetDimensions(id)
 
     def GetShape(self, id:int) -> list:
-        ret = dim_filter(self.id_resolver.GetDimensions(id), I, J, K + 1)
+        ret = dim_filter(self.Dimensions(id), I, J, K+1)
         if ret:
             return list(ret)
         return [1]
 
     def GetStrides(self, id:int) -> list:
-        dim = self.id_resolver.GetDimensions(id)
+        dim = self.Dimensions(id)
         highest, middle, lowest = ToMemLayout(*ToStridePolicy3D(
             I if dim.i else 0,
             J if dim.j else 0,
@@ -125,7 +73,7 @@ class Exporter:
     def GetTotalSize(self, id:int) -> int:
         first_order_stride = self.GetStrides(id)[0]
 
-        dim = self.id_resolver.GetDimensions(id)
+        dim = self.Dimensions(id)
         highest, middle, lowest = ToMemLayout(
             I if dim.i else 0,
             J if dim.j else 0,
@@ -136,36 +84,88 @@ class Exporter:
             if x != 0:
                 return x * first_order_stride
 
+    def try_add_scalar(self, sdfg, ids):
+        for id in ids:
+            name = self.Name(id)
+
+            try:
+                sdfg.add_scalar(name, dtype=data_type)
+                print(f'Added scalar: {name}')
+            except:
+                pass
+
+    def try_add_array(self, sdfg, ids):
+        for id in ids:
+            name = self.Name(id)
+            shape = self.GetShape(id)
+            strides = self.GetStrides(id)
+            total_size = self.GetTotalSize(id)
+
+            try:
+                sdfg.add_array(
+                    name, 
+                    shape, 
+                    dtype=data_type,
+                    strides=strides, 
+                    total_size=total_size
+                )
+                print(f'Added array: {name} of size {shape} with strides {strides} and total size {total_size}')
+            except:
+                pass
+
+    def try_add_transient(self, sdfg, ids):
+        for id in ids:
+            name = self.Name(id)
+            shape = self.GetShape(id)
+            strides = self.GetStrides(id)
+            total_size = self.GetTotalSize(id)
+
+            try:
+                sdfg.add_transient(
+                    name, 
+                    shape,
+                    dtype=data_type,
+                    strides=strides, 
+                    total_size=total_size
+                )
+                print(f'Added transient: {name} of size {shape} with strides {strides} and total size {total_size}')
+            except:
+                pass
+
+    def Export_ApiFields(self, ids):
+        self.try_add_array(self.sdfg, ids)
+
+    def Export_TemporaryFields(self, ids):
+        self.try_add_transient(self.sdfg, ids)
+
+    def Export_Globals(self, id_value: dict):
+        for id, value in id_value.items():
+            name = self.Name(id)
+            self.sdfg.add_constant(name, value, dtype=dace.data.Scalar(data_type))
+
     def Export_Accesses(self, id:int, mem_acc:ClosedInterval3D):
         """
         Returns a pair containing the following two things:
-        - A 3-tuple of bools to denote wich dimensions are non-degenerated.
+        - A 3-tuple of bools to denote wich dimensions are not degenerated.
         - A list of accesses where the array is accessed.
         """
 
-        if not isinstance(mem_acc, ClosedInterval3D):
-            raise TypeError("Expected ClosedInterval3D, got: {}".format(type(mem_acc).__name__))
+        dims = self.Dimensions(id)
 
-        dims = self.id_resolver.GetDimensions(id)
-
-        # TODO: This is the bounding box of all memory accesses, thus suboptimal and can be improved to not include unused data.
+        #This is the bounding box of all memory accesses
         accs = [ dim_filter(dims, i, j, k) for i,j,k in mem_acc.range() ]
-        dimensions_present = ToMemLayout(
-            dims.i != 0,
-            dims.j != 0,
-            dims.k != 0,
-        )
+        dimensions_present = ToMemLayout(dims).to_tuple()
         return dimensions_present, accs
 
     def Create_Variable_Access_map(self, transactions:dict, suffix:str) -> dict:
         """ Returns a map of variable names (suffixed) and its accesses. """
-        return { self.id_resolver.GetName(id) + suffix : self.Export_Accesses(id, acc)
+        return { self.Name(id) + suffix : self.Export_Accesses(id, acc)
             for id, acc in transactions.items()
             }
 
     def Export_parallel(self, multi_stage: MultiStage):
-        ms_state = self.sdfg.add_state("ms_state_{}".format(CreateUID()))
-        ms_sdfg = dace.SDFG("ms_sdfg_{}".format(CreateUID()))
+        ms_state = self.sdfg.add_state(f'ms_state_{CreateUID()}')
+        ms_sdfg = dace.SDFG(f'ms_sdfg_{CreateUID()}')
         last_state = None
         
         for stage in multi_stage.stages:
@@ -183,12 +183,12 @@ class Exporter:
 
                 boundary_conditions = {}
                 for id in writes:
-                    name = self.id_resolver.GetName(id) + '_out'
+                    name = self.Name(id) + '_out'
                     halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0) - stage.extents
-                    x,y,z = ToMemLayout(halo.i, halo.j, halo.k)
+                    halo = ToMemLayout(halo)
                     boundary_conditions[name] = {
                         "btype" : "shrink",
-                        "halo" : (x.lower, x.upper, y.lower, y.upper, z.lower, z.upper)
+                        "halo" : halo.to_6_tuple()
                         }
 
                 state = ms_sdfg.add_state(str(do_method))
@@ -205,56 +205,31 @@ class Exporter:
                 
                 # Add memlet path from state.read to stencil.
                 for id, acc in do_method.read_memlets.items():
-                    name = self.id_resolver.GetName(id)
-                    dims = self.id_resolver.GetDimensions(id)
-                    subset = ','.join(dim_filter(dims,
-                        "0:I",
-                        "0:J",
-                        HalfOpenIntervalStr(acc.k),
-                    ))
-                    if not subset:
-                        subset = '0'
+                    name = self.Name(id)
+                    dims = self.Dimensions(id)
+                    subset = ','.join(dim_filter(dims, '0:I', '0:J', HalfOpenIntervalStr(acc.k))) or '0'
                         
                     state.add_memlet_path(
                         state.add_read(name),
                         stenc,
-                        memlet = dace.Memlet('{}[{}]'.format(name, subset)),
+                        memlet = dace.Memlet(f'{name}[{subset}]'),
                         dst_conn = name + '_in',
                         propagate=True
                     )
 
                 # Add memlet path from stencil to state.write.
                 for id, acc in do_method.write_memlets.items():
-                    name = self.id_resolver.GetName(id)
-                    dims = self.id_resolver.GetDimensions(id)
-                    subset = ','.join(dim_filter(dims,
-                        "0:I",
-                        "0:J",
-                        # "{}:{}".format(-acc.i.lower, Symbol('I') - acc.i.upper),
-                        # "{}:{}".format(-acc.j.lower, Symbol('J') - acc.j.upper),
-                        HalfOpenIntervalStr(acc.k),
-                    ))
-                    if not subset:
-                        subset = "0"
+                    name = self.Name(id)
+                    dims = self.Dimensions(id)
+                    subset = ','.join(dim_filter(dims, '0:I', '0:J', HalfOpenIntervalStr(acc.k))) or '0'
 
                     state.add_memlet_path(
                         stenc,
                         state.add_write(name),
-                        memlet = dace.Memlet('{}[{}]'.format(name, subset)),
+                        memlet = dace.Memlet(f'{name}[{subset}]'),
                         src_conn = name + '_out',
                         propagate=True
                     )
-                
-                # state = ms_sdfg.add_state("state_{}".format(CreateUID()))
-                # state.add_mapped_tasklet(
-                #     str(stmt),
-                #     map_ranges,
-                #     inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = False),
-                #     code = stmt.code,
-                #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = False),
-                #     external_edges = True,
-                #     propagate=True
-                # )
 
                 # set the state to be the last one to connect them
                 if last_state is not None:
@@ -264,8 +239,8 @@ class Exporter:
         read_ids = multi_stage.ReadIds()
         write_ids = multi_stage.WriteIds()
 
-        read_names = set(self.id_resolver.GetName(id) for id in read_ids)
-        write_names = set(self.id_resolver.GetName(id) for id in write_ids)
+        read_names = set(self.Name(id) for id in read_ids)
+        write_names = set(self.Name(id) for id in write_ids)
 
         nested_sdfg = ms_state.add_nested_sdfg(
             ms_sdfg, 
@@ -280,18 +255,16 @@ class Exporter:
         for id, acc in multi_stage.read_memlets.items():
             if id not in read_ids:
                 continue
-            name = self.id_resolver.GetName(id)
-            dims = self.id_resolver.GetDimensions(id)
-            subset = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(acc.k.lower, acc.k.upper + 1)))
-            if not subset:
-                subset = "0"
+            name = self.Name(id)
+            dims = self.Dimensions(id)
+            subset = ','.join(dim_filter(dims, '0:I', '0:J', f'k+{acc.k.lower}:k+{acc.k.upper+1}')) or '0'
 
             # add the reads and the input memlet path : read -> map_entry -> nested_sdfg
             ms_state.add_memlet_path(
                 ms_state.add_read(name),
                 map_entry,
                 nested_sdfg,
-                memlet = dace.Memlet('{}[{}]'.format(name, subset)),
+                memlet = dace.Memlet(f'{name}[{subset}]'),
                 dst_conn = name,
                 propagate=True
             )
@@ -304,18 +277,16 @@ class Exporter:
         for id, acc in multi_stage.write_memlets.items():
             if id not in write_ids:
                 continue
-            name = self.id_resolver.GetName(id)
-            dims = self.id_resolver.GetDimensions(id)
-            subset = ', '.join(dim_filter(dims, "0:I", "0:J", "k+{}:k+{}".format(acc.k.lower, acc.k.upper + 1)))
-            if not subset:
-                subset = "0"
+            name = self.Name(id)
+            dims = self.Dimensions(id)
+            subset = ','.join(dim_filter(dims, '0:I', '0:J', f'k+{acc.k.lower}:k+{acc.k.upper+1}')) or '0'
             
             # add the writes and the output memlet path : nested_sdfg -> map_exit -> write
             ms_state.add_memlet_path(
                 nested_sdfg,
                 map_exit,
                 ms_state.add_write(name),
-                memlet = dace.Memlet('{}[{}]'.format(name, subset)),
+                memlet = dace.Memlet(f'{name}[{subset}]'),
                 src_conn = name,
                 propagate=True
             )
@@ -342,12 +313,12 @@ class Exporter:
 
                 boundary_conditions = {}
                 for id in writes:
-                    name = self.id_resolver.GetName(id) + '_out'
+                    name = self.Name(id) + '_out'
                     halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0) - stage.extents
-                    x,y,z = ToMemLayout(halo.i, halo.j, halo.k)
+                    halo = ToMemLayout(halo)
                     boundary_conditions[name] = {
                         "btype" : "shrink",
-                        "halo" : (x.lower, x.upper, y.lower, y.upper, z.lower, z.upper)
+                        "halo" : halo.to_6_tuple()
                         }
 
                 state = self.sdfg.add_state(str(do_method))
@@ -364,54 +335,31 @@ class Exporter:
                 
                 # Add memlet path from state.read to stencil.
                 for id, acc in do_method.read_memlets.items():
-                    name = self.id_resolver.GetName(id)
-                    dims = self.id_resolver.GetDimensions(id)
-                    subset = ','.join(dim_filter(dims,
-                        "0:I",
-                        "0:J",
-                        "k+{}:k+{}".format(acc.k.lower, acc.k.upper + 1),
-                    ))
-                    if not subset:
-                        subset = '0'
+                    name = self.Name(id)
+                    dims = self.Dimensions(id)
+                    subset = ','.join(dim_filter(dims, '0:I', '0:J', f'k+{acc.k.lower}:k+{acc.k.upper+1}')) or '0'
 
                     state.add_memlet_path(
                         state.add_read(name),
                         stenc,
-                        memlet = dace.Memlet('{}[{}]'.format(name, subset)),
+                        memlet = dace.Memlet(f'{name}[{subset}]'),
                         dst_conn = name + '_in',
                         propagate=True
                     )
 
                 # Add memlet path from stencil to state.write.
                 for id, acc in do_method.write_memlets.items():
-                    name = self.id_resolver.GetName(id)
-                    dims = self.id_resolver.GetDimensions(id)
-                    subset = ','.join(dim_filter(dims,
-                        "0:I",
-                        "0:J",
-                        "k+{}:k+{}".format(acc.k.lower, acc.k.upper + 1),
-                    ))
-                    if not subset:
-                        subset = '0'
+                    name = self.Name(id)
+                    dims = self.Dimensions(id)
+                    subset = ','.join(dim_filter(dims, '0:I', '0:J', f'k+{acc.k.lower}:k+{acc.k.upper+1}')) or '0'
 
                     state.add_memlet_path(
                         stenc,
                         state.add_write(name),
-                        memlet = dace.Memlet('{}[{}]'.format(name, subset)),
+                        memlet = dace.Memlet(f'{name}[{subset}]'),
                         src_conn = name + '_out',
                         propagate=True
                     )
-
-                # Since we're in a sequential loop, we only need a map in i and j
-                # state = self.sdfg.add_state("state_{}".format(CreateUID()))
-                # state.add_mapped_tasklet(
-                #     str(stmt),
-                #     map_ranges,
-                #     inputs = self.CreateMemlets(stmt.reads, '_in', relative_to_k = True),
-                #     code = stmt.code,
-                #     outputs = self.CreateMemlets(stmt.writes, '_out', relative_to_k = True),
-                #     external_edges = True, propagate=True
-                # )
 
                 if first_state is None:
                     first_state = state
@@ -422,19 +370,19 @@ class Exporter:
 
         if execution_order == ExecutionOrder.Forward_Loop.value:
             initialize_expr = str(do_method.k_interval.lower)
-            condition_expr = "k < {}".format(do_method.k_interval.upper)
-            increment_expr = "k + 1"
+            condition_expr = f'k < {do_method.k_interval.upper}'
+            increment_expr = 'k + 1'
         else:
             initialize_expr = str(do_method.k_interval.upper - 1)
-            condition_expr = "k >= {}".format(do_method.k_interval.lower)
-            increment_expr = "k - 1"
+            condition_expr = f'k >= {do_method.k_interval.lower}'
+            increment_expr = 'k - 1'
 
         _, _, last_state  = self.sdfg.add_loop(
             before_state = self.last_state_,
             loop_state = first_state,
             loop_end_state = last_state,
             after_state = None,
-            loop_var = "k",
+            loop_var = 'k',
             initialize_expr = initialize_expr,
             condition_expr = condition_expr,
             increment_expr = increment_expr
@@ -443,34 +391,12 @@ class Exporter:
 
     
     def Export_MultiStage(self, multi_stage: MultiStage):
-        if not isinstance(multi_stage, MultiStage):
-            raise TypeError("Expected MultiStage, got: {}".format(type(multi_stage).__name__))
-
-        # intervals = list(set(do_method.k_interval
-        #     for stage in multi_stage.stages
-        #     for do_method in stage.do_methods
-        #     ))
-        
-        # intervals.sort(
-        #     key = lambda interval: FullEval(interval.lower, 'K', 1000),
-        #     reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
-        # )
-
-        # if __debug__:
-        #     print("list of all the intervals:")
-        #     for i in intervals:
-        #         print(i)
-
-        # # export the MultiStage for every interval (in loop order)
-        # for interval in intervals:
         if multi_stage.execution_order == ExecutionOrder.Parallel.value:
             self.last_state_ = self.Export_parallel(multi_stage)
         else:
             self.last_state_ = self.Export_loop(multi_stage, multi_stage.execution_order)
 
     def Export_Stencil(self, stenc:Stencil):
-        assert type(stenc) is Stencil
-        
         for ms in stenc.multi_stages:
             self.Export_MultiStage(ms)
 

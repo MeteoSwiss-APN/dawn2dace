@@ -25,6 +25,9 @@ class Any3D:
     def __str__(self) -> str:
         return ', '.join([str(self.i), str(self.j), str(self.k)])
 
+    def to_tuple(self) -> tuple:
+        return (self.i, self.j, self.k)
+
 
 class Int3D(Any3D):
     def __init__(self, i:int, j:int, k:int):
@@ -243,12 +246,19 @@ def HalfOpenIntervalStr(interval) -> str:
 
 
 class ClosedInterval3D(Any3D):
-    def __init__(self, i_lower, i_upper, j_lower, j_upper, k_lower, k_upper):
-        Any3D.__init__(self,
-            ClosedInterval(i_lower, i_upper),
-            ClosedInterval(j_lower, j_upper),
-            ClosedInterval(k_lower, k_upper),
-        )
+    def __init__(self, *args):
+        """
+        Requires input of 'i_lower, i_upper, j_lower, j_upper, k_lower, k_upper'
+        or 'i:ClosedInterval, j:ClosedInterval, k:ClosedInterval'.
+        """
+        if len(args) == 3:
+            Any3D.__init__(self, args[0], args[1], args[2])
+        if len(args) == 6:
+            Any3D.__init__(self,
+                ClosedInterval(args[0], args[1]),
+                ClosedInterval(args[2], args[3]),
+                ClosedInterval(args[4], args[5]),
+            )
 
     def __add__(self, o):
         return ClosedInterval3D(

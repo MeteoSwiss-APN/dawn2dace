@@ -1,24 +1,26 @@
 import sympy
+from helpers import *
 
-def ToMemLayout(i, j, k):
-    return j, k, i # Memory layout
+def ToMemLayout(*args):
+    if len(args) == 1:
+        return type(args[0])(*ToMemLayout(args[0].i, args[0].j, args[0].k))
+    if len(args) == 3:
+        i,j,k = args
+        #return j,k,i # CPU
+        return k,j,i # GPU
+        #return i,j,k # Trivial
 
 def ToStridePolicy3D(I, J, K):
-    # To memory layout
-    I, J, K = ToMemLayout(I, J, K)
-
-    # Adapt lowest order memory access
-    if K is not None:
-        K = 8 * sympy.ceiling(K / 8)
-
-    # Back from memory layout
-    for _ in range(5):
-        I, J, K = ToMemLayout(I, J, K)
-    
     return I, J, K
+    # # To memory layout
+    # I, J, K = ToMemLayout(I, J, K)
 
-class Index3D:
-    def __init__(self, i:int, j:int, k:int):
-        self.i = i
-        self.j = j
-        self.k = k
+    # # Adapt lowest order memory access
+    # if K is not None:
+    #     K = 32 * sympy.ceiling(K / 32)
+
+    # # Back from memory layout
+    # for _ in range(5):
+    #     I, J, K = ToMemLayout(I, J, K)
+    
+    # return I, J, K
