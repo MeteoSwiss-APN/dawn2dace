@@ -16,6 +16,9 @@ class Any3D:
     def __iter__(self):
         return (x for x in [self.i, self.j, self.k])
 
+    def __hash__(self):
+        return hash(self.__iter__())
+
     def __eq__(self, o) -> bool:
         return (self.i == o.i) and (self.j == o.j) and (self.k == o.k)
 

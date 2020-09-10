@@ -13,6 +13,24 @@ K = dace.symbol("K", dtype=dace.int32)
 halo = dace.symbol("halo", dtype=dace.int32)
 float_type = dace.float64
 
+IJK_stride_I = dace.symbol("IJK_stride_I", dtype=dace.int32)
+IJK_stride_J = dace.symbol("IJK_stride_J", dtype=dace.int32)
+IJK_stride_K = dace.symbol("IJK_stride_K", dtype=dace.int32)
+
+IJ_stride_I = dace.symbol("IJ_stride_I", dtype=dace.int32)
+IJ_stride_J = dace.symbol("IJ_stride_J", dtype=dace.int32)
+
+IK_stride_I = dace.symbol("IK_stride_I", dtype=dace.int32)
+IK_stride_K = dace.symbol("IK_stride_K", dtype=dace.int32)
+
+JK_stride_J = dace.symbol("JK_stride_J", dtype=dace.int32)
+JK_stride_K = dace.symbol("JK_stride_K", dtype=dace.int32)
+
+IJK_total_size = dace.symbol("IJK_total_size", dtype=dace.int32)
+IJ_total_size = dace.symbol("IJ_total_size", dtype=dace.int32)
+IK_total_size = dace.symbol("IK_total_size", dtype=dace.int32)
+JK_total_size = dace.symbol("JK_total_size", dtype=dace.int32)
+
 def dim_filter(dimensions:Any3D, i, j, k) -> tuple:
     dim_mem = ToMemLayout(dimensions.i, dimensions.j, dimensions.k)
     return tuple(elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim)
@@ -25,6 +43,19 @@ class Exporter:
         self.sdfg.add_scalar('J', dtype=dace.int32)
         self.sdfg.add_scalar('K', dtype=dace.int32)
         self.sdfg.add_scalar('halo', dtype=dace.int32)
+        self.sdfg.add_scalar("IJK_stride_I", dtype=dace.int32)
+        self.sdfg.add_scalar("IJK_stride_J", dtype=dace.int32)
+        self.sdfg.add_scalar("IJK_stride_K", dtype=dace.int32)
+        self.sdfg.add_scalar("IJ_stride_I", dtype=dace.int32)
+        self.sdfg.add_scalar("IJ_stride_J", dtype=dace.int32)
+        self.sdfg.add_scalar("IK_stride_I", dtype=dace.int32)
+        self.sdfg.add_scalar("IK_stride_K", dtype=dace.int32)
+        self.sdfg.add_scalar("JK_stride_J", dtype=dace.int32)
+        self.sdfg.add_scalar("JK_stride_K", dtype=dace.int32)
+        self.sdfg.add_scalar("IJK_total_size", dtype=dace.int32)
+        self.sdfg.add_scalar("IJ_total_size", dtype=dace.int32)
+        self.sdfg.add_scalar("IK_total_size", dtype=dace.int32)
+        self.sdfg.add_scalar("JK_total_size", dtype=dace.int32)
         self.last_state_ = None
 
     def Name(self, id:int) -> str:
@@ -38,50 +69,30 @@ class Exporter:
         return list(dim_filter(self.Dimensions(id), I, J, K+1) or 1)
 
     def Strides(self, id:int) -> list:
-        dim = self.Dimensions(id)
-        highest, middle, lowest = ToMemLayout(*ToStridePolicy3D(
-            I if dim.i else 0,
-            J if dim.j else 0,
-            K+1 if dim.k else 0
-        ))
-        if lowest:
-            if middle:
-                if highest:
-                    return [middle * lowest, lowest, 1]
-                else:
-                    return [lowest, 1]
-            else:
-                if highest:
-                    return [lowest, 1]
-                else:
-                    return [1]
-        else:
-            if middle:
-                if highest:
-                    return [middle, 1]
-                else:
-                    return [1]
-            else:
-                if highest:
-                    return [1]
-                else:
-                    return [1]
+        return {
+            Bool3D(True, True, True) : [IJK_stride_I, IJK_stride_J, IJK_stride_K],
+            Bool3D(True, True, False) : [IJ_stride_I, IJ_stride_J],
+            Bool3D(True, False, True) : [IK_stride_I, IK_stride_K],
+            Bool3D(False, True, True) : [JK_stride_J, JK_stride_K],
+            Bool3D(True, False, False) : [1],
+            Bool3D(False, True, False) : [1],
+            Bool3D(False, False, True) : [1],
+            Bool3D(False, False, False) : [1]
+        }[self.Dimensions(id)]
 
-    def GetTotalSize(self, id:int) -> int:
-        first_order_stride = self.Strides(id)[0]
+    def TotalSize(self, id:int):
+        return {
+            Bool3D(True, True, True) : IJK_total_size,
+            Bool3D(True, True, False) : IJ_total_size,
+            Bool3D(True, False, True) : IK_total_size,
+            Bool3D(False, True, True) : JK_total_size,
+            Bool3D(True, False, False) : I,
+            Bool3D(False, True, False) : J,
+            Bool3D(False, False, True) : K+1,
+            Bool3D(False, False, False) : 1
+        }[self.Dimensions(id)]
 
-        dim = self.Dimensions(id)
-        highest, middle, lowest = ToMemLayout(
-            I if dim.i else 0,
-            J if dim.j else 0,
-            K if dim.k else 0
-        )
-
-        for x in [highest, middle, lowest]:
-            if x != 0:
-                return x * first_order_stride
-
-    def try_add_scalar(self, sdfg, ids):
+    def TryAddScalar(self, sdfg, ids):
         for id in ids:
             name = self.Name(id)
 
@@ -91,49 +102,31 @@ class Exporter:
             except:
                 pass
 
-    def try_add_array(self, sdfg, ids):
+    def TryAddArray(self, sdfg, ids, transient:bool=False):
         for id in ids:
             name = self.Name(id)
             shape = self.Shape(id)
             strides = self.Strides(id)
-            total_size = self.GetTotalSize(id)
+            total_size = self.TotalSize(id)
 
             try:
                 sdfg.add_array(
                     name, 
                     shape, 
                     dtype=float_type,
+                    transient=transient,
                     strides=strides, 
                     total_size=total_size
                 )
-                print(f'Added array: {name} of size {shape} with strides {strides} and total size {total_size}')
-            except:
-                pass
-
-    def try_add_transient(self, sdfg, ids):
-        for id in ids:
-            name = self.Name(id)
-            shape = self.Shape(id)
-            strides = self.Strides(id)
-            total_size = self.GetTotalSize(id)
-
-            try:
-                sdfg.add_transient(
-                    name, 
-                    shape,
-                    dtype=float_type,
-                    strides=strides, 
-                    total_size=total_size
-                )
-                print(f'Added transient: {name} of size {shape} with strides {strides} and total size {total_size}')
+                print(f'Added {"transient" if transient else "array"}: {name} of size {shape} with strides {strides} and total size {total_size}')
             except:
                 pass
 
     def Export_ApiFields(self, ids):
-        self.try_add_array(self.sdfg, ids)
+        self.TryAddArray(self.sdfg, ids)
 
     def Export_TemporaryFields(self, ids):
-        self.try_add_transient(self.sdfg, ids)
+        self.TryAddArray(self.sdfg, ids, transient=True)
 
     def Export_Globals(self, id_value: dict):
         for id, value in id_value.items():
@@ -172,11 +165,11 @@ class Exporter:
                 all = reads | writes
                 globals = { id for id in all if self.id_resolver.IsGlobal(id) }
 
-                self.try_add_array(ms_sdfg, all - globals)
-                self.try_add_scalar(ms_sdfg, reads & globals)
+                self.TryAddArray(ms_sdfg, all - globals)
+                self.TryAddScalar(ms_sdfg, reads & globals)
 
-                self.try_add_transient(self.sdfg, all - globals)
-                self.try_add_scalar(self.sdfg, reads & globals)
+                self.TryAddArray(self.sdfg, all - globals, transient=True)
+                self.TryAddScalar(self.sdfg, reads & globals)
                 
                 halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0)
                 halo -= stage.extents
@@ -240,7 +233,20 @@ class Exporter:
             self.sdfg,
             read_names,
             write_names,
-            {'halo' : dace.symbol('halo'), 'I' : dace.symbol('I'), 'J' : dace.symbol('J'), 'K' : dace.symbol('K')}
+            {'halo' : dace.symbol('halo'), 'I' : dace.symbol('I'), 'J' : dace.symbol('J'), 'K' : dace.symbol('K'),
+            'IJK_stride_I' : dace.symbol('IJK_stride_I'),
+            'IJK_stride_J' : dace.symbol('IJK_stride_J'),
+            'IJK_stride_K' : dace.symbol('IJK_stride_K'),
+            'IJ_stride_I' : dace.symbol('IJ_stride_I'),
+            'IJ_stride_J' : dace.symbol('IJ_stride_J'),
+            'IK_stride_I' : dace.symbol('IK_stride_I'),
+            'IK_stride_K' : dace.symbol('IK_stride_K'),
+            'JK_stride_J' : dace.symbol('JK_stride_J'),
+            'JK_stride_K' : dace.symbol('JK_stride_K'),
+            'IJK_total_size' : dace.symbol('IJK_total_size'),
+            'IJ_total_size' : dace.symbol('IJ_total_size'),
+            'IK_total_size' : dace.symbol('IK_total_size'),
+            'JK_total_size' : dace.symbol('JK_total_size')}
         )
 
         map_entry, map_exit = ms_state.add_map("kmap", { 'k' : str(do_method.k_interval) })
@@ -301,8 +307,8 @@ class Exporter:
                 all = reads | writes
                 globals = { id for id in all if self.id_resolver.IsGlobal(id) }
 
-                self.try_add_transient(self.sdfg, all - globals)
-                self.try_add_scalar(self.sdfg, reads & globals)
+                self.TryAddArray(self.sdfg, all - globals, transient=True)
+                self.TryAddScalar(self.sdfg, reads & globals)
 
                 halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0)
                 halo -= stage.extents

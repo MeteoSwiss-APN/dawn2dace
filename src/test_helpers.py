@@ -30,30 +30,45 @@ def Transpose(arr):
         return arr.transpose([x for x in ToMemLayout(0, 1, None) if x is not None]).copy()
     return arr
 
+class Dim:
+    def __init__(self, I, J, K, stride_i, stride_j, stride_k, total_size):
+        self.I = I # is used for bounds checking
+        self.J = J # is used for bounds checking
+        self.K = K # is used for bounds checking
+        self.stride_i = stride_i
+        self.stride_j = stride_j
+        self.stride_k = stride_k
+        self.shape = [x for x in [I,J,K] if x is not None] # is used for bounds checking
+        self.total_size = total_size # is used for memory allocation
 
-def Iota(I=None, J=None, K=None, offset=0):
-    I, J, K = ToStridePolicy3D(I, J, K)
-    if K is not None:
-        K += 1
-    size = (1 if I is None else I) * (1 if J is None else J) * (1 if K is None else K)
-    shape = [x for x in [I,J,K] if x is not None]
-    return numpy.arange(offset, offset + size).astype(dace.float64.type).reshape(*shape)
+class Dimensions:
+    def __init__(self, I, J, K):
+        self.I = I
+        self.J = J
+        self.K = K
+        self.ijk = Dim(I,J,K, J*K,K,1, I*J*K)
+        self.ij = Dim(I,J,None, J,1,0, I*J)
+        self.ik = Dim(I,None,K, K,0,1, I*K)
+        self.jk = Dim(None,J,K, 0,K,1, J*K)
+        self.i = Dim(I,None,None, 1,0,0, I)
+        self.j = Dim(None,J,None, 0,1,0, J)
+        self.k = Dim(None,None,K, 0,0,1, K)
 
-def Zeros(I=None, J=None, K=None):
-    I, J, K = ToStridePolicy3D(I, J, K)
-    if K is not None:
-        K += 1
-    shape = [x for x in [I,J,K] if x is not None]
-    return numpy.zeros(shape=tuple(shape), dtype=dace.float64.type)
+def Zeros(dim:Dim):
+    return numpy.zeros(shape=dim.shape, dtype=dace.float64.type)
 
-def Waves(a, b, c, d, e, f, I=None, J=None, K=None):
-    data = Zeros(I,J,K)
-    for i in range(1 if I is None else I):
-        for j in range(1 if J is None else J):
-            for k in range(1 if K is None else K):
-                index = tuple(index for index, size in [(i,I),(j,J),(k,K)] if size is not None)
-                x = i / (1 if I is None else I)
-                y = j / (1 if J is None else J)
+def Iota(dim:Dim, offset=0):
+    size = (dim.I or 1) * (dim.J or 1) * (dim.K or 1)
+    return numpy.arange(offset, offset + size).astype(dace.float64.type).reshape(dim.shape)
+
+def Waves(a, b, c, d, e, f, dim:Dim):
+    data = Zeros(dim)
+    for i in range(dim.I or 1):
+        for j in range(dim.J or 1):
+            for k in range(dim.K or 1):
+                index = tuple(index for index, size in [(i,dim.I),(j,dim.J),(k,dim.K)] if size is not None)
+                x = i / (dim.I or 1)
+                y = j / (dim.J or 1)
                 data[index] = k * 0.01 + a * (b + math.cos(math.pi * (x + c * y)) + math.sin(d * math.pi * (x + e * y))) / f
     return data
     
@@ -64,8 +79,8 @@ class LegalSDFG:
     def test_2_sdfg_is_valid(self):
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.expand_library_nodes()
-        sdfg.apply_strict_transformations()
-        sdfg.validate()
+        sdfg.apply_strict_transformations(validate=False)
+        sdfg.apply_transformations_repeated([InlineSDFG])
         self.assertTrue(sdfg.is_valid())
 
 class Asserts(unittest.TestCase):
