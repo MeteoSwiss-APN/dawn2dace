@@ -1,4 +1,3 @@
-from IndexHandling import *
 from IdResolver import IdResolver
 import IIR_pb2
 
@@ -89,7 +88,7 @@ class Unparser:
         return name
 
     def _unparse_field_access_expr(self, expr) -> str:
-        indices = ToMemLayout(
+        indices = (
             expr.cartesian_offset.i_offset,
             expr.cartesian_offset.j_offset,
             expr.vertical_offset

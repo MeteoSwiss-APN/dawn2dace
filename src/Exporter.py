@@ -3,7 +3,6 @@ import dace.data
 from stencilflow.stencil.stencil import Stencil as StencilLib
 import sympy
 from itertools import chain
-from IndexHandling import *
 from Intermediates import *
 from IdResolver import IdResolver
 
@@ -16,46 +15,37 @@ float_type = dace.float64
 IJK_stride_I = dace.symbol("IJK_stride_I", dtype=dace.int32)
 IJK_stride_J = dace.symbol("IJK_stride_J", dtype=dace.int32)
 IJK_stride_K = dace.symbol("IJK_stride_K", dtype=dace.int32)
+IJK_total_size = dace.symbol("IJK_total_size", dtype=dace.int32)
 
 IJ_stride_I = dace.symbol("IJ_stride_I", dtype=dace.int32)
 IJ_stride_J = dace.symbol("IJ_stride_J", dtype=dace.int32)
-
-IK_stride_I = dace.symbol("IK_stride_I", dtype=dace.int32)
-IK_stride_K = dace.symbol("IK_stride_K", dtype=dace.int32)
-
-JK_stride_J = dace.symbol("JK_stride_J", dtype=dace.int32)
-JK_stride_K = dace.symbol("JK_stride_K", dtype=dace.int32)
-
-IJK_total_size = dace.symbol("IJK_total_size", dtype=dace.int32)
 IJ_total_size = dace.symbol("IJ_total_size", dtype=dace.int32)
-IK_total_size = dace.symbol("IK_total_size", dtype=dace.int32)
-JK_total_size = dace.symbol("JK_total_size", dtype=dace.int32)
 
-def dim_filter(dimensions:Any3D, i, j, k) -> tuple:
-    dim_mem = ToMemLayout(dimensions.i, dimensions.j, dimensions.k)
-    return tuple(elem for dim, elem in zip(dim_mem, ToMemLayout(i, j, k)) if dim)
+I_total_size = dace.symbol("I_total_size", dtype=dace.int32)
+J_total_size = dace.symbol("J_total_size", dtype=dace.int32)
+K_total_size = dace.symbol("K_total_size", dtype=dace.int32)
+
+def dim_filter(dim:Any3D, i, j, k) -> tuple:
+    return tuple(elem for dim, elem in zip(dim, [i, j, k]) if dim)
 
 class Exporter:
     def __init__(self, id_resolver:IdResolver, name:str):
         self.id_resolver = id_resolver
         self.sdfg = dace.SDFG(name)
-        self.sdfg.add_scalar('I', dtype=dace.int32)
-        self.sdfg.add_scalar('J', dtype=dace.int32)
-        self.sdfg.add_scalar('K', dtype=dace.int32)
-        self.sdfg.add_scalar('halo', dtype=dace.int32)
-        self.sdfg.add_scalar("IJK_stride_I", dtype=dace.int32)
-        self.sdfg.add_scalar("IJK_stride_J", dtype=dace.int32)
-        self.sdfg.add_scalar("IJK_stride_K", dtype=dace.int32)
-        self.sdfg.add_scalar("IJ_stride_I", dtype=dace.int32)
-        self.sdfg.add_scalar("IJ_stride_J", dtype=dace.int32)
-        self.sdfg.add_scalar("IK_stride_I", dtype=dace.int32)
-        self.sdfg.add_scalar("IK_stride_K", dtype=dace.int32)
-        self.sdfg.add_scalar("JK_stride_J", dtype=dace.int32)
-        self.sdfg.add_scalar("JK_stride_K", dtype=dace.int32)
-        self.sdfg.add_scalar("IJK_total_size", dtype=dace.int32)
-        self.sdfg.add_scalar("IJ_total_size", dtype=dace.int32)
-        self.sdfg.add_scalar("IK_total_size", dtype=dace.int32)
-        self.sdfg.add_scalar("JK_total_size", dtype=dace.int32)
+        self.sdfg.add_symbol('I', stype=dace.int32)
+        self.sdfg.add_symbol('J', stype=dace.int32)
+        self.sdfg.add_symbol('K', stype=dace.int32)
+        self.sdfg.add_symbol('halo', stype=dace.int32)
+        self.sdfg.add_symbol("IJK_stride_I", stype=dace.int32)
+        self.sdfg.add_symbol("IJK_stride_J", stype=dace.int32)
+        self.sdfg.add_symbol("IJK_stride_K", stype=dace.int32)
+        self.sdfg.add_symbol("IJK_total_size", stype=dace.int32)
+        self.sdfg.add_symbol("IJ_stride_I", stype=dace.int32)
+        self.sdfg.add_symbol("IJ_stride_J", stype=dace.int32)
+        self.sdfg.add_symbol("IJ_total_size", stype=dace.int32)
+        self.sdfg.add_symbol("I_total_size", stype=dace.int32)
+        self.sdfg.add_symbol("J_total_size", stype=dace.int32)
+        self.sdfg.add_symbol("K_total_size", stype=dace.int32)
         self.last_state_ = None
 
     def Name(self, id:int) -> str:
@@ -72,8 +62,6 @@ class Exporter:
         return {
             Bool3D(True, True, True) : [IJK_stride_I, IJK_stride_J, IJK_stride_K],
             Bool3D(True, True, False) : [IJ_stride_I, IJ_stride_J],
-            Bool3D(True, False, True) : [IK_stride_I, IK_stride_K],
-            Bool3D(False, True, True) : [JK_stride_J, JK_stride_K],
             Bool3D(True, False, False) : [1],
             Bool3D(False, True, False) : [1],
             Bool3D(False, False, True) : [1],
@@ -84,11 +72,9 @@ class Exporter:
         return {
             Bool3D(True, True, True) : IJK_total_size,
             Bool3D(True, True, False) : IJ_total_size,
-            Bool3D(True, False, True) : IK_total_size,
-            Bool3D(False, True, True) : JK_total_size,
-            Bool3D(True, False, False) : I,
-            Bool3D(False, True, False) : J,
-            Bool3D(False, False, True) : K+1,
+            Bool3D(True, False, False) : I_total_size,
+            Bool3D(False, True, False) : J_total_size,
+            Bool3D(False, False, True) : K_total_size,
             Bool3D(False, False, False) : 1
         }[self.Dimensions(id)]
 
@@ -144,7 +130,7 @@ class Exporter:
 
         #This is the bounding box of all memory accesses
         accs = [ dim_filter(dims, i, j, k) for i,j,k in mem_acc.range() ]
-        dimensions_present = ToMemLayout(dims).to_tuple()
+        dimensions_present = dims.to_tuple()
         return dimensions_present, accs
 
     def Create_Variable_Access_map(self, transactions:dict, suffix:str) -> dict:
@@ -173,7 +159,6 @@ class Exporter:
                 
                 halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0)
                 halo -= stage.extents
-                halo = ToMemLayout(halo)
                 bc_dict = { "btype" : "shrink", "halo" : halo.to_6_tuple() }
                 boundary_conditions = { f'{self.Name(id)}_out' : bc_dict for id in writes }
 
@@ -181,7 +166,7 @@ class Exporter:
 
                 stenc = StencilLib(
                     label = str(do_method),
-                    shape = list(ToMemLayout(I, J, 1)),
+                    shape = [I, J, 1],
                     accesses = self.Create_Variable_Access_map(do_method.Reads(), '_in'), # input fields
                     output_fields = self.Create_Variable_Access_map(do_method.Writes(), '_out'), # output fields
                     boundary_conditions = boundary_conditions,
@@ -237,16 +222,13 @@ class Exporter:
             'IJK_stride_I' : dace.symbol('IJK_stride_I'),
             'IJK_stride_J' : dace.symbol('IJK_stride_J'),
             'IJK_stride_K' : dace.symbol('IJK_stride_K'),
+            'IJK_total_size' : dace.symbol('IJK_total_size'),
             'IJ_stride_I' : dace.symbol('IJ_stride_I'),
             'IJ_stride_J' : dace.symbol('IJ_stride_J'),
-            'IK_stride_I' : dace.symbol('IK_stride_I'),
-            'IK_stride_K' : dace.symbol('IK_stride_K'),
-            'JK_stride_J' : dace.symbol('JK_stride_J'),
-            'JK_stride_K' : dace.symbol('JK_stride_K'),
-            'IJK_total_size' : dace.symbol('IJK_total_size'),
             'IJ_total_size' : dace.symbol('IJ_total_size'),
-            'IK_total_size' : dace.symbol('IK_total_size'),
-            'JK_total_size' : dace.symbol('JK_total_size')}
+            'I_total_size' : dace.symbol('I_total_size'),
+            'J_total_size' : dace.symbol('J_total_size'),
+            'K_total_size' : dace.symbol('K_total_size')}
         )
 
         map_entry, map_exit = ms_state.add_map("kmap", { 'k' : str(do_method.k_interval) })
@@ -312,7 +294,6 @@ class Exporter:
 
                 halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0)
                 halo -= stage.extents
-                halo = ToMemLayout(halo)
                 bc_dict = { "btype" : "shrink", "halo" : halo.to_6_tuple() }
                 boundary_conditions = { f'{self.Name(id)}_out' : bc_dict for id in writes }
 
@@ -320,7 +301,7 @@ class Exporter:
 
                 stenc = StencilLib(
                     label = str(do_method),
-                    shape = list(ToMemLayout(I, J, 1)),
+                    shape = [I, J, 1],
                     accesses = self.Create_Variable_Access_map(do_method.Reads(), '_in'), # input fields
                     output_fields = self.Create_Variable_Access_map(do_method.Writes(), '_out'), # output fields
                     boundary_conditions = boundary_conditions,

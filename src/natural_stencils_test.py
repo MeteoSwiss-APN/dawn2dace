@@ -1,7 +1,7 @@
 from test_helpers import *
 
 def lap2D(data, i, j, k, plus=None, minus=None):
-    if plus is None and minus is None:
+    if (plus is None) and (minus is None):
         return data[i-1,j,k] + data[i+1,j,k] - 2.0 * data[i,j,k] \
             + (data[i,j+1,k] - data[i,j,k]) \
             + (data[i,j-1,k] - data[i,j,k])
@@ -19,23 +19,24 @@ def diffusive_flux_y(lap, data, crlato, i, j, k):
     fly = crlato[j] * (lap[i,j+1,k] - lap[i,j,k])
     return 0.0 if (fly * (data[i,j+1,k] - data[i,j,k])) > 0.0 else fly
 
-def type2(data, crlato, crlatu, hdmask, dim, halo):
+def type2(data, crlato, crlatu, hdmask, dim, halo=None):
+    halo = halo or dim.halo
     lap = Zeros(dim.ijk)
-    for i in range(1, I-1):
-        for j in range(1, J-1):
-            for k in range(0, K):
+    for i in range(1, dim.I-1):
+        for j in range(1, dim.J-1):
+            for k in range(0, dim.K):
                 lap[i,j,k] = lap2D(data, i, j, k, crlato, crlatu)
 
     out = Zeros(dim.ijk)
-    for i in range(halo, I-halo):
-        for j in range(halo, J-halo):
-            for k in range(0, K):
+    for i in range(halo, dim.I-halo):
+        for j in range(halo, dim.J-halo):
+            for k in range(0, dim.K):
                 delta_flux_x = diffusive_flux_x(lap, data, i, j, k) - diffusive_flux_x(lap, data, i-1, j, k)
                 delta_flux_y = diffusive_flux_y(lap, data, crlato, i, j, k) - diffusive_flux_y(lap, data, crlato, i, j-1, k)
                 out[i,j,k] = data[i,j,k] - hdmask[i,j,k] * (delta_flux_x + delta_flux_y)
     return out
 
-def smag(u, v, hdmask, crlavo, crlavu, crlato, crlatu, acrlat0, dim, halo):
+def smag(u, v, hdmask, crlavo, crlavu, crlato, crlatu, acrlat0, dim):
     eddlon = 5729.58
     eddlat = 5729.58
     T_sqr_s = Zeros(dim.ijk)
@@ -60,8 +61,8 @@ def smag(u, v, hdmask, crlavo, crlavu, crlato, crlatu, acrlat0, dim, halo):
 
     u_out = Zeros(dim.ijk)
     v_out = Zeros(dim.ijk)
-    for i in range(halo, dim.I-halo):
-        for j in range(halo, dim.J-halo):
+    for i in range(dim.halo, dim.I-dim.halo):
+        for j in range(dim.halo, dim.J-dim.halo):
             for k in range(0, dim.K):
                 weight_smag = 0.5
                 tau_smag = 0.3
@@ -78,31 +79,22 @@ def smag(u, v, hdmask, crlavo, crlavu, crlato, crlatu, acrlat0, dim, halo):
 
 class coriolis(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        I,J,K = 4,4,4
-        halo = 1
-        u = Iota(I,J,K)
-        v = Iota(I,J,K)
-        fc = Iota(I,J)
-        u_tens = Zeros(I,J,K)
-        v_tens = Zeros(I,J,K)
-        u_tens_dace = numpy.copy(u_tens)
-        v_tens_dace = numpy.copy(v_tens)
+        dim = Dimensions([4,4,4], [4,4,5], halo=1)
+        u = Waves(8.0, 2.0, 1.5, 1.5, 2.0, 4.0, dim.ijk);
+        v = Waves(5.0, 1.2, 1.3, 1.7, 2.2, 3.5, dim.ijk);
+        fc = Waves(2.0, 1.2, 1.3, 1.7, 2.2, 3.5, dim.ij);
+        u_tens = Zeros(dim.ijk)
+        v_tens = Zeros(dim.ijk)
+        u_tens_dace = Zeros(dim.ijk)
+        v_tens_dace = Zeros(dim.ijk)
 
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
+        for i in range(dim.halo, dim.I-dim.halo):
+            for j in range(dim.halo, dim.J-dim.halo):
+                for k in range(0, dim.K):
                     # u_tens += 0.25 * (fc * (v + v[i+1]) + fc[j-1] * (v[j-1] + v[i+1,j-1]));
                     u_tens[i,j,k] += 0.25 * (fc[i,j] * (v[i,j,k] + v[i+1,j,k]) + fc[i,j-1] * (v[i,j-1,k] + v[i+1,j-1,k]))
                     # v_tens -= 0.25 * (fc * (u + u[j+1]) + fc[i-1] * (u[i-1] + u[i-1,j+1]));
                     v_tens[i,j,k] -= 0.25 * (fc[i,j] * (u[i,j,k] + u[i,j+1,k]) + fc[i-1,j] * (u[i-1,j,k] + u[i-1,j+1,k]))
-
-        u = Transpose(u)
-        v = Transpose(v)
-        fc = Transpose(fc)
-        u_tens = Transpose(u_tens)
-        v_tens = Transpose(v_tens)
-        u_tens_dace = Transpose(u_tens_dace)
-        v_tens_dace = Transpose(v_tens_dace)
 
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -119,10 +111,7 @@ class coriolis(LegalSDFG, Asserts):
             u = u,
             v = v,
             fc = fc,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo = numpy.int32(halo))
+            **dim.ProgramArguments())
 
         self.assertEqual(u_tens, u_tens_dace)
         self.assertEqual(v_tens, v_tens_dace)
@@ -130,26 +119,25 @@ class coriolis(LegalSDFG, Asserts):
 
 class thomas(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        I,J,K = 4,4,4
-        halo = 0
-        a = Iota(I,J,K,0)
-        b = Iota(I,J,K,9)
-        c = Iota(I,J,K,1)
-        d = Iota(I,J,K,6)
-        data = Zeros(I, J, K)
-        a_dace = numpy.copy(a)
-        b_dace = numpy.copy(b)
-        c_dace = numpy.copy(c)
-        d_dace = numpy.copy(d)
-        data_dace = numpy.copy(data)
+        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        a = Iota(dim.ijk,0)
+        b = Iota(dim.ijk,9)
+        c = Iota(dim.ijk,1)
+        d = Iota(dim.ijk,6)
+        data = Zeros(dim.ijk)
+        a_dace = Iota(dim.ijk,0)
+        b_dace = Iota(dim.ijk,9)
+        c_dace = Iota(dim.ijk,1)
+        d_dace = Iota(dim.ijk,6)
+        data_dace = Zeros(dim.ijk)
 
         # Do(k_from = k_start, k_to = k_start) {
         #     const double divided = 1.0 / b;
         #     c = c * divided;
         #     d = d * divided;
         # }
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
+        for i in range(dim.halo, dim.I-dim.halo):
+            for j in range(dim.halo, dim.J-dim.halo):
                 for k in range(0, 1):
                     divided = 1.0 / b[i,j,k]
                     c[i,j,k] = c[i,j,k] * divided
@@ -160,9 +148,9 @@ class thomas(LegalSDFG, Asserts):
         #     c = c * divided;
         #     d = d - (d[k - 1] * a) * divided;
         # }
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(1, K-1):
+        for i in range(dim.halo, dim.I-dim.halo):
+            for j in range(dim.halo, dim.J-dim.halo):
+                for k in range(1, dim.K-1):
                     divided = 1.0 / (b[i,j,k] - (c[i,j,k-1] * a[i,j,k]))
                     c[i,j,k] = c[i,j,k] * divided
                     d[i,j,k] = d[i,j,k] - (d[i,j,k-1] * a[i,j,k]) * divided
@@ -171,40 +159,29 @@ class thomas(LegalSDFG, Asserts):
         #     const double divided = 1.0 / (b - (c[k - 1] * a));
         #     d = (d - (d[k - 1] * a)) * divided;
         # }
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(K-1, K):
+        for i in range(dim.halo, dim.I-dim.halo):
+            for j in range(dim.halo, dim.J-dim.halo):
+                for k in range(dim.K-1, dim.K):
                     divided = 1.0 / (b[i,j,k] - (c[i,j,k-1] * a[i,j,k]))
                     d[i,j,k] = (d[i,j,k] - (d[i,j,k-1] * a[i,j,k])) * divided
 
         # Do(k_from = k_end, k_to = k_end) { data = d; }
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(K-1, K):
+        for i in range(dim.halo, dim.I-dim.halo):
+            for j in range(dim.halo, dim.J-dim.halo):
+                for k in range(dim.K-1, dim.K):
                     data[i,j,k] = d[i,j,k]
 
         # Do(k_from = k_start, k_to = k_end - 1) { data = d - (c * data[k + 1]); }
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in reversed(range(0, K-1)):
+        for i in range(dim.halo, dim.I-dim.halo):
+            for j in range(dim.halo, dim.J-dim.halo):
+                for k in reversed(range(0, dim.K-1)):
                     data[i,j,k] = d[i,j,k] - (c[i,j,k] * data[i,j,k+1])
-
-        a = Transpose(a)
-        b = Transpose(b)
-        c = Transpose(c)
-        d = Transpose(d)
-        data = Transpose(data)
-        a_dace = Transpose(a_dace)
-        b_dace = Transpose(b_dace)
-        c_dace = Transpose(c_dace)
-        d_dace = Transpose(d_dace)
-        data_dace = Transpose(data_dace)
 
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg.apply_strict_transformations()
+        sdfg.apply_strict_transformations(validate=False)
         sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile()
@@ -215,10 +192,7 @@ class thomas(LegalSDFG, Asserts):
             ccol = c_dace,
             dcol = d_dace,
             datacol = data_dace,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo = numpy.int32(halo))
+            **dim.ProgramArguments())
 
         self.assertIsClose(a, a_dace)
         self.assertIsClose(b, b_dace)
@@ -228,32 +202,27 @@ class thomas(LegalSDFG, Asserts):
 
 class diffusion(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        I,J,K = 6,6,6
-        halo = 2
-        input = numpy.sqrt(Iota(I, J, K))
-        output = Zeros(I, J, K)
-        output_dace = numpy.copy(output)
+        dim = Dimensions([6,6,6], [6,6,7], halo=2)
+        input = numpy.sqrt(Iota(dim.ijk))
+        output = Zeros(dim.ijk)
+        output_dace = Zeros(dim.ijk)
 
-        lap = Zeros(I, J, K)
-        for i in range(1, I-1):
-            for j in range(1, J-1):
-                for k in range(0, K):
+        lap = Zeros(dim.ijk)
+        for i in range(1, dim.I-1):
+            for j in range(1, dim.J-1):
+                for k in range(0, dim.K):
                     lap[i,j,k] = lap2D(input, i, j, k)
 
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
+        for i in range(dim.halo, dim.I-dim.halo):
+            for j in range(dim.halo, dim.J-dim.halo):
+                for k in range(0, dim.K):
                     output[i,j,k] = diffusive_flux_x(lap, input, i, j, k) - diffusive_flux_x(lap, input, i-1, j, k)
-
-        input = Transpose(input)
-        output = Transpose(output)
-        output_dace = Transpose(output_dace)
 
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg.apply_strict_transformations()
+        sdfg.apply_strict_transformations(validate=False)
         sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile()
@@ -261,38 +230,27 @@ class diffusion(LegalSDFG, Asserts):
         sdfg(
             input = input,
             output = output_dace,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo = numpy.int32(halo))
+            **dim.ProgramArguments())
 
         self.assertIsClose(output, output_dace)
 
 class laplace(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        I,J,K = 4,4,4
-        halo = 1
-        input = numpy.sqrt(Iota(I, J, K))
-        output = Zeros(I, J, K)
-        output_dace = numpy.copy(output)
+        dim = Dimensions([4,4,4], [4,4,5], halo=1)
+        input = numpy.sqrt(Iota(dim.ijk))
+        output = Zeros(dim.ijk)
+        output_dace = Zeros(dim.ijk)
 
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
+        for i in range(dim.halo, dim.I-dim.halo):
+            for j in range(dim.halo, dim.J-dim.halo):
+                for k in range(0, dim.K):
                     output[i,j,k] = lap2D(input, i, j, k)
-
-        input = Transpose(input)
-        output = Transpose(output)
-        output_dace = Transpose(output_dace)
-        
-        from dace.transformation.dataflow import MapFission, MapCollapse, MapFusion
-        from dace.transformation.interstate import InlineSDFG, StateFusion
 
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg.apply_strict_transformations()
+        sdfg.apply_strict_transformations(validate=False)
         sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile()
@@ -300,44 +258,33 @@ class laplace(LegalSDFG, Asserts):
         sdfg(
             input = input,
             output = output_dace,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo = numpy.int32(halo))
+            **dim.ProgramArguments())
 
         self.assertIsClose(output, output_dace)
 
 class laplap(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        I,J,K = 6,6,6
-        halo = 2
-        input = numpy.sqrt(Iota(I, J, K))
-        output = Zeros(I, J, K)
-        lap = Zeros(I, J, K)
-        output_dace = numpy.copy(output)
+        dim = Dimensions([6,6,6], [6,6,7], halo=2)
+        input = numpy.sqrt(Iota(dim.ijk))
+        output = Zeros(dim.ijk)
+        lap = Zeros(dim.ijk)
+        output_dace = Zeros(dim.ijk)
 
-        for i in range(halo-1, I-halo+1):
-            for j in range(halo-1, J-halo+1):
-                for k in range(0, K):
+        for i in range(dim.halo-1, dim.I-dim.halo+1):
+            for j in range(dim.halo-1, dim.J-dim.halo+1):
+                for k in range(0, dim.K):
                     lap[i,j,k] = lap2D(input, i, j, k)
 
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
+        for i in range(dim.halo, dim.I-dim.halo):
+            for j in range(dim.halo, dim.J-dim.halo):
+                for k in range(0, dim.K):
                     output[i,j,k] = lap2D(lap, i, j, k)
-
-        input = Transpose(input)
-        output = Transpose(output)
-        output_dace = Transpose(output_dace)
-        
-        from dace.transformation.dataflow import MapFission, MapCollapse, MapFusion
-        from dace.transformation.interstate import InlineSDFG, StateFusion
 
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg.apply_strict_transformations()
+        sdfg.apply_strict_transformations(validate=False)
         sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile()
@@ -345,18 +292,14 @@ class laplap(LegalSDFG, Asserts):
         sdfg(
             input = input,
             output = output_dace,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo = numpy.int32(halo))
+            **dim.ProgramArguments())
 
         self.assertIsClose(output, output_dace)
 
 class smagorinsky(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        I,J,K = 16,16,5
-        dim = Dimensions(I,J,K)
-        halo = 3
+        dim = Dimensions([16,16,5], [16,16,6], halo=3)
+
         u_in = Waves(8.0, 2.0, 1.5, 1.5, 2.0, 4.0, dim.ijk)
         v_in = Waves(6.0, 1.0, 0.9, 1.1, 2.0, 4.0, dim.ijk)
         hdmask = Waves(1.3, 0.20, 1.15, 1.25, 0.30, 0.41, dim.ijk)
@@ -368,10 +311,11 @@ class smagorinsky(LegalSDFG, Asserts):
 
         u_out = Zeros(dim.ijk)
         v_out = Zeros(dim.ijk)
-        u_out_dace = numpy.copy(u_out)
-        v_out_dace = numpy.copy(v_out)
 
-        u_out, v_out = smag(u_in, v_in, hdmask, crlavo, crlavu, crlato, crlatu, acrlat0, dim, halo)
+        u_out_dace = Zeros(dim.ijk)
+        v_out_dace = Zeros(dim.ijk)
+
+        u_out, v_out = smag(u_in, v_in, hdmask, crlavo, crlavu, crlato, crlatu, acrlat0, dim)
 
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
@@ -393,50 +337,29 @@ class smagorinsky(LegalSDFG, Asserts):
             crlatu = crlatu,
             u_out = u_out_dace,
             v_out = v_out_dace,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo = numpy.int32(halo),
-            IJK_stride_I = numpy.int32(dim.ijk.stride_i),
-            IJK_stride_J = numpy.int32(dim.ijk.stride_j),
-            IJK_stride_K = numpy.int32(dim.ijk.stride_k),
-
-            IJ_stride_I = numpy.int32(dim.ij.stride_i),
-            IJ_stride_J = numpy.int32(dim.ij.stride_j),
-
-            IK_stride_I = numpy.int32(dim.ik.stride_i),
-            IK_stride_K = numpy.int32(dim.ik.stride_k),
-
-            JK_stride_J = numpy.int32(dim.jk.stride_j),
-            JK_stride_K = numpy.int32(dim.jk.stride_k),
-
-            IJK_total_size = numpy.int32(dim.ijk.total_size),
-            IJ_total_size = numpy.int32(dim.ij.total_size),
-            IK_total_size = numpy.int32(dim.ik.total_size),
-            JK_total_size = numpy.int32(dim.jk.total_size),
-            )
+            **dim.ProgramArguments())
 
         # print("u_in")
-        # for i in range(halo, I-halo):
-        #     for j in range(halo, J-halo):
-        #         for k in range(0, K):
-        #             print(i,j,k, u_in[ToMemLayout(i,j,k)])
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, u_in[i,j,k])
         # print("v_in")
-        # for i in range(halo, I-halo):
-        #     for j in range(halo, J-halo):
-        #         for k in range(0, K):
-        #             print(i,j,k, v_in[ToMemLayout(i,j,k)])
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, v_in[i,j,k])
 
         # print("u_out")
-        # for i in range(halo, I-halo):
-        #     for j in range(halo, J-halo):
-        #         for k in range(0, K):
-        #             print(i,j,k, u_out[ToMemLayout(i,j,k)], u_out_dace[ToMemLayout(i,j,k)], u_out[ToMemLayout(i,j,k)] - u_out_dace[ToMemLayout(i,j,k)])
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, u_out[i,j,k], u_out_dace[i,j,k], u_out[i,j,k] - u_out_dace[i,j,k])
         # print("v_out")
-        # for i in range(halo, I-halo):
-        #     for j in range(halo, J-halo):
-        #         for k in range(0, K):
-        #             print(i,j,k, v_out[ToMemLayout(i,j,k)], v_out_dace[ToMemLayout(i,j,k)], v_out[ToMemLayout(i,j,k)] - v_out_dace[ToMemLayout(i,j,k)])
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, v_out[i,j,k], v_out_dace[i,j,k], v_out[i,j,k] - v_out_dace[i,j,k])
 
         self.assertIsClose(u_out, u_out_dace)
         self.assertIsClose(v_out, v_out_dace)
@@ -444,59 +367,42 @@ class smagorinsky(LegalSDFG, Asserts):
 
 class horizontal_diffusion(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        I,J,K = 16,16,5
-        halo = 4
-        u_in = Waves(1.80, 1.20, 0.15, 1.15, 0.20, 1.40, I, J, K)
-        v_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, I, J, K)
-        w_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, I, J, K)
-        pp_in = Waves(1.30, 1.20, 0.27, 1.12, 0.10, 1.50, I, J, K)
-        hdmask = Waves(0.3, 1.22, 0.17, 1.19, 0.20, 1.40, I, J, K)
-        crlavo = Waves(1.65, 1.12, 0.17, 1.19, 0.21, 1.20, J=J)
-        crlavu = Waves(1.50, 1.22, 0.17, 1.19, 0.20, 1.10, J=J)
-        crlato = Waves(1.65, 1.12, 0.17, 1.09, 0.21, 1.20, J=J)
-        crlatu = Waves(1.50, 1.22, 0.17, 1.09, 0.20, 1.10, J=J)
-        acrlat0 = Waves(1.65, 1.22, 0.11, 1.52, 0.42, 1.02, J=J)
-        u_out = Zeros(I,J,K)
-        v_out = Zeros(I,J,K)
-        w_out = Zeros(I,J,K)
-        pp_out = Zeros(I,J,K)
-        u_out_dace = numpy.copy(u_out)
-        v_out_dace = numpy.copy(v_out)
-        w_out_dace = numpy.copy(w_out)
-        pp_out_dace = numpy.copy(pp_out)
+        dim = Dimensions([16,16,5], [16,16,6], halo=4)
+        u_in = Waves(1.80, 1.20, 0.15, 1.15, 0.20, 1.40, dim.ijk)
+        v_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, dim.ijk)
+        w_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, dim.ijk)
+        pp_in = Waves(1.30, 1.20, 0.27, 1.12, 0.10, 1.50, dim.ijk)
+        hdmask = Waves(0.3, 1.22, 0.17, 1.19, 0.20, 1.40, dim.ijk)
+        crlavo = Waves(1.65, 1.12, 0.17, 1.19, 0.21, 1.20, dim.j)
+        crlavu = Waves(1.50, 1.22, 0.17, 1.19, 0.20, 1.10, dim.j)
+        crlato = Waves(1.65, 1.12, 0.17, 1.09, 0.21, 1.20, dim.j)
+        crlatu = Waves(1.50, 1.22, 0.17, 1.09, 0.20, 1.10, dim.j)
+        acrlat0 = Waves(1.65, 1.22, 0.11, 1.52, 0.42, 1.02, dim.j)
+        u_out = Zeros(dim.ijk)
+        v_out = Zeros(dim.ijk)
+        w_out = Zeros(dim.ijk)
+        pp_out = Zeros(dim.ijk)
+        u_out_dace = Zeros(dim.ijk)
+        v_out_dace = Zeros(dim.ijk)
+        w_out_dace = Zeros(dim.ijk)
+        pp_out_dace = Zeros(dim.ijk)
 
         u_tmp = type2(u_in, crlato, crlatu, hdmask, dim, 2)
         v_tmp = type2(v_in, crlato, crlatu, hdmask, dim, 2)
-        w_out = type2(w_in, crlato, crlatu, hdmask, dim, halo)
-        pp_out = type2(pp_in, crlato, crlatu, hdmask, dim, halo)
-        u_out, v_out = smag(u_tmp, v_tmp, hdmask, crlavo, crlavu, crlato, crlatu, acrlat0, dim, halo)
-
-        u_in = Transpose(u_in)
-        v_in = Transpose(v_in)
-        w_in = Transpose(w_in)
-        pp_in = Transpose(pp_in)
-        hdmask = Transpose(hdmask)
-        acrlat0 = Transpose(acrlat0)
-        crlavo = Transpose(crlavo)
-        crlavu = Transpose(crlavu)
-        crlato = Transpose(crlato)
-        crlatu = Transpose(crlatu)
-        u_out = Transpose(u_out)
-        v_out = Transpose(v_out)
-        w_out = Transpose(w_out)
-        pp_out = Transpose(pp_out)
-        u_out_dace = Transpose(u_out_dace)
-        v_out_dace = Transpose(v_out_dace)
-        w_out_dace = Transpose(w_out_dace)
-        pp_out_dace = Transpose(pp_out_dace)
+        w_out = type2(w_in, crlato, crlatu, hdmask, dim)
+        pp_out = type2(pp_in, crlato, crlatu, hdmask, dim)
+        u_out, v_out = smag(u_tmp, v_tmp, hdmask, crlavo, crlavu, crlato, crlatu, acrlat0, dim)
 
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg.apply_strict_transformations()
+        sdfg.apply_strict_transformations(validate=False)
         sdfg.apply_transformations_repeated([InlineSDFG])
-        sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
+        sdfg.apply_transformations_repeated([MapExpansion])
+        sdfg.apply_transformations_repeated([MapFusion])
+        sdfg.apply_transformations_repeated([MapCollapse])
+        sdfg.save("gen/" + self.__class__.__name__ + "_optimized.sdfg")
         sdfg = sdfg.compile()
 
         sdfg(
@@ -514,53 +420,50 @@ class horizontal_diffusion(LegalSDFG, Asserts):
             v_in = v_in,
             w_out = w_out_dace,
             w_in = w_in,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo = numpy.int32(halo))
+            **dim.ProgramArguments())
 
-        print("u_in")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, u_in[ToMemLayout(i,j,k)])
-        print("v_in")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, v_in[ToMemLayout(i,j,k)])
-        print("w_in")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, w_in[ToMemLayout(i,j,k)])
-        print("pp_in")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, pp_in[ToMemLayout(i,j,k)])
+        # print("u_in")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, u_in[i,j,k])
+        # print("v_in")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, v_in[i,j,k])
+        # print("w_in")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, w_in[i,j,k])
+        # print("pp_in")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, pp_in[i,j,k])
 
 
-        print("u_out")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, u_out[ToMemLayout(i,j,k)], u_out_dace[ToMemLayout(i,j,k)], u_out[ToMemLayout(i,j,k)] - u_out_dace[ToMemLayout(i,j,k)])
-        print("v_out")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, v_out[ToMemLayout(i,j,k)], v_out_dace[ToMemLayout(i,j,k)], v_out[ToMemLayout(i,j,k)] - v_out_dace[ToMemLayout(i,j,k)])
-        print("w_out")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, w_out[ToMemLayout(i,j,k)], w_out_dace[ToMemLayout(i,j,k)], w_out[ToMemLayout(i,j,k)] - w_out_dace[ToMemLayout(i,j,k)])
-        print("pp_out")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, pp_out[ToMemLayout(i,j,k)], pp_out_dace[ToMemLayout(i,j,k)], pp_out[ToMemLayout(i,j,k)] - pp_out_dace[ToMemLayout(i,j,k)])
+        # print("u_out")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, u_out[i,j,k], u_out_dace[i,j,k], u_out[i,j,k] - u_out_dace[i,j,k])
+        # print("v_out")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, v_out[i,j,k], v_out_dace[i,j,k], v_out[i,j,k] - v_out_dace[i,j,k])
+        # print("w_out")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, w_out[i,j,k], w_out_dace[i,j,k], w_out[i,j,k] - w_out_dace[i,j,k])
+        # print("pp_out")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, pp_out[i,j,k], pp_out_dace[i,j,k], pp_out[i,j,k] - pp_out_dace[i,j,k])
 
         self.assertIsClose(w_out, w_out_dace)
         self.assertIsClose(pp_out, pp_out_dace)
@@ -569,56 +472,36 @@ class horizontal_diffusion(LegalSDFG, Asserts):
         
 class type2_diffusion(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        I,J,K = 16,16,5
-        halo = 3
-        u_in = Waves(1.80, 1.20, 0.15, 1.15, 0.20, 1.40, I, J, K)
-        v_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, I, J, K)
-        w_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, I, J, K)
-        pp_in = Waves(1.30, 1.20, 0.27, 1.12, 0.10, 1.50, I, J, K)
-        hdmask = Waves(0.3, 1.22, 0.17, 1.19, 0.20, 1.40, I, J, K)
-        crlavo = Waves(1.65, 1.12, 0.17, 1.19, 0.21, 1.20, J=J)
-        crlavu = Waves(1.50, 1.22, 0.17, 1.19, 0.20, 1.10, J=J)
-        crlato = Waves(1.65, 1.12, 0.17, 1.09, 0.21, 1.20, J=J)
-        crlatu = Waves(1.50, 1.22, 0.17, 1.09, 0.20, 1.10, J=J)
-        acrlat0 = Waves(1.65, 1.22, 0.11, 1.52, 0.42, 1.02, J=J)
-        u_out = Zeros(I,J,K)
-        v_out = Zeros(I,J,K)
-        w_out = Zeros(I,J,K)
-        pp_out = Zeros(I,J,K)
-        u_out_dace = numpy.copy(u_out)
-        v_out_dace = numpy.copy(v_out)
-        w_out_dace = numpy.copy(w_out)
-        pp_out_dace = numpy.copy(pp_out)
+        dim = Dimensions([16,16,5], [16,16,6], halo=2)
+        u_in = Waves(1.80, 1.20, 0.15, 1.15, 0.20, 1.40, dim.ijk)
+        v_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, dim.ijk)
+        w_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, dim.ijk)
+        pp_in = Waves(1.30, 1.20, 0.27, 1.12, 0.10, 1.50, dim.ijk)
+        hdmask = Waves(0.3, 1.22, 0.17, 1.19, 0.20, 1.40, dim.ijk)
+        crlavo = Waves(1.65, 1.12, 0.17, 1.19, 0.21, 1.20, dim.j)
+        crlavu = Waves(1.50, 1.22, 0.17, 1.19, 0.20, 1.10, dim.j)
+        crlato = Waves(1.65, 1.12, 0.17, 1.09, 0.21, 1.20, dim.j)
+        crlatu = Waves(1.50, 1.22, 0.17, 1.09, 0.20, 1.10, dim.j)
+        acrlat0 = Waves(1.65, 1.22, 0.11, 1.52, 0.42, 1.02, dim.j)
+        u_out = Zeros(dim.ijk)
+        v_out = Zeros(dim.ijk)
+        w_out = Zeros(dim.ijk)
+        pp_out = Zeros(dim.ijk)
+        u_out_dace = Zeros(dim.ijk)
+        v_out_dace = Zeros(dim.ijk)
+        w_out_dace = Zeros(dim.ijk)
+        pp_out_dace = Zeros(dim.ijk)
 
-        u_out = type2(u_in, crlato, crlatu, hdmask, dim, halo)
-        v_out = type2(v_in, crlato, crlatu, hdmask, dim, halo)
-        w_out = type2(w_in, crlato, crlatu, hdmask, dim, halo)
-        pp_out = type2(pp_in, crlato, crlatu, hdmask, dim, halo)
-
-        u_in = Transpose(u_in)
-        v_in = Transpose(v_in)
-        w_in = Transpose(w_in)
-        pp_in = Transpose(pp_in)
-        hdmask = Transpose(hdmask)
-        acrlat0 = Transpose(acrlat0)
-        crlavo = Transpose(crlavo)
-        crlavu = Transpose(crlavu)
-        crlato = Transpose(crlato)
-        crlatu = Transpose(crlatu)
-        u_out = Transpose(u_out)
-        v_out = Transpose(v_out)
-        w_out = Transpose(w_out)
-        pp_out = Transpose(pp_out)
-        u_out_dace = Transpose(u_out_dace)
-        v_out_dace = Transpose(v_out_dace)
-        w_out_dace = Transpose(w_out_dace)
-        pp_out_dace = Transpose(pp_out_dace)
+        u_out = type2(u_in, crlato, crlatu, hdmask, dim)
+        v_out = type2(v_in, crlato, crlatu, hdmask, dim)
+        w_out = type2(w_in, crlato, crlatu, hdmask, dim)
+        pp_out = type2(pp_in, crlato, crlatu, hdmask, dim)
 
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg.apply_strict_transformations()
+        sdfg.apply_strict_transformations(validate=False)
         sdfg.apply_transformations_repeated([InlineSDFG])
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile()
@@ -638,53 +521,50 @@ class type2_diffusion(LegalSDFG, Asserts):
             v_in = v_in,
             w_out = w_out_dace,
             w_in = w_in,
-            I = numpy.int32(I),
-            J = numpy.int32(J),
-            K = numpy.int32(K),
-            halo = numpy.int32(halo))
+            **dim.ProgramArguments())
 
-        print("u_in")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, u_in[ToMemLayout(i,j,k)])
-        print("v_in")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, v_in[ToMemLayout(i,j,k)])
-        print("w_in")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, w_in[ToMemLayout(i,j,k)])
-        print("pp_in")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, pp_in[ToMemLayout(i,j,k)])
+        # print("u_in")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, u_in[i,j,k])
+        # print("v_in")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, v_in[i,j,k])
+        # print("w_in")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, w_in[i,j,k])
+        # print("pp_in")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, pp_in[i,j,k])
 
 
-        print("u_out")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, u_out[ToMemLayout(i,j,k)], u_out_dace[ToMemLayout(i,j,k)], u_out[ToMemLayout(i,j,k)] - u_out_dace[ToMemLayout(i,j,k)])
-        print("v_out")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, v_out[ToMemLayout(i,j,k)], v_out_dace[ToMemLayout(i,j,k)], v_out[ToMemLayout(i,j,k)] - v_out_dace[ToMemLayout(i,j,k)])
-        print("w_out")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, w_out[ToMemLayout(i,j,k)], w_out_dace[ToMemLayout(i,j,k)], w_out[ToMemLayout(i,j,k)] - w_out_dace[ToMemLayout(i,j,k)])
-        print("pp_out")
-        for i in range(halo, I-halo):
-            for j in range(halo, J-halo):
-                for k in range(0, K):
-                    print(i,j,k, pp_out[ToMemLayout(i,j,k)], pp_out_dace[ToMemLayout(i,j,k)], pp_out[ToMemLayout(i,j,k)] - pp_out_dace[ToMemLayout(i,j,k)])
+        # print("u_out")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, u_out[i,j,k], u_out_dace[i,j,k], u_out[i,j,k] - u_out_dace[i,j,k])
+        # print("v_out")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, v_out[i,j,k], v_out_dace[i,j,k], v_out[i,j,k] - v_out_dace[i,j,k])
+        # print("w_out")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, w_out[i,j,k], w_out_dace[i,j,k], w_out[i,j,k] - w_out_dace[i,j,k])
+        # print("pp_out")
+        # for i in range(dim.halo, dim.I-dim.halo):
+        #     for j in range(dim.halo, dim.J-dim.halo):
+        #         for k in range(0, dim.K):
+        #             print(i,j,k, pp_out[i,j,k], pp_out_dace[i,j,k], pp_out[i,j,k] - pp_out_dace[i,j,k])
 
         self.assertIsClose(w_out, w_out_dace)
         self.assertIsClose(pp_out, pp_out_dace)

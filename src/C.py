@@ -15,22 +15,14 @@ from dace.codegen import codegen, compiler
 # sdfg.apply_transformations_repeated([StateFusion, InlineSDFG, StencilFusion])
 # sdfg.save("/home/dominic/work/dawn2dace/gen/HD_canonicalized2.sdfg")
 
-sdfg = SDFG.from_file("/home/dominic/work/dawn2dace/gen/DyCore/Expanded/horizontal_diffusion.sdfg")
-sdfg.apply_transformations_repeated([MapFusion])
-sdfg.save("/home/dominic/work/HD-MapFusion.sdfg")
-sdfg.apply_transformations_repeated([MapFission, MapCollapse, InlineSDFG])
-sdfg.apply_transformations_repeated([TrivialMapRangeElimination])
-sdfg.apply_transformations_repeated([MapExpansion])
-sdfg.save("/home/dominic/work/HD-MapExpansion.sdfg")
-sdfg.apply_transformations_repeated([MapFusion])
-sdfg.save("/home/dominic/work/HD-MapFusion.sdfg")
+sdfg = SDFG.from_file("/home/dominic/work/dawn2dace/gen/DyCore/Expanded/coriolis_stencil.sdfg")
 sdfg.apply_transformations_repeated([MapCollapse])
-sdfg.save("/home/dominic/work/HD-MapCollapse.sdfg")
-sdfg.save("/home/dominic/work/HD-cpu.sdfg")
+sdfg.apply_transformations_repeated([TrivialMapRangeElimination])
+sdfg.save("/home/dominic/work/C-cpu.sdfg")
 sdfg.apply_transformations(GPUTransformSDFG, options={'strict_transform': False})
 for state in sdfg.nodes():
     state.instrument = dace.InstrumentationType.GPU_Events
-sdfg.save("/home/dominic/work/HD-gpu.sdfg")
+sdfg.save("/home/dominic/work/C-gpu.sdfg")
 
 # sdfg = SDFG.from_file("/home/dominic/work/dawn2dace/gen/HD_expanded.sdfg")
 # sdfg.apply_transformations(GPUTransformSDFG, validate=False)

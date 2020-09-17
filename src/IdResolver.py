@@ -1,4 +1,4 @@
-from IndexHandling import *
+from helpers import *
 
 class IdResolver:
     def __init__(self, accessIDToName:dict,

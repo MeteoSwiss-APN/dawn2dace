@@ -2,7 +2,7 @@
 
 using namespace gtclang::dsl;
 
-stencil copy {
+stencil duplicate {
   storage original, copy;
 
   Do {

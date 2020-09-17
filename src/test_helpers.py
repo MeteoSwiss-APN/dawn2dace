@@ -3,8 +3,9 @@ import numpy
 import sys
 import os
 import math
-from IndexHandling import *
+from numpy.lib.stride_tricks import as_strided
 from dace.transformation.interstate import InlineSDFG
+from dace.transformation.dataflow import MapFission, MapCollapse, MapFusion, MapExpansion, MapToForLoop, TrivialMapElimination, TrivialMapRangeElimination
 
 # This is a workaround for a bug in vscode. Apparently it ignores PYTHONPATH. (6.Nov 2019)
 sys.path.append(os.path.relpath("build/gen/iir_specification"))
@@ -23,50 +24,70 @@ def get_sdfg(file_name):
     iir = read_file(file_name)
     return dawn2dace.IIR_str_to_SDFG(iir)
 
-def Transpose(arr):
-    if len(arr.shape) == 3:
-        return arr.transpose(list(ToMemLayout(0, 1, 2))).copy()
-    if len(arr.shape) == 2:
-        return arr.transpose([x for x in ToMemLayout(0, 1, None) if x is not None]).copy()
-    return arr
-
 class Dim:
-    def __init__(self, I, J, K, stride_i, stride_j, stride_k, total_size):
-        self.I = I # is used for bounds checking
-        self.J = J # is used for bounds checking
-        self.K = K # is used for bounds checking
-        self.stride_i = stride_i
-        self.stride_j = stride_j
-        self.stride_k = stride_k
-        self.shape = [x for x in [I,J,K] if x is not None] # is used for bounds checking
-        self.total_size = total_size # is used for memory allocation
+    def __init__(self, domain_sizes:list, strides:list, total_size:int):
+        self.I, self.J, self.K = domain_sizes # for bounds checking
+        self.strides = strides # for indexed accesses
+        self.shape = [x for x in domain_sizes if x] # for bounds checking
+        self.total_size = total_size # for memory allocation
+
+def ToMemoryLayout(input:list, memory_layout:str='ijk'):
+    return [input['ijk'.find(memory_layout[i])] for i in range(3)]
 
 class Dimensions:
-    def __init__(self, I, J, K):
-        self.I = I
-        self.J = J
-        self.K = K
-        self.ijk = Dim(I,J,K, J*K,K,1, I*J*K)
-        self.ij = Dim(I,J,None, J,1,0, I*J)
-        self.ik = Dim(I,None,K, K,0,1, I*K)
-        self.jk = Dim(None,J,K, 0,K,1, J*K)
-        self.i = Dim(I,None,None, 1,0,0, I)
-        self.j = Dim(None,J,None, 0,1,0, J)
-        self.k = Dim(None,None,K, 0,0,1, K)
+    def __init__(self, domain_sizes:list, memory_sizes:list, memory_layout:str='jki', halo=0):
+        self.I, self.J, self.K = domain_sizes
+        self.halo = halo
+
+        I,J,K = domain_sizes # helpers
+        i,j,k = memory_sizes # helpers
+        K += 1 # add one for staggering
+        assert i >= I
+        assert j >= J
+        assert k >= K
+        
+        strides_ij = [x for x in ToMemoryLayout([j,1,0]) if x]
+
+        self.ijk = Dim(ToMemoryLayout([ I  , J  , K  ]),  strides=ToMemoryLayout([j*k,k,1]), total_size=i*j*k)
+        self.ij  = Dim(ToMemoryLayout([ I  , J  ,None]),  strides=strides_ij, total_size=i*j)
+        self.i   = Dim(ToMemoryLayout([ I  ,None,None]),  strides=[1], total_size=i)
+        self.j   = Dim(ToMemoryLayout([None, J  ,None]),  strides=[1], total_size=j)
+        self.k   = Dim(ToMemoryLayout([None,None, K  ]),  strides=[1], total_size=k)
+
+    def ProgramArguments(self):
+        return {
+            'I' : numpy.int32(self.I),
+            'J' : numpy.int32(self.J),
+            'K' : numpy.int32(self.K),
+            'halo' : numpy.int32(self.halo),
+            'IJK_stride_I' : numpy.int32(self.ijk.strides[0]),
+            'IJK_stride_J' : numpy.int32(self.ijk.strides[1]),
+            'IJK_stride_K' : numpy.int32(self.ijk.strides[2]),
+            'IJK_total_size' : numpy.int32(self.ijk.total_size),
+            'IJ_stride_I' : numpy.int32(self.ij.strides[0]),
+            'IJ_stride_J' : numpy.int32(self.ij.strides[1]),
+            'IJ_total_size' : numpy.int32(self.ij.total_size),
+            'I_total_size' : numpy.int32(self.i.total_size),
+            'J_total_size' : numpy.int32(self.j.total_size),
+            'K_total_size' : numpy.int32(self.k.total_size)
+        }
 
 def Zeros(dim:Dim):
-    return numpy.zeros(shape=dim.shape, dtype=dace.float64.type)
+    arr = numpy.zeros(dim.total_size, dtype=dace.float64.type)
+    byte_strides = [s * dace.float64.bytes for s in dim.strides]
+    return as_strided(arr, shape=dim.shape, strides=byte_strides)
 
 def Iota(dim:Dim, offset=0):
-    size = (dim.I or 1) * (dim.J or 1) * (dim.K or 1)
-    return numpy.arange(offset, offset + size).astype(dace.float64.type).reshape(dim.shape)
+    arr = numpy.arange(offset, offset + dim.total_size).astype(dace.float64.type)
+    byte_strides = [s * dace.float64.bytes for s in dim.strides]
+    return as_strided(arr, shape=dim.shape, strides=byte_strides)
 
 def Waves(a, b, c, d, e, f, dim:Dim):
     data = Zeros(dim)
     for i in range(dim.I or 1):
         for j in range(dim.J or 1):
             for k in range(dim.K or 1):
-                index = tuple(index for index, size in [(i,dim.I),(j,dim.J),(k,dim.K)] if size is not None)
+                index = tuple(index for index, size in [(i,dim.I),(j,dim.J),(k,dim.K)] if size)
                 x = i / (dim.I or 1)
                 y = j / (dim.J or 1)
                 data[index] = k * 0.01 + a * (b + math.cos(math.pi * (x + c * y)) + math.sin(d * math.pi * (x + e * y))) / f

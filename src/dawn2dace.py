@@ -6,7 +6,6 @@ import pickle
 import sys
 import astunparse
 import IIR_pb2
-from IndexHandling import *
 from Intermediates import *
 from Importer import Importer
 from Exporter import Exporter
