@@ -172,6 +172,7 @@ class Exporter:
                     boundary_conditions = boundary_conditions,
                     code = do_method.Code()
                 )
+                stenc.implementation = 'CPU'
                 state.add_node(stenc)
                 
                 # Add memlet path from state.read to stencil.
@@ -179,7 +180,7 @@ class Exporter:
                     name = self.Name(id)
                     dims = self.Dimensions(id)
                     subset = ','.join(dim_filter(dims, '0:I', '0:J', HalfOpenIntervalStr(acc.k))) or '0'
-                        
+                    
                     state.add_memlet_path(
                         state.add_read(name),
                         stenc,
@@ -307,6 +308,7 @@ class Exporter:
                     boundary_conditions = boundary_conditions,
                     code = do_method.Code()
                 )
+                stenc.implementation = 'CPU'
                 state.add_node(stenc)
                 
                 # Add memlet path from state.read to stencil.
