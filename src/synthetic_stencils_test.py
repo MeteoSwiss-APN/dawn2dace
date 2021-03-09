@@ -1,9 +1,10 @@
 from test_helpers import *
 from dace.transformation.interstate import StateFusion, InlineSDFG
+from dace.transformation.dataflow import *
 
 class set_zero(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         output = Iota(dim.ijk)
         output_dace = Iota(dim.ijk)
 
@@ -28,7 +29,7 @@ class set_zero(LegalSDFG, Asserts):
 
 class duplicate(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([1,2,4], [1,2,5], halo=0)
+        dim = Dimensions([1,2,4], [1,2,5], 'ijk', halo=0)
         original = Iota(dim.ijk)
         copy = Zeros(dim.ijk)
         copy_dace = Zeros(dim.ijk)
@@ -55,7 +56,7 @@ class duplicate(LegalSDFG, Asserts):
 
 class copy_with_halo(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=3)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=1)
         
         original = Iota(dim.ijk)
         copy = Zeros(dim.ijk)
@@ -81,36 +82,36 @@ class copy_with_halo(LegalSDFG, Asserts):
 
         self.assertEqual(copy, copy_dace)
 
-class staggered_k(LegalSDFG, Asserts):
-    def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,7], halo=0)
-        data = Iota(dim.ijk)
-        mid_avg = Zeros(dim.ijk)
-        mid_avg_dace = Zeros(dim.ijk)
+# class staggered_k(LegalSDFG, Asserts):
+#     def test_3_numerically(self):
+#         dim = Dimensions([4,4,4], [4,4,7], 'ijk', halo=0)
+#         data = Iota(dim.ijk)
+#         mid_avg = Zeros(dim.ijk)
+#         mid_avg_dace = Zeros(dim.ijk)
 
-        for i in range(dim.halo, dim.I-dim.halo):
-            for j in range(dim.halo, dim.J-dim.halo):
-                for k in range(0, dim.K):
-                    mid_avg[i,j,k] = data[i,j,k] + data[i,j,k+1]
+#         for i in range(dim.halo, dim.I-dim.halo):
+#             for j in range(dim.halo, dim.J-dim.halo):
+#                 for k in range(0, dim.K):
+#                     mid_avg[i,j,k] = data[i,j,k] + data[i,j,k+1]
         
-        sdfg = get_sdfg(self.__class__.__name__ + ".iir")
-        sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
-        sdfg.expand_library_nodes()
-        sdfg.apply_strict_transformations(validate=False)
-        sdfg.apply_transformations_repeated([InlineSDFG])
-        sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-        sdfg = sdfg.compile()
+#         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
+#         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
+#         sdfg.expand_library_nodes()
+#         sdfg.apply_strict_transformations(validate=False)
+#         sdfg.apply_transformations_repeated([InlineSDFG])
+#         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
+#         sdfg = sdfg.compile()
 
-        sdfg(
-            data = data,
-            mid_avg = mid_avg_dace,
-            **dim.ProgramArguments())
+#         sdfg(
+#             data = data,
+#             mid_avg = mid_avg_dace,
+#             **dim.ProgramArguments())
 
-        self.assertEqual(mid_avg, mid_avg_dace)
+#         self.assertEqual(mid_avg, mid_avg_dace)
 
 class delta(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         inp = Iota(dim.ijk)
         out = Zeros(dim.ijk)
         out_dace = Zeros(dim.ijk)
@@ -138,7 +139,7 @@ class delta(LegalSDFG, Asserts):
 
 class const_value(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         input = Iota(dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -169,7 +170,7 @@ class const_value(LegalSDFG, Asserts):
 
 class i_storage(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         fill = Iota(dim.i)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -196,7 +197,7 @@ class i_storage(LegalSDFG, Asserts):
 
 class j_storage(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         fill = Iota(dim.j)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -223,7 +224,7 @@ class j_storage(LegalSDFG, Asserts):
 
 class k_storage(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         fill = Iota(dim.k)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -250,7 +251,7 @@ class k_storage(LegalSDFG, Asserts):
 
 class ij_storage(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         fill = Iota(dim.ij)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -277,7 +278,7 @@ class ij_storage(LegalSDFG, Asserts):
 
 class inout_variable(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         a = Zeros(dim.ijk)
         a_dace = Zeros(dim.ijk)
 
@@ -303,7 +304,7 @@ class inout_variable(LegalSDFG, Asserts):
 
 class horizontal_offsets(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=1)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=1)
         a = Zeros(dim.ijk)
         b = Iota(dim.ijk)
         c = Iota(dim.ijk, offset=100)
@@ -334,7 +335,7 @@ class horizontal_offsets(LegalSDFG, Asserts):
 
 class horizontal_temp_offsets(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=1)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=1)
         input = Iota(dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -366,7 +367,7 @@ class horizontal_temp_offsets(LegalSDFG, Asserts):
 
 class vertical_offsets(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         input = Iota(dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -399,7 +400,7 @@ class vertical_offsets(LegalSDFG, Asserts):
 
 class parametric_offsets(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=1)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=1)
         support = Iota(dim.ijk)
         interpolation = Zeros(dim.ijk)
         interpolation_dace = Zeros(dim.ijk)
@@ -433,7 +434,7 @@ class parametric_offsets(LegalSDFG, Asserts):
 
 class vertical_specification_1(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         input1 = Iota(dim.ijk)
         input2 = Iota(dim.ijk, offset=100)
         output = Zeros(dim.ijk)
@@ -470,7 +471,7 @@ class vertical_specification_1(LegalSDFG, Asserts):
 
 class vertical_specification_2(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         input1 = Iota(dim.ijk)
         input2 = Iota(dim.ijk, offset=100)
         output = Zeros(dim.ijk)
@@ -506,7 +507,7 @@ class vertical_specification_2(LegalSDFG, Asserts):
 
 class scope_in_region(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         input = Iota(dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -533,7 +534,7 @@ class scope_in_region(LegalSDFG, Asserts):
 
 class scope_in_stencil(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         input = Iota(dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -560,7 +561,7 @@ class scope_in_stencil(LegalSDFG, Asserts):
 
 class scope_in_global(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         input = Iota(dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -588,7 +589,7 @@ class scope_in_global(LegalSDFG, Asserts):
 
 class scopes_mixed(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         input = Iota(dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -617,7 +618,7 @@ class scopes_mixed(LegalSDFG, Asserts):
 
 class brackets(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         input = Iota(dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -645,7 +646,7 @@ class brackets(LegalSDFG, Asserts):
 
 class loop(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         a = Iota(dim.ijk)
         a_dace = Iota(dim.ijk)
 
@@ -671,7 +672,7 @@ class loop(LegalSDFG, Asserts):
 
 class mathfunctions(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         a = Iota(dim.ijk)
         b = Zeros(dim.ijk)
         b_dace = Zeros(dim.ijk)
@@ -699,7 +700,7 @@ class mathfunctions(LegalSDFG, Asserts):
 
 class tridiagonal_solve(LegalSDFG, Asserts):
     def test_3_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         a = Iota(dim.ijk, offset=0)
         b = Iota(dim.ijk, offset=1)
         c = Iota(dim.ijk, offset=5)

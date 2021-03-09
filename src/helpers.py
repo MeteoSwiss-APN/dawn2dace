@@ -1,5 +1,8 @@
 import itertools
 import copy
+import numpy
+from functools import reduce
+from operator import mul
 
 def pairwise(iterable):
     "s -> (s0,s1), (s1,s2), (s2,s3), ..."
@@ -53,28 +56,6 @@ class Bool3D(Any3D):
             ret.j |= x.j
             ret.k |= x.k
         return ret
-
-class Symbol:
-    def __init__(self, symbol:str):
-        self.symbol = symbol
-
-    def __str__(self):
-        return self.symbol
-
-    def __eq__(self, o):
-        return self.symbol == o.symbol
-
-    def __ne__(self, o):
-        return not self == o
-
-    def __neg__(self):
-        return SymbolicSum() - self
-
-    def __add__(self, o):
-        return SymbolicSum() + self + o
-
-    def __sub__(self, o):
-        return SymbolicSum() + self - o
 
 
 class SymbolicSum:
@@ -159,6 +140,29 @@ class SymbolicSum:
         self.positive = positive
         self.integer += sum
         return self
+
+
+class Symbol:
+    def __init__(self, symbol:str):
+        self.symbol = symbol
+
+    def __str__(self):
+        return self.symbol
+
+    def __eq__(self, o):
+        return self.symbol == o.symbol
+
+    def __ne__(self, o):
+        return not self == o
+
+    def __neg__(self):
+        return SymbolicSum() - self
+
+    def __add__(self, o):
+        return SymbolicSum() + self + o
+
+    def __sub__(self, o):
+        return SymbolicSum() + self - o
 
 
 def FullEval(expr, symbol, value) -> int:
@@ -282,7 +286,7 @@ class ClosedInterval3D(Any3D):
         return self
 
     def to_6_tuple(self) -> tuple:
-        return (self.i.lower, self.i.upper, self.j.lower, self.j.upper, self.k.lower, self.k.upper)
+        return (str(self.i.lower), str(self.i.upper), str(self.j.lower), str(self.j.upper), str(self.k.lower), str(self.k.upper))
 
     def range(self):
         for i in self.i.range():
@@ -305,3 +309,73 @@ def Hull(intervals):
             min(x.j.lower for x in intervals), max(x.j.upper for x in intervals),
             min(x.k.lower for x in intervals), max(x.k.upper for x in intervals)
         )
+
+
+def prod(iterable):
+    return reduce(mul, iterable, 1)
+
+class Dim:
+    def __init__(self, domain_sizes:list, strides:list, total_size:int):
+        """
+        domain_sizes in domain layout
+        strides in memory layout
+        """
+        self.I, self.J, self.K = domain_sizes # for loop ranges
+        self.strides = strides # for indexed access
+        self.shape = [x for x in domain_sizes if x] # for bounds checking
+        self.total_size = total_size # for memory allocation
+
+def ToMemoryLayout(input, memory_layout):
+    memory_layout = list(memory_layout)
+    sorted_order = ''.join(sorted(memory_layout))
+    return [input[sorted_order.find(x)] for x in memory_layout]
+
+class Dimensions:
+    def __init__(self, domain_sizes:list, memory_sizes:list, memory_layout, halo=0):
+        """
+        domain_sizes in domain layout (I,J,K): Logical size of each dimension. Used for bounds checking.
+        memory_sizes in domain layout (I,J,K): Number of elements in memory for each dimension. Padding is done with this.
+        memory_layout in C-array notation. The right most is contiguous. Must contain a permutation of 'ijk'.
+        """
+
+        self.I, self.J, self.K = domain_sizes
+        self.halo = halo
+
+        I,J,K = domain_sizes # helpers
+        i,j,k = memory_sizes # helpers
+        assert i >= I
+        assert j >= J
+        assert k >= K
+
+        mlms = ToMemoryLayout([i,j,k], memory_layout) # Memory Layouted Memory Sizes
+        mlms = mlms[1:] + [1] # removes first element and appends 1.
+        strides_ijk = [prod(mlms[memory_layout.find(x):]) for x in list('ijk')]
+
+        ij_memory_layout = memory_layout.replace('k', '')
+        mlms = ToMemoryLayout([i,j], ij_memory_layout) # memory layouted memory sizes
+        mlms = mlms[1:] + [1] # removes first element and appends 1.
+        strides_ij = [prod(mlms[ij_memory_layout.find(x):]) for x in list('ij')]
+
+        self.ijk = Dim([ I  , J  , K  ],  strides=strides_ijk, total_size=i*j*k)
+        self.ij  = Dim([ I  , J  ,None],  strides=strides_ij, total_size=i*j)
+        self.i   = Dim([ I  ,None,None],  strides=[1], total_size=i)
+        self.j   = Dim([None, J  ,None],  strides=[1], total_size=j)
+        self.k   = Dim([None,None, K  ],  strides=[1], total_size=k)
+
+    def ProgramArguments(self):
+        return {
+            'I' : numpy.int32(self.I),
+            'J' : numpy.int32(self.J),
+            'K' : numpy.int32(self.K),
+            'halo' : numpy.int32(self.halo),
+            'IJK_stride_I' : numpy.int32(self.ijk.strides[0]),
+            'IJK_stride_J' : numpy.int32(self.ijk.strides[1]),
+            'IJK_stride_K' : numpy.int32(self.ijk.strides[2]),
+            'IJK_total_size' : numpy.int32(self.ijk.total_size),
+            'IJ_stride_I' : numpy.int32(self.ij.strides[0]),
+            'IJ_stride_J' : numpy.int32(self.ij.strides[1]),
+            'IJ_total_size' : numpy.int32(self.ij.total_size),
+            'I_total_size' : numpy.int32(self.i.total_size),
+            'J_total_size' : numpy.int32(self.j.total_size),
+            'K_total_size' : numpy.int32(self.k.total_size)
+        }

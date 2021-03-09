@@ -41,6 +41,8 @@ class Importer:
                 continue # Literals are irrelevant.
             if self.id_resolver.IsLocal(id):
                 continue # Locals are irrelevant.
+            if self.id_resolver.IsGlobal(id):
+                continue # Globals are irrelevant.
 
             ret[id] = ClosedInterval3D(
                 acc.cartesian_extent.i_extent.minus,

@@ -31,6 +31,7 @@ class Transcompiler():
 
         # Don't validate all the time, for performance reasons.
         sdfg.apply_strict_transformations(validate=False)
+        sdfg.apply_transformations_repeated([TrivialMapElimination])
         sdfg.validate()
         sdfg.save("gen/DyCore/Expanded/" + self.__class__.__name__ + ".sdfg")
 
@@ -141,11 +142,11 @@ class coriolis_stencil(Transcompiler, unittest.TestCase):
 class horizontal_diffusion(Transcompiler, unittest.TestCase):
     pass
 
-# class horizontal_diffusion_smag(Transcompiler, unittest.TestCase):
-#     pass
+class horizontal_diffusion_smag(Transcompiler, unittest.TestCase):
+    pass
 
-# class horizontal_diffusion_type2(Transcompiler, unittest.TestCase):
-#     pass
+class horizontal_diffusion_type2(Transcompiler, unittest.TestCase):
+    pass
 
 # class pStencilSetTtLheat_(Transcompiler, unittest.TestCase):
 #     pass

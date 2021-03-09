@@ -1,4 +1,7 @@
 from test_helpers import *
+from dace.transformation.dataflow import *
+from dace.transformation.optimizer import Optimizer
+from dace.subsets import Range
 
 def lap2D(data, i, j, k, plus=None, minus=None):
     if (plus is None) and (minus is None):
@@ -79,7 +82,7 @@ def smag(u, v, hdmask, crlavo, crlavu, crlato, crlatu, acrlat0, dim):
 
 class coriolis(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=1)
+        dim = Dimensions([5,11,23], [5,11,24], 'ijk', halo=1)
         u = Waves(8.0, 2.0, 1.5, 1.5, 2.0, 4.0, dim.ijk);
         v = Waves(5.0, 1.2, 1.3, 1.7, 2.2, 3.5, dim.ijk);
         fc = Waves(2.0, 1.2, 1.3, 1.7, 2.2, 3.5, dim.ij);
@@ -113,13 +116,13 @@ class coriolis(LegalSDFG, Asserts):
             fc = fc,
             **dim.ProgramArguments())
 
-        self.assertEqual(u_tens, u_tens_dace)
-        self.assertEqual(v_tens, v_tens_dace)
+        self.assertIsClose(u_tens, u_tens_dace)
+        self.assertIsClose(v_tens, v_tens_dace)
         
 
 class thomas(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=0)
+        dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)
         a = Iota(dim.ijk,0)
         b = Iota(dim.ijk,9)
         c = Iota(dim.ijk,1)
@@ -182,7 +185,7 @@ class thomas(LegalSDFG, Asserts):
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg.apply_strict_transformations(validate=False)
-        sdfg.apply_transformations_repeated([InlineSDFG])
+        sdfg.apply_transformations_repeated(InlineSDFG)
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
         sdfg = sdfg.compile()
 
@@ -202,8 +205,8 @@ class thomas(LegalSDFG, Asserts):
 
 class diffusion(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        dim = Dimensions([6,6,6], [6,6,7], halo=2)
-        input = numpy.sqrt(Iota(dim.ijk))
+        dim = Dimensions([6,6,6], [6,6,7], 'ijk', halo=2)
+        input = Waves(8.0, 2.0, 1.5, 1.5, 2.0, 4.0, dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
 
@@ -236,8 +239,8 @@ class diffusion(LegalSDFG, Asserts):
 
 class laplace(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        dim = Dimensions([4,4,4], [4,4,5], halo=1)
-        input = numpy.sqrt(Iota(dim.ijk))
+        dim = Dimensions([4,8,12], [4,8,13], 'ijk', halo=1)
+        input = Waves(8.0, 2.0, 1.5, 1.5, 2.0, 4.0, dim.ijk)
         output = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
 
@@ -264,8 +267,12 @@ class laplace(LegalSDFG, Asserts):
 
 class laplap(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        dim = Dimensions([6,6,6], [6,6,7], halo=2)
-        input = numpy.sqrt(Iota(dim.ijk))
+        I = dace.symbol("I", dtype=dace.int32)
+        J = dace.symbol("J", dtype=dace.int32)
+        K = dace.symbol("K", dtype=dace.int32)
+        halo = dace.symbol("halo", dtype=dace.int32)
+        dim = Dimensions([6,6,6], [6,6,7], 'ijk', halo=2)
+        input = Waves(8.0, 2.0, 1.5, 1.5, 2.0, 4.0, dim.ijk)
         output = Zeros(dim.ijk)
         lap = Zeros(dim.ijk)
         output_dace = Zeros(dim.ijk)
@@ -285,8 +292,21 @@ class laplap(LegalSDFG, Asserts):
         sdfg.expand_library_nodes()
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
         sdfg.apply_strict_transformations(validate=False)
-        sdfg.apply_transformations_repeated([InlineSDFG])
+        sdfg.apply_transformations_repeated([MapFission, InlineSDFG, TrivialMapRangeElimination])
+        sdfg.apply_transformations_repeated(MapFusion)
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
+        # MapEnlarge
+        for map_entry in sdfg.node(0).nodes():
+            if isinstance(map_entry, dace.nodes.MapEntry) \
+                and map_entry.params == ['x', 'y'] \
+                and map_entry.range == Range([(halo, I-halo-1, 1), (halo, J-halo-1, 1)]):
+                MapEnlarge.apply_to(sdfg, map_entry=map_entry, options={'new_range': Range([(halo-1, I-halo, 1), (halo-1, J-halo, 1)])} )
+        sdfg.save("gen/" + self.__class__.__name__ + "_PreFusion.sdfg")
+        
+        sdfg.apply_transformations_repeated(MapFusion)
+        sdfg.save("gen/" + self.__class__.__name__ + "_PostFusion.sdfg")
+        # sdfg.apply_transformations_repeated(OnTheFlyMapFusion)
+        # sdfg.save("gen/" + self.__class__.__name__ + "_otf.sdfg")
         sdfg = sdfg.compile()
 
         sdfg(
@@ -298,7 +318,7 @@ class laplap(LegalSDFG, Asserts):
 
 class smagorinsky(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        dim = Dimensions([16,16,5], [16,16,6], halo=3)
+        dim = Dimensions([16,16,5], [16,16,6], 'ijk', halo=3)
 
         u_in = Waves(8.0, 2.0, 1.5, 1.5, 2.0, 4.0, dim.ijk)
         v_in = Waves(6.0, 1.0, 0.9, 1.1, 2.0, 4.0, dim.ijk)
@@ -367,7 +387,7 @@ class smagorinsky(LegalSDFG, Asserts):
 
 class horizontal_diffusion(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        dim = Dimensions([16,16,5], [16,16,6], halo=4)
+        dim = Dimensions([16,16,5], [16,16,6], 'ijk', halo=4)
         u_in = Waves(1.80, 1.20, 0.15, 1.15, 0.20, 1.40, dim.ijk)
         v_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, dim.ijk)
         w_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, dim.ijk)
@@ -472,7 +492,7 @@ class horizontal_diffusion(LegalSDFG, Asserts):
         
 class type2_diffusion(LegalSDFG, Asserts):
     def test_4_numerically(self):
-        dim = Dimensions([16,16,5], [16,16,6], halo=2)
+        dim = Dimensions([16,16,5], [16,16,6], 'ijk', halo=2)
         u_in = Waves(1.80, 1.20, 0.15, 1.15, 0.20, 1.40, dim.ijk)
         v_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, dim.ijk)
         w_in = Waves(1.60, 1.10, 0.09, 1.11, 0.20, 1.40, dim.ijk)

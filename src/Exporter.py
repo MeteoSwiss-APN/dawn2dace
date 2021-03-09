@@ -116,7 +116,7 @@ class Exporter:
 
     def Export_Globals(self, id_value: dict):
         for id, value in id_value.items():
-            name = self.Name(id)
+            name = self.Name(id) + '_in'
             self.sdfg.add_constant(name, value, dtype=dace.data.Scalar(float_type))
 
     def Export_Accesses(self, id:int, mem_acc:ClosedInterval3D):
@@ -152,10 +152,10 @@ class Exporter:
                 globals = { id for id in all if self.id_resolver.IsGlobal(id) }
 
                 self.TryAddArray(ms_sdfg, all - globals)
-                self.TryAddScalar(ms_sdfg, reads & globals)
+                # self.TryAddScalar(ms_sdfg, reads & globals)
 
                 self.TryAddArray(self.sdfg, all - globals, transient=True)
-                self.TryAddScalar(self.sdfg, reads & globals)
+                # self.TryAddScalar(self.sdfg, reads & globals)
                 
                 halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0)
                 halo -= stage.extents
@@ -291,7 +291,7 @@ class Exporter:
                 globals = { id for id in all if self.id_resolver.IsGlobal(id) }
 
                 self.TryAddArray(self.sdfg, all - globals, transient=True)
-                self.TryAddScalar(self.sdfg, reads & globals)
+                # self.TryAddScalar(self.sdfg, reads & globals)
 
                 halo = ClosedInterval3D(Symbol('halo'),Symbol('halo'),Symbol('halo'),Symbol('halo'),0,0)
                 halo -= stage.extents
