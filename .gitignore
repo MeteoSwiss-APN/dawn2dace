@@ -1,3 +1,5 @@
+src/dycore_stencils/*
+gen/*
 build/*
 integration_tests/bin/*
 integration_tests/generated/*
@@ -18,3 +20,8 @@ parser/*.iir
 
 ## manual configuration
 **/config.mk
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
