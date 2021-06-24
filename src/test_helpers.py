@@ -47,9 +47,6 @@ def Waves(a, b, c, d, e, f, dim:Dim):
     return data
     
 class LegalSDFG:
-    # def test_1_file_exists(self):
-    #     self.assertIsNotNone(read_file(self.__class__.__name__ + ".iir"))
-
     def test_2_sdfg_is_valid(self):
         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
         sdfg.expand_library_nodes()

@@ -56,7 +56,7 @@ class Exporter:
         return self.id_resolver.GetDimensions(id)
 
     def Shape(self, id:int) -> list:
-        return list(dim_filter(self.Dimensions(id), I, J, K+1) or 1)
+        return list(dim_filter(self.Dimensions(id), I, J, K+1) or [1])
 
     def Strides(self, id:int) -> list:
         return {
@@ -116,7 +116,7 @@ class Exporter:
 
     def Export_Globals(self, id_value: dict):
         for id, value in id_value.items():
-            name = self.Name(id) + '_in'
+            name = self.Name(id)
             self.sdfg.add_constant(name, value, dtype=dace.data.Scalar(float_type))
 
     def Export_Accesses(self, id:int, mem_acc:ClosedInterval3D):
@@ -354,6 +354,8 @@ class Exporter:
             initialize_expr = str(do_method.k_interval.upper - 1)
             condition_expr = f'k >= {do_method.k_interval.lower}'
             increment_expr = 'k - 1'
+
+        print(initialize_expr, condition_expr, increment_expr)
 
         _, _, last_state  = self.sdfg.add_loop(
             before_state = self.last_state_,

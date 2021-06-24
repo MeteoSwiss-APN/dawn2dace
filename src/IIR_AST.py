@@ -105,7 +105,7 @@ IIR_Classes = (
 
 class IIR_Visitor:
     def visit(self, node):
-        """Visit a node."""
+        " Visit a node. "
         method = 'visit_' + node.__class__.__name__
         visitor = getattr(self, method, self.generic_visit)
         return visitor(node)

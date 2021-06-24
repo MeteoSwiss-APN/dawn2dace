@@ -1,38 +1,15 @@
 from IdResolver import IdResolver
 import IIR_pb2
 
-def DownCastStatement(stmt):
-    which = stmt.WhichOneof("stmt")
-    if which == "block_stmt":
-        return stmt.block_stmt
-    if which == "expr_stmt":
-        return stmt.expr_stmt
-    if which == "var_decl_stmt":
-        return stmt.var_decl_stmt
-    if which == "if_stmt":
-        return stmt.if_stmt
-    raise ValueError("Unexpected statement: " + which)
-
-def DownCastExpression(expr):
-    which = expr.WhichOneof("expr")
-    if which == "unary_operator":
-        return expr.unary_operator
-    if which == "binary_operator":
-        return expr.binary_operator
-    if which == "assignment_expr":
-        return expr.assignment_expr
-    if which == "ternary_operator":
-        return expr.ternary_operator
-    if which == "fun_call_expr":
-        return expr.fun_call_expr
-    if which == "var_access_expr":
-        return expr.var_access_expr
-    if which == "field_access_expr":
-        return expr.field_access_expr
-    if which == "literal_access_expr":
-        return expr.literal_access_expr
-    raise ValueError("Unexpected expression: " + which)
-
+def EscapePythonKeywords(word: str) -> str:
+    keywords = {"False", "class", "finally", "is", "return", "None", 
+        "continue", "for", "lambda", "try", "True", "def", "from", 
+        "nonlocal", "while", "and", "del", "global", "not", "with", 
+        "as", "elif", "if", "or", "yield", "assert", "else", "import", 
+        "pass", "break", "except", "in", "raise"}
+    if word in keywords:
+        return word + '_'
+    return word
 
 class Unparser:
     """Unparses IIR's AST into Python."""
@@ -40,7 +17,7 @@ class Unparser:
         self.id_resolver = id_resolver
 
     def _unparse_logical_operator(self, op) -> str:
-        return {'&&': 'and', '||': 'or', '!': 'not'}.get(op, op)
+        return {'&&':'and', '||':'or', '!':'not'}.get(op, op)
 
     def _unparse_unary_operator(self, expr) -> str:
         return "{} ({})".format(
@@ -82,30 +59,29 @@ class Unparser:
 
     def _unparse_var_access_expr(self, expr) -> str:
         name = self.id_resolver.GetName(expr.data.accessID.value)
-        # if self.id_resolver.IsLocal(expr.data.accessID.value):
-        #     return name + "[0,0]"
-        # else:
+        name = EscapePythonKeywords(name)
         return name
 
     def _unparse_field_access_expr(self, expr) -> str:
-        indices = (
-            expr.cartesian_offset.i_offset,
-            expr.cartesian_offset.j_offset,
-            expr.vertical_offset
-        )
-        indices = [str(i) for i in indices if i != -1000]
+        id = expr.data.accessID.value
+        name = self.id_resolver.GetName(id)
+        name = EscapePythonKeywords(name)
+        dims = self.id_resolver.GetDimensions(id)
 
-        name = self.id_resolver.GetName(expr.data.accessID.value)
+        indices = []
+        if dims.i:
+            indices.append(expr.cartesian_offset.i_offset)
+        if dims.j:
+            indices.append(expr.cartesian_offset.j_offset)
+        if dims.k:
+            indices.append(expr.vertical_offset)
+
         if indices:
-            return name + "[{}]".format(','.join(indices))
+            return name + str(indices)
         return name
     
     @staticmethod
     def _unparse_literal_access_expr(expr) -> str:
-        if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Invalid:
-            raise ValueError(expr.type.type_id + " not supported")
-        if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Auto:
-            raise ValueError(expr.type.type_id + " not supported")
         if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Boolean:
             return "True" if expr.value else "False"
         if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Integer:
@@ -114,7 +90,11 @@ class Unparser:
             return '{:f}'.format(float(expr.value))
         if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Double:
             return '{:f}'.format(float(expr.value))
-        raise ValueError("{} not supported".format(expr.type.type_id))
+        if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Invalid:
+            raise ValueError(expr.type.type_id + " not supported")
+        if expr.type.type_id == IIR_pb2.SIR_dot_statements__pb2.BuiltinType.Auto:
+            raise ValueError(expr.type.type_id + " not supported")
+        raise ValueError(expr.type.type_id + " not supported")
 
     def _unparse_expr(self, expr) -> str:
         which = expr.WhichOneof("expr")
@@ -151,9 +131,6 @@ class Unparser:
 
         # single value initialization. e.g. "a = 3"
         if len(var_decl.init_list) == 1:
-            # if self.id_resolver.IsLocal(var_decl.var_decl_stmt_data.accessID.value):
-            #     return '{}[0,0] {} {}'.format(name, var_decl.op, self._unparse_expr(var_decl.init_list[0]))
-            # else:
             return '{} {} {}'.format(name, var_decl.op, self._unparse_expr(var_decl.init_list[0]))
 
         # array initialization. e.g. "a = (0, 1, 2)"

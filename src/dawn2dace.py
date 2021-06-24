@@ -13,104 +13,88 @@ from IdResolver import IdResolver
 from Unparser import Unparser
 from IIR_AST import *
 
-RESERVED_PYTHON_KEYWORDS = {"False", "class", "finally", "is", "return", "None", "continue", "for", "lambda", "try", "True", "def", "from", "nonlocal", "while", "and", "del", "global", "not", "with", "as", "elif", "if", "or", "yield", "assert", "else", "import", "pass", "break", "except", "in", "raise"}
-
-class KeywordReplacer(IIR_Transformer):
-    def visit_VarAccessExpr(self, expr):
-        if expr.name in RESERVED_PYTHON_KEYWORDS:
-            expr.name += '_'
-        return expr
-
-    def visit_FieldAccessExpr(self, expr):
-        if expr.name in RESERVED_PYTHON_KEYWORDS:
-            expr.name += '_'
-        return expr
-
-def ReplaceKeywords(stencils: list):
+def UnparseCode(stencils: list, id_resolver:IdResolver):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
                     for stmt in do_method.statements:
-                        stmt.code = KeywordReplacer().visit(stmt.code)
-
-class InOut_Renamer(ast.NodeTransformer):
-    def __init__(self):
-        self.storemode = False
-
-    def visit_Name(self, node):
-        if node.id.startswith('__local'):
-            return node
-        if node.id in {"true", "false"}:
-            return node
-
-        if self.storemode or isinstance(node.ctx, ast.Store):
-            node.id += '_out'
-        elif isinstance(node.ctx, ast.Load):
-            node.id += '_in'
-        return node
-
-    def visit_Assign(self, node):
-        self.storemode = True
-        for target in node.targets:
-            self.visit(target)
-        self.storemode = False
-        self.visit(node.value)
-        return node
-
-    def visit_AnnAssign(self, node):
-        return self.visit_AugAssign(node)
-
-    def visit_AugAssign(self, node):
-        self.storemode = True
-        self.visit(node.target)
-        self.storemode = False
-        self.visit(node.value)
-        return node
-
-    def visit_Call(self, node):
-        for arg in node.args:
-            self.visit(arg)
-        return node
-
-def RenameVariables_InOut(stencils: list):
-    """
-    Renames all variables that are read from by adding a suffix '_in'.
-    Renames all variables that are written to by adding a suffix '_out'.
-    """
-    for stencil in stencils:
-        for multi_stage in stencil.multi_stages:
-            for stage in multi_stage.stages:
-                for do_method in stage.do_methods:
-                    for stmt in do_method.statements:
-                        tree = ast.parse(stmt.code)
-                        stmt.code = astunparse.unparse(InOut_Renamer().visit(tree))
+                        stmt.code = Unparser(id_resolver).unparse_body_stmt(stmt.code)
                         print(stmt.code)
 
+class ReplaceSubscript(ast.NodeTransformer):
+    " Replaces subscript with name"
 
-class AssignmentExpander(IIR_Transformer):
-    """ Makes dataflow explicit by expanding 'a (op)= b' into 'a = a (op) b'. """
-    def visit_AssignmentExpr(self, expr):
-        if expr.op == '=':
-            return expr
-        
-        novum = IIR_pb2.SIR_dot_statements__pb2.BinaryOperator()
-        novum.left.CopyFrom(expr.left)
-        novum.op = expr.op[0]
-        novum.right.CopyFrom(expr.right)
+    def __init__(self, repldict):
+        "repldict: Dict[(variable_name, index), new_name]"
+        self.replace = repldict
 
-        expr.right.Clear()
-        expr.op = '='
-        expr.right.binary_operator.CopyFrom(novum)
-        return expr
+    def visit_Subscript(self, node: ast.Subscript):
+        name = node.value.id
+        if isinstance(node.slice.value, ast.Constant):
+            index = (node.slice.value.value,)
+        elif isinstance(node.slice.value, ast.UnaryOp):
+            index = (-node.slice.value.operand.value,)
+        else:
+            index = tuple((-elt.operand.value if isinstance(elt, ast.UnaryOp) else elt.value) for elt in node.slice.value.elts)
+        key = (name, index)
+        if isinstance(node.value, ast.Name) and (key in self.replace):
+            return ast.copy_location(ast.Name(id=self.replace[key]), node)
+        return self.generic_visit(node)
 
-def ExpandAssignmentOperator(stencils: list):
+def AddRegisters(stencils: list, id_resolver):
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
                 for do_method in stage.do_methods:
+
+                    writes = {}
+                    reads = {}
                     for stmt in do_method.statements:
-                        stmt.code = AssignmentExpander().visit(stmt.code)
+                        reads = FuseIntervalDicts([reads, Subtract(stmt.Reads(), writes)])
+                        writes = FuseIntervalDicts([writes, stmt.Writes()])
+
+                    # Construct replace dictionary, in-code and out-code
+                    replace_dict = {} # Dict[(variable_name, index), new_name]
+
+                    in_code = "" # Reads memory into registers
+                    for id, interval in reads.items():
+                        if id_resolver.IsLocal(id):
+                            continue
+                        name = id_resolver.GetName(id)
+                        for index in interval.range():
+                            reduced_index = id_resolver.DimFilterIndex(id, index)
+                            new_name = f'{name}_{len(replace_dict)}'
+                            replace_dict[(name, reduced_index)] = new_name
+                            in_code += f"{new_name} = {name}_in[{reduced_index}]\n"
+
+                    out_code = "" # Writes registers into memory
+                    for id, interval in writes.items():
+                        if id_resolver.IsLocal(id):
+                            continue
+                        name = id_resolver.GetName(id)
+                        for index in interval.range():
+                            reduced_index = id_resolver.DimFilterIndex(id, index)
+                            if (name, reduced_index) in replace_dict:
+                                new_name = replace_dict[(name, reduced_index)]
+                            else:
+                                new_name = f'{name}_{len(replace_dict)}'
+                                replace_dict[(name, reduced_index)] = new_name
+                            out_code += f"{name}_out[{reduced_index}] = {new_name}\n"
+
+                    in_stmt = Statement(in_code, line=0, reads=reads, writes={})
+                    out_stmt = Statement(out_code, line=0, reads={}, writes=writes)
+
+                    # Transform Statements
+                    for stmt in do_method.statements:
+                        tree = ast.parse(stmt.code)
+                        stmt.code = astunparse.unparse(ReplaceSubscript(replace_dict).visit(tree))
+                        stmt.reads = {}
+                        stmt.writes = {}
+                    
+                    do_method.statements.insert(0, in_stmt)
+                    do_method.statements.append(out_stmt)
+
 
 def SplitMultiStages(stencils: list):
     for stencil in stencils:
@@ -122,7 +106,7 @@ def SplitMultiStages(stencils: list):
                 ))
             intervals.sort(
                 key = lambda interval: FullEval(interval.lower, 'K', 1000),
-                reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop)
+                reverse = (multi_stage.execution_order == ExecutionOrder.Backward_Loop.value)
             )
             for interval in intervals:
                 new_stages = []
@@ -130,7 +114,6 @@ def SplitMultiStages(stencils: list):
                     new_stages.append(Stage([dm for dm in stage.do_methods if dm.k_interval == interval], stage.extents))
                 new_ms.append(MultiStage(multi_stage.execution_order, new_stages))
         stencil.multi_stages = new_ms
-
 
 
 def AddMsMemlets(stencils: list, id_resolver):
@@ -149,14 +132,14 @@ def AddMsMemlets(stencils: list, id_resolver):
                     for do_method in stage.do_methods:
                         for stmt in do_method.statements:
                             k_read_offsets = { id: -acc.k.lower for id, acc in multi_stage.read_memlets.items() if id in stmt.ReadIds() }
-                            stmt.offset_reads(k_read_offsets)
+                            stmt.OffsetReads(k_read_offsets, id_resolver)
 
                             k_write_offsets = { id: -acc.k.lower for id, acc in multi_stage.write_memlets.items() if id in stmt.WriteIds() }
-                            stmt.offset_writes(k_write_offsets)
+                            stmt.OffsetWrites(k_write_offsets, id_resolver)
 
 
-def AddStencilMemlets(stencils: list):
-    """ Offsets the k-index that each stencil accesses. """
+def AddDoMethodMemlets(stencils: list, id_resolver):
+    """ Offsets the k-index that each DoMethod accesses. """
     for stencil in stencils:
         for multi_stage in stencil.multi_stages:
             for stage in multi_stage.stages:
@@ -166,66 +149,10 @@ def AddStencilMemlets(stencils: list):
 
                     for stmt in do_method.statements:
                         k_read_offsets = { id: -acc.k.lower for id, acc in do_method.read_memlets.items() if id in stmt.ReadIds() }
-                        stmt.offset_reads(k_read_offsets)
+                        stmt.OffsetReads(k_read_offsets, id_resolver)
 
                         k_write_offsets = { id: -acc.k.lower for id, acc in do_method.write_memlets.items() if id in stmt.WriteIds() }
-                        stmt.offset_writes(k_write_offsets)
-
-
-class DimensionalReducer(IIR_Transformer):
-    def __init__(self, id_resolver:IdResolver, transfer:set):
-        self.id_resolver = id_resolver
-        self.transfer = transfer
-
-    def visit_FieldAccessExpr(self, expr):
-        id = expr.data.accessID.value
-        if id in self.transfer:
-            name = self.id_resolver.GetName(id)
-            dims = self.id_resolver.GetDimensions(id)
-
-            if not dims.i:
-                expr.cartesian_offset.i_offset = -1000
-            if not dims.j:
-                expr.cartesian_offset.j_offset = -1000
-            if not dims.k:
-                 expr.vertical_offset = -1000
-        return expr
-
-class DimensionalReducerRead(DimensionalReducer):
-    def __init__(self, id_resolver:IdResolver, reads:set):
-        super().__init__(id_resolver, reads)
-
-    def visit_AssignmentExpr(self, expr):
-        expr.right.CopyFrom(self.visit(expr.right))
-        return expr
-
-class DimensionalReducerWrite(DimensionalReducer):
-    def __init__(self, id_resolver:IdResolver, writes:set):
-        super().__init__(id_resolver, writes)
-
-    def visit_AssignmentExpr(self, expr):
-        expr.left.CopyFrom(self.visit(expr.left))
-        return expr
-
-def RemoveUnusedDimensions(id_resolver:IdResolver, stencils: list):
-    for stencil in stencils:
-        for multi_stage in stencil.multi_stages:
-            for stage in multi_stage.stages:
-                for do_method in stage.do_methods:
-                    for stmt in do_method.statements:
-                        stmt.code = DimensionalReducerRead(id_resolver, stmt.ReadIds()).visit(stmt.code)
-                        stmt.code = DimensionalReducerWrite(id_resolver, stmt.WriteIds()).visit(stmt.code)
-
-
-def UnparseCode(stencils: list, id_resolver:IdResolver):
-    for stencil in stencils:
-        for multi_stage in stencil.multi_stages:
-            for stage in multi_stage.stages:
-                for do_method in stage.do_methods:
-                    for stmt in do_method.statements:
-                        if not isinstance(stmt.code, str):
-                            stmt.code = Unparser(id_resolver).unparse_body_stmt(stmt.code)
-                        print(stmt.code)
+                        stmt.OffsetWrites(k_write_offsets, id_resolver)
 
 def IIR_str_to_SDFG(iir: str):
     stencilInstantiation = IIR_pb2.StencilInstantiation()
@@ -243,14 +170,11 @@ def IIR_str_to_SDFG(iir: str):
     imp = Importer(id_resolver)
     stencils = imp.Import_Stencils(stencilInstantiation.internalIR.stencils)
 
-    ReplaceKeywords(stencils)
-    ExpandAssignmentOperator(stencils)
+    UnparseCode(stencils, id_resolver)
+    AddRegisters(stencils, id_resolver)
     SplitMultiStages(stencils)
     AddMsMemlets(stencils, id_resolver)
-    AddStencilMemlets(stencils)
-    RemoveUnusedDimensions(id_resolver, stencils)
-    UnparseCode(stencils, id_resolver)
-    RenameVariables_InOut(stencils)
+    AddDoMethodMemlets(stencils, id_resolver)
     
     exp = Exporter(id_resolver, name=metadata.stencilName)
     exp.Export_ApiFields(metadata.APIFieldIDs)
@@ -268,32 +192,4 @@ def IIR_file_to_SDFG_file(iir_file: str, sdfg_file: str):
     sdfg = IIR_str_to_SDFG(iir)
 
     sdfg.save(sdfg_file, use_pickle=False)
-
-if __name__ == "__main__":
-    print("==== Program start ====")
-
-    parser = argparse.ArgumentParser(
-        description="""Deserializes a google protobuf file encoding an HIR example and traverses the AST printing a
-                    DSL code with the user equations"""
-    )
-    parser.add_argument("hirfile", type=argparse.FileType("rb"), help="google protobuf HIR file")
-    args = vars(parser.parse_args())
-
-    iir_str = args["hirfile"].read()
-
-    sdfg = IIR_str_to_SDFG(iir_str)
-
-    sdfg.save("untransformed.sdfg", use_pickle=False)
-    print("SDFG generated.")
-
-    #sdfg.apply_strict_transformations()
-    #sdfg.save("transformed.sdfg", use_pickle=False)
-    #print("SDFG transformed strictly.")
-
-    sdfg.validate()
-    print("SDFG validated.")
-
-    sdfg.compile(output_file="libmine.so")
-    print("SDFG compiled.")
-
-    
+   

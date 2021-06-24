@@ -2,24 +2,6 @@ import unittest
 from helpers import *
 from itertools import permutations
 
-class Pairwise(unittest.TestCase):
-    def test_list_of_0(self):
-        pw = list(pairwise([]))
-        self.assertEqual(pw, [])
-
-    def test_list_of_1(self):
-        pw = list(pairwise([1]))
-        self.assertEqual(pw, [])
-
-    def test_list_of_2(self):
-        pw = list(pairwise([1,2]))
-        self.assertEqual(pw, [(1,2)])
-    
-    def test_list_of_3(self):
-        pw = list(pairwise([1,2,3]))
-        self.assertEqual(pw, [(1,2), (2,3)])
-
-
 class SymbolicSum(unittest.TestCase):
     def test_positive_symbol(self):
         sym = Symbol('halo')
@@ -131,17 +113,3 @@ class Dimensions_test(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-# 3D 'ijk' -> [j*k,k,1]
-# 3D 'ikj' -> [k*j,1,j]
-# 3D 'jik' -> [k,i*k,1]
-# 3D 'jki' -> [1,k*i,i]
-# 3D 'kij' -> [j,1,i*j]
-# 3D 'kji' -> [1,i,i*j]
-
-# 2D 'ij' -> [j,1]
-# 2D 'ij' -> [i,1]
-# 2D 'jik' -> [k,i*k,1]
-# 2D 'jki' -> [1,k*i,i]
-# 2D 'kij' -> [j,1,i*j]
-# 2D 'kji' -> [1,i,i*j]

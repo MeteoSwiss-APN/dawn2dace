@@ -15,5 +15,5 @@ for fullfile in /home/work/clang-gridtools/stencils/*.cpp
 do
 	echo "Processing $fullfile ..."
 	filename="${fullfile##*/}"
-	$GTCLANG $fullfile -finline -write-iir -fno-codegen -iir-format=byte -o /home/work/dawn2dace/gen/$filename --config=/home/work/clang-gridtools/benchmarks/globals_benchmarks.json
+	$GTCLANG $fullfile -write-iir -fno-codegen -iir-format=byte -o /home/work/dawn2dace/gen/$filename --config=/home/work/clang-gridtools/benchmarks/globals_benchmarks.json
 done

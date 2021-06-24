@@ -82,33 +82,6 @@ class copy_with_halo(LegalSDFG, Asserts):
 
         self.assertEqual(copy, copy_dace)
 
-# class staggered_k(LegalSDFG, Asserts):
-#     def test_3_numerically(self):
-#         dim = Dimensions([4,4,4], [4,4,7], 'ijk', halo=0)
-#         data = Iota(dim.ijk)
-#         mid_avg = Zeros(dim.ijk)
-#         mid_avg_dace = Zeros(dim.ijk)
-
-#         for i in range(dim.halo, dim.I-dim.halo):
-#             for j in range(dim.halo, dim.J-dim.halo):
-#                 for k in range(0, dim.K):
-#                     mid_avg[i,j,k] = data[i,j,k] + data[i,j,k+1]
-        
-#         sdfg = get_sdfg(self.__class__.__name__ + ".iir")
-#         sdfg.save("gen/" + self.__class__.__name__ + ".sdfg")
-#         sdfg.expand_library_nodes()
-#         sdfg.apply_strict_transformations(validate=False)
-#         sdfg.apply_transformations_repeated([InlineSDFG])
-#         sdfg.save("gen/" + self.__class__.__name__ + "_expanded.sdfg")
-#         sdfg = sdfg.compile()
-
-#         sdfg(
-#             data = data,
-#             mid_avg = mid_avg_dace,
-#             **dim.ProgramArguments())
-
-#         self.assertEqual(mid_avg, mid_avg_dace)
-
 class delta(LegalSDFG, Asserts):
     def test_3_numerically(self):
         dim = Dimensions([4,4,4], [4,4,5], 'ijk', halo=0)

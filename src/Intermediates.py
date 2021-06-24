@@ -1,3 +1,5 @@
+import ast
+import astunparse
 from enum import Enum
 from helpers import *
 from IIR_AST import IIR_Transformer
@@ -15,44 +17,50 @@ def FuseIntervalDicts(dicts) -> dict:
     """ dicts: An iteratable of dicts. """
     ret = {}
     for d in dicts:
-        for id, interval in d.items():
-            if id in ret:
-                ret[id] = Hull([ret[id], interval])
+        if d is not None:
+            for id, interval in d.items():
+                if id in ret:
+                    ret[id] = Hull([ret[id], interval])
+                else:
+                    ret[id] = interval
+    return ret
+
+def Subtract(a:dict, b:dict) -> dict:
+    " returns a \ b "
+    # dict[id, ClosedInterval3D]
+    ret = {}
+    for id, interval in a.items():
+        if id == 3307:
+            id = 3307
+        if id in b:
+            if interval == b[id]:
+                continue # without adding
             else:
                 ret[id] = interval
+                print(ret[id], " - ", b[id], " = ")
+                ret[id].exclude(b[id])
+                print(ret[id])
+        else:
+            ret[id] = interval
     return ret
 
 
-class ReadOffsetterK(IIR_Transformer):
-    """ Offsets the k-index by a given value per id. """
-    def __init__(self, k_offsets:dict):
-        self.k_offsets = k_offsets # dict[id, offset]
+class Offsetter(ast.NodeTransformer):
+    def __init__(self, offsets:dict):
+        self.offsets = offsets # dict[name, tuple(offset)]
 
-    def visit_AssignmentExpr(self, expr):
-        """ Ignores the left side. """
-        expr.right.CopyFrom(self.visit(expr.right))
-        return expr
-
-    def visit_FieldAccessExpr(self, expr):
-        id = expr.data.accessID.value
-        expr.vertical_offset += self.k_offsets.get(id, 0) # offsets by 0 if not in dict.
-        return expr
-
-
-class WriteOffsetterK(IIR_Transformer):
-    """ Offsets the k-index by a given value per id. """
-    def __init__(self, k_offsets:dict):
-        self.k_offsets = k_offsets # dict[id, offset]
-
-    def visit_AssignmentExpr(self, expr):
-        """ Ignores the right side. """
-        expr.left.CopyFrom(self.visit(expr.left))
-        return expr
-
-    def visit_FieldAccessExpr(self, expr):
-        id = expr.data.accessID.value
-        expr.vertical_offset += self.k_offsets.get(id, 0) # offsets by 0 if not in dict.
-        return expr
+    def visit_Subscript(self, node: ast.Subscript):
+        name = node.value.id
+        if name not in self.offsets:
+            return node
+        if isinstance(node.slice.value, ast.Constant):
+            return node
+        for elt, offset in zip(node.slice.value.elts, self.offsets[name]):
+            if isinstance(elt, ast.UnaryOp):
+                elt.operand.value -= offset
+            else:
+                elt.value += offset
+        return node
 
 
 class Statement:
@@ -80,15 +88,47 @@ class Statement:
     def WriteIds(self) -> set:
         return self.writes.keys()
 
-    def offset_reads(self, k_offsets:dict):
-        self.code = ReadOffsetterK(k_offsets).visit(self.code)
-        for id, offset in k_offsets.items():
-            self.reads[id].offset(k = offset)
+    def OffsetReads(self, k_offsets:dict, id_resolver):
+        "k_offsets: Dict[id, offset:int]"
+        if not self.writes:
+            named_offsets = {}
+            for id, offset_k in k_offsets.items():
+                name = id_resolver.GetName(id) + '_in'
+                dims = id_resolver.GetDimensions(id)
+                offset = []
+                if dims.i:
+                    offset.append(0)
+                if dims.j:
+                    offset.append(0)
+                if dims.k:
+                    offset.append(offset_k)
+                named_offsets[name] = tuple(offset)
+            tree = ast.parse(self.code)
+            self.code = astunparse.unparse(Offsetter(named_offsets).visit(tree))
 
-    def offset_writes(self, k_offsets:dict):
-        self.code = WriteOffsetterK(k_offsets).visit(self.code)
-        for id, offset in k_offsets.items():
-            self.writes[id].offset(k = offset)
+            for id, offset in k_offsets.items():
+                self.reads[id].offset(k = offset)
+
+    def OffsetWrites(self, k_offsets:dict, id_resolver):
+        "k_offsets: Dict[id, offset:int]"
+        if not self.reads:
+            named_offsets = {}
+            for id, offset_k in k_offsets.items():
+                name = id_resolver.GetName(id) + '_in'
+                dims = id_resolver.GetDimensions(id)
+                offset = []
+                if dims.i:
+                    offset.append(0)
+                if dims.j:
+                    offset.append(0)
+                if dims.k:
+                    offset.append(offset_k)
+                named_offsets[name] = tuple(offset)
+            tree = ast.parse(self.code)
+            self.code = astunparse.unparse(Offsetter(named_offsets).visit(tree))
+
+            for id, offset in k_offsets.items():
+                self.writes[id].offset(k = offset)
 
 
 class DoMethod:
@@ -103,20 +143,51 @@ class DoMethod:
         return "DoMethod_{}".format(self.uid)
 
     def Code(self):
-        return ''.join(stmt.code for stmt in self.statements)
+        return '\n'.join(stmt.code for stmt in self.statements)
 
     def Reads(self) -> dict:
+        # writes = {}
+        # reads = {}
+        # for stmt in self.statements:
+        #     reads = FuseIntervalDicts([reads, Subtract(stmt.Reads(), writes)])
+        #     writes = FuseIntervalDicts([writes, stmt.Writes()])
+        # return reads
+
+        # reads = [stmt.Reads() for stmt in self.statements]
+        # writes = [stmt.Writes() for stmt in self.statements]
+        # accumulated_writes = []
+        # acc = {}
+        # for w in writes:
+        #     acc = FuseIntervalDicts([acc, w])
+        #     accumulated_writes.append(acc)
+
+        # accumulated_reads = {}
+        # accumulated_writes = {}
+        # for stmt in self.statements:
+        #     reads = Subtract(stmt.Reads(), accumulated_writes)
+        #     accumulated_writes = FuseIntervalDicts([accumulated_writes, stmt.Writes()])
+
+        # ret = {}
+        # writes = {}
+        # for stmt in self.statements:
+        #     for id, interval in stmt.Reads().items():
+        #         if id in ret:
+        #             ret[id] = Hull([ret[id], interval])
+        #         else:
+        #             ret[id] = interval
+        #     writes = FuseIntervalDicts([writes, stmt.Writes()])
+        # return ret
         return FuseIntervalDicts(x.Reads() for x in self.statements)
 
     def Writes(self) -> dict:
         return FuseIntervalDicts(x.Writes() for x in self.statements)
 
-    def ReadIds(self, k_interval:HalfOpenInterval=None) -> set:
+    def ReadIds(self, k_interval:HalfOpenInterval = None) -> set:
         if (k_interval is None) or (self.k_interval == k_interval):
             return set().union(*[x.ReadIds() for x in self.statements])
         return set()
 
-    def WriteIds(self, k_interval:HalfOpenInterval=None) -> set:
+    def WriteIds(self, k_interval:HalfOpenInterval = None) -> set:
         if (k_interval is None) or (self.k_interval == k_interval):
             return set().union(*[x.WriteIds() for x in self.statements])
         return set()

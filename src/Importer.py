@@ -4,6 +4,18 @@ from Intermediates import *
 from IdResolver import IdResolver
 from Unparser import *
 
+def DownCastStatement(stmt):
+    which = stmt.WhichOneof("stmt")
+    if which == "block_stmt":
+        return stmt.block_stmt
+    if which == "expr_stmt":
+        return stmt.expr_stmt
+    if which == "var_decl_stmt":
+        return stmt.var_decl_stmt
+    if which == "if_stmt":
+        return stmt.if_stmt
+    raise ValueError("Unexpected statement: " + which)
+
 class Importer:
     def __init__(self, id_resolver:IdResolver):
         self.id_resolver = id_resolver
@@ -14,25 +26,26 @@ class Importer:
 
         if interval.WhichOneof("LowerLevel") == "special_lower_level":
             if interval.special_lower_level == 0:
-                begin = 0
+                lower = 0
             else:
-                begin = Symbol('K') - 1
+                lower = Symbol('K') - 1
         elif interval.WhichOneof("LowerLevel") == "lower_level":
-            begin = interval.lower_level
+            lower = interval.lower_level
 
-        begin += interval.lower_offset
+        lower += interval.lower_offset
 
         if interval.WhichOneof("UpperLevel") == "special_upper_level":
             if interval.special_upper_level == 0:
-                end = 0
+                upper = 0
             else:
-                end = Symbol('K') - 1
+                upper = Symbol('K') - 1
         elif interval.WhichOneof("UpperLevel") == "upper_level":
-            end = interval.upper_level
+            upper = interval.upper_level
 
-        end += interval.upper_offset
+        upper += interval.upper_offset
 
-        return HalfOpenInterval(begin, end + 1)
+        print(lower, upper + 1)
+        return HalfOpenInterval(lower, upper + 1)
 
     def Import_MemoryAccesses(self, access: dict) -> dict:
         ret = {}

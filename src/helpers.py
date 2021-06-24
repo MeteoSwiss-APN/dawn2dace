@@ -1,16 +1,11 @@
-import itertools
 import copy
 import numpy
 from functools import reduce
 from operator import mul
 
-def pairwise(iterable):
-    "s -> (s0,s1), (s1,s2), (s2,s3), ..."
-    a, b = itertools.tee(iterable)
-    next(b, None)
-    return zip(a, b)
-
 class Any3D:
+    "Holds 3 objects in members i,j,k."
+
     def __init__(self, i, j, k):
         self.i = i
         self.j = j
@@ -35,12 +30,9 @@ class Any3D:
         return (self.i, self.j, self.k)
 
 
-class Int3D(Any3D):
-    def __init__(self, i:int, j:int, k:int):
-        Any3D.__init__(self, i, j, k)
-
-
 class Bool3D(Any3D):
+    "Holds 3 bools in members i,j,k."
+
     def __init__(self, i:bool, j:bool, k:bool):
         Any3D.__init__(self, i, j, k)
 
@@ -56,6 +48,177 @@ class Bool3D(Any3D):
             ret.j |= x.j
             ret.k |= x.k
         return ret
+
+
+class HalfOpenInterval:
+    """ An interval that does not includ its upper boundary [lower, upper). """
+
+    def __init__(self, lower, upper):
+        self.lower = lower
+        self.upper = upper
+
+    def __str__(self) -> str:
+        return "{}:{}".format(self.lower, self.upper)
+
+    def __eq__(self, o) -> bool:
+        return self.lower == o.lower and self.upper == o.upper
+
+    def __ne__(self, o) -> bool:
+        return not self == o
+
+    def __add__(self, o):
+        return HalfOpenInterval(self.lower + o, self.upper + o)
+
+    def __sub__(self, o):
+        return HalfOpenInterval(self.lower - o, self.upper - o)
+
+    def __hash__(self):
+        return hash(self.__dict__.values())
+
+    def offset(self, offset:int):
+        self.lower += offset
+        self.upper += offset
+        return self
+
+    def to_closed_interval(self):
+        return ClosedInterval(self.lower, self.upper - 1)
+
+    def range(self):
+        return range(self.lower, self.upper)
+
+
+class ClosedInterval:
+    """ An interval that includes its boundaries [lower, upper]. """
+
+    def __init__(self, lower, upper):
+        self.lower = lower
+        self.upper = upper
+
+    def __str__(self) -> str:
+        return "{}..{}".format(self.lower, self.upper)
+
+    def __eq__(self, o) -> bool:
+        return self.lower == o.lower and self.upper == o.upper
+
+    def __ne__(self, o) -> bool:
+        return not self == o
+
+    def __add__(self, o):
+        return ClosedInterval(self.lower + o.lower, self.upper + o.upper)
+
+    def __sub__(self, o):
+        return ClosedInterval(self.lower - o.lower, self.upper - o.upper)
+
+    def __hash__(self):
+        return hash(self.__dict__.values())
+
+    def contains(self, o):
+        if isinstance(o, ClosedInterval):
+            return self.contains(o.lower) and self.contains(o.upper)
+        else:
+            return self.lower <= o <= self.upper
+
+    def exclude(self, o):
+        assert not o.contains(self)
+        
+        if self.contains(o.lower):
+            self.upper = o.lower - 1
+        elif self.contains(o.upper):
+            self.lower = o.upper + 1
+
+    def offset(self, offset:int):
+        self.lower += offset
+        self.upper += offset
+        return self
+
+    def to_halfopen_interval(self):
+        return HalfOpenInterval(self.lower, self.upper + 1)
+
+    def range(self):
+        return range(self.lower, self.upper + 1)
+
+    def IsSingleton(self):
+        return self.lower == self.upper
+
+def HalfOpenIntervalStr(interval) -> str:
+    if isinstance(interval, HalfOpenInterval):
+        return str(interval)
+    if isinstance(interval, ClosedInterval):
+        return str(interval.to_halfopen_interval())
+
+
+class ClosedInterval3D(Any3D):
+    def __init__(self, *args):
+        """
+        Requires input of 'i_lower, i_upper, j_lower, j_upper, k_lower, k_upper'
+        or 'i:ClosedInterval, j:ClosedInterval, k:ClosedInterval'.
+        """
+        if len(args) == 3:
+            Any3D.__init__(self, args[0], args[1], args[2])
+        if len(args) == 6:
+            Any3D.__init__(self,
+                ClosedInterval(args[0], args[1]),
+                ClosedInterval(args[2], args[3]),
+                ClosedInterval(args[4], args[5]),
+            )
+
+    def __add__(self, o):
+        return ClosedInterval3D(
+            self.i.lower + o.i.lower, self.i.upper + o.i.upper,
+            self.j.lower + o.j.lower, self.j.upper + o.j.upper,
+            self.k.lower + o.k.lower, self.k.upper + o.k.upper)
+
+    def __sub__(self, o):
+        return ClosedInterval3D(
+            self.i.lower - o.i.lower, self.i.upper - o.i.upper,
+            self.j.lower - o.j.lower, self.j.upper - o.j.upper,
+            self.k.lower - o.k.lower, self.k.upper - o.k.upper)
+
+    def contains(self, o):
+        return self.i.contains(o.i) and self.j.contains(o.j) and self.k.contains(o.k)
+
+    def exclude(self, o):
+        assert self != o
+        if self.i != o.i:
+            self.i.exclude(o.i)
+        if self.j != o.j:
+            self.j.exclude(o.j)
+        if self.k != o.k:
+            self.k.exclude(o.k)
+
+    def offset(self, i: int = 0, j: int = 0, k: int = 0):
+        self.i.offset(i)
+        self.j.offset(j)
+        self.k.offset(k)
+        return self
+
+    def to_6_tuple(self) -> tuple:
+        return (str(self.i.lower), str(self.i.upper), str(self.j.lower), str(self.j.upper), str(self.k.lower), str(self.k.upper))
+
+    def range(self):
+        for i in self.i.range():
+            for j in self.j.range():
+                for k in self.k.range():
+                    yield i,j,k
+
+    def IsSingleton(self):
+        return self.i.IsSingleton() and self.j.IsSingleton() and self.k.IsSingleton()
+
+
+def Hull(intervals):
+    intervals = list(x for x in intervals if x is not None)
+    if len(intervals) == 0:
+        return None
+    if isinstance(intervals[0], ClosedInterval):
+        return ClosedInterval(min(x.lower for x in intervals), max(x.upper for x in intervals))
+    if isinstance(intervals[0], HalfOpenInterval):
+        return HalfOpenInterval(min(x.lower for x in intervals), max(x.upper for x in intervals))
+    if isinstance(intervals[0], ClosedInterval3D):
+        return ClosedInterval3D(
+            min(x.i.lower for x in intervals), max(x.i.upper for x in intervals),
+            min(x.j.lower for x in intervals), max(x.j.upper for x in intervals),
+            min(x.k.lower for x in intervals), max(x.k.upper for x in intervals)
+        )
 
 
 class SymbolicSum:
@@ -170,145 +333,6 @@ def FullEval(expr, symbol, value) -> int:
         return expr
     expr = copy.deepcopy(expr)
     return expr.Eval(symbol, value).integer
-
-
-class HalfOpenInterval:
-    """ An interval that does not includ its upper limit [lower, upper). """
-
-    def __init__(self, lower, upper):
-        self.lower = lower
-        self.upper = upper
-
-    def __str__(self) -> str:
-        return "{}:{}".format(self.lower, self.upper)
-
-    def __eq__(self, o) -> bool:
-        return self.lower == o.lower and self.upper == o.upper
-
-    def __ne__(self, o) -> bool:
-        return not self == o
-
-    def __add__(self, o):
-        return HalfOpenInterval(self.lower + o, self.upper + o)
-
-    def __sub__(self, o):
-        return HalfOpenInterval(self.lower - o, self.upper - o)
-
-    def __hash__(self):
-        return hash(self.__dict__.values())
-
-    def offset(self, offset:int):
-        self.lower += offset
-        self.upper += offset
-        return self
-
-    def to_closed_interval(self):
-        return ClosedInterval(self.lower, self.upper - 1)
-
-    def range(self):
-        return range(self.lower, self.upper)
-
-
-class ClosedInterval:
-    """ An interval that includes its coundaries [lower, upper]. """
-
-    def __init__(self, lower, upper):
-        self.lower = lower
-        self.upper = upper
-
-    def __str__(self) -> str:
-        return "{}..{}".format(self.lower, self.upper)
-
-    def __eq__(self, o) -> bool:
-        return self.lower == o.lower and self.upper == o.upper
-
-    def __ne__(self, o) -> bool:
-        return not self == o
-
-    def __add__(self, o):
-        return ClosedInterval(self.lower + o.lower, self.upper + o.upper)
-
-    def __sub__(self, o):
-        return ClosedInterval(self.lower - o.lower, self.upper - o.upper)
-
-    def __hash__(self):
-        return hash(self.__dict__.values())
-
-    def offset(self, offset:int):
-        self.lower += offset
-        self.upper += offset
-        return self
-
-    def to_halfopen_interval(self):
-        return HalfOpenInterval(self.lower, self.upper + 1)
-
-    def range(self):
-        return range(self.lower, self.upper + 1)
-
-def HalfOpenIntervalStr(interval) -> str:
-    if isinstance(interval, HalfOpenInterval):
-        return str(interval)
-    if isinstance(interval, ClosedInterval):
-        return str(interval.to_halfopen_interval())
-
-
-class ClosedInterval3D(Any3D):
-    def __init__(self, *args):
-        """
-        Requires input of 'i_lower, i_upper, j_lower, j_upper, k_lower, k_upper'
-        or 'i:ClosedInterval, j:ClosedInterval, k:ClosedInterval'.
-        """
-        if len(args) == 3:
-            Any3D.__init__(self, args[0], args[1], args[2])
-        if len(args) == 6:
-            Any3D.__init__(self,
-                ClosedInterval(args[0], args[1]),
-                ClosedInterval(args[2], args[3]),
-                ClosedInterval(args[4], args[5]),
-            )
-
-    def __add__(self, o):
-        return ClosedInterval3D(
-            self.i.lower + o.i.lower, self.i.upper + o.i.upper,
-            self.j.lower + o.j.lower, self.j.upper + o.j.upper,
-            self.k.lower + o.k.lower, self.k.upper + o.k.upper)
-
-    def __sub__(self, o):
-        return ClosedInterval3D(
-            self.i.lower - o.i.lower, self.i.upper - o.i.upper,
-            self.j.lower - o.j.lower, self.j.upper - o.j.upper,
-            self.k.lower - o.k.lower, self.k.upper - o.k.upper)
-
-    def offset(self, i: int = 0, j: int = 0, k: int = 0):
-        self.i.offset(i)
-        self.j.offset(j)
-        self.k.offset(k)
-        return self
-
-    def to_6_tuple(self) -> tuple:
-        return (str(self.i.lower), str(self.i.upper), str(self.j.lower), str(self.j.upper), str(self.k.lower), str(self.k.upper))
-
-    def range(self):
-        for i in self.i.range():
-            for j in self.j.range():
-                for k in self.k.range():
-                    yield i,j,k
-
-
-def Hull(intervals):
-    intervals = list(x for x in intervals if x is not None)
-    if len(intervals) == 0:
-        return None
-    if isinstance(intervals[0], ClosedInterval):
-        return ClosedInterval(min(x.lower for x in intervals), max(x.upper for x in intervals))
-    if isinstance(intervals[0], HalfOpenInterval):
-        return HalfOpenInterval(min(x.lower for x in intervals), max(x.upper for x in intervals))
-    if isinstance(intervals[0], ClosedInterval3D):
-        return ClosedInterval3D(
-            min(x.i.lower for x in intervals), max(x.i.upper for x in intervals),
-            min(x.j.lower for x in intervals), max(x.j.upper for x in intervals),
-            min(x.k.lower for x in intervals), max(x.k.upper for x in intervals)
-        )
 
 
 def prod(iterable):

@@ -47,3 +47,7 @@ class IdResolver:
         literals = {id for id in ids if self.IsALiteral(id)}
         locals = {id for id in ids if self.IsLocal(id)}
         return apis, temporaries, globals, literals, locals
+
+    def DimFilterIndex(self, id:int, index:tuple) -> tuple:
+        dims = self.GetDimensions(id)
+        return tuple(i for i, dim in zip(index, dims) if dim)

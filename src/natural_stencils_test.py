@@ -295,16 +295,16 @@ class laplap(LegalSDFG, Asserts):
         sdfg.apply_transformations_repeated([MapFission, InlineSDFG, TrivialMapRangeElimination])
         sdfg.apply_transformations_repeated(MapFusion)
         sdfg.save("gen/" + self.__class__.__name__ + "_expanded_st.sdfg")
-        # MapEnlarge
-        for map_entry in sdfg.node(0).nodes():
-            if isinstance(map_entry, dace.nodes.MapEntry) \
-                and map_entry.params == ['x', 'y'] \
-                and map_entry.range == Range([(halo, I-halo-1, 1), (halo, J-halo-1, 1)]):
-                MapEnlarge.apply_to(sdfg, map_entry=map_entry, options={'new_range': Range([(halo-1, I-halo, 1), (halo-1, J-halo, 1)])} )
-        sdfg.save("gen/" + self.__class__.__name__ + "_PreFusion.sdfg")
+        # # MapEnlarge
+        # for map_entry in sdfg.node(0).nodes():
+        #     if isinstance(map_entry, dace.nodes.MapEntry) \
+        #         and map_entry.params == ['x', 'y'] \
+        #         and map_entry.range == Range([(halo, I-halo-1, 1), (halo, J-halo-1, 1)]):
+        #         MapEnlarge.apply_to(sdfg, map_entry=map_entry, options={'new_range': Range([(halo-1, I-halo, 1), (halo-1, J-halo, 1)])} )
+        # sdfg.save("gen/" + self.__class__.__name__ + "_PreFusion.sdfg")
         
-        sdfg.apply_transformations_repeated(MapFusion)
-        sdfg.save("gen/" + self.__class__.__name__ + "_PostFusion.sdfg")
+        # sdfg.apply_transformations_repeated(MapFusion)
+        # sdfg.save("gen/" + self.__class__.__name__ + "_PostFusion.sdfg")
         # sdfg.apply_transformations_repeated(OnTheFlyMapFusion)
         # sdfg.save("gen/" + self.__class__.__name__ + "_otf.sdfg")
         sdfg = sdfg.compile()
