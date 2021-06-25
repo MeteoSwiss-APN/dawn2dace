@@ -1,0 +1,19 @@
+#!/bin/bash -l
+#SBATCH --job-name="autotuning"
+#SBATCH --account=c14
+#SBATCH --time=00:10:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-core=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=1
+#SBATCH --partition=normal
+#SBATCH --constraint=gpu
+#SBATCH --hint=nomultithread
+#SBATCH --array=0-12
+
+module load daint-gpu
+module load cudatoolkit
+module swap PrgEnv-cray PrgEnv-gnu
+module load cray-python
+
+srun activate ~/dace/venv/bin/activate; python3.8 run.py ${SLURM_ARRAY_TASK_ID}
